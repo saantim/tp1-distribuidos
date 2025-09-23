@@ -12,3 +12,6 @@ docker-compose.yaml
 
 # Jetbrains
 .idea/
+
+# Files
+.data/
