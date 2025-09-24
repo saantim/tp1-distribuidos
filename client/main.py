@@ -22,8 +22,7 @@ def initialize_config():
 
     config_params = {}
     try:
-        config_params["gateway_host"] = os.getenv("GATEWAY_HOST", config["DEFAULT"]["GATEWAY_HOST"])
-        config_params["gateway_port"] = int(os.getenv("GATEWAY_PORT", config["DEFAULT"]["GATEWAY_PORT"]))
+        config_params["gateway_address"] = os.getenv("GATEWAY_HOST", config["DEFAULT"]["GATEWAY_ADDRESS"])
         config_params["max_bytes"] = int(os.getenv("MAX_BYTES", config["BATCH"]["MAX_BYTES"]))
         config_params["max_rows"] = int(os.getenv("MAX_ROWS", config["BATCH"]["MAX_ROWS"]))
         config_params["data_dir"] = os.getenv("DATA_DIR", config["DATA"]["DATA_DIR"])
@@ -79,8 +78,7 @@ def main():
         print(f"Configuration error: {e}")
         return
 
-    gateway_host = config_params["gateway_host"]
-    gateway_port = config_params["gateway_port"]
+    gateway_adress = config_params["gateway_address"]
     max_bytes = config_params["max_bytes"]
     max_rows = config_params["max_rows"]
     data_dir = config_params["data_dir"]
@@ -91,7 +89,7 @@ def main():
 
     logging.debug(
         f"action: config | result: success | "
-        f"gateway_host: {gateway_host} | gateway_port: {gateway_port} | "
+        f"gateway_address: {gateway_adress} | "
         f"max_bytes: {max_bytes} | max_rows: {max_rows} | "
         f"data_dir: {data_dir} | enabled_folders: {enabled_folders} | "
         f"logging_level: {logging_level}"
@@ -99,7 +97,7 @@ def main():
 
     try:
         batch_config = BatchConfig(max_bytes, max_rows if max_rows > 0 else None)
-        analyzer_config = AnalyzerConfig(gateway_host, gateway_port, batch_config)
+        analyzer_config = AnalyzerConfig(gateway_adress, batch_config)
 
         folders = load_folders(config_params)
         if not folders:
@@ -108,7 +106,7 @@ def main():
 
         shutdown_signal = ShutdownSignal()
 
-        logging.info(f"action: start_analysis | folders: {len(folders)} | gateway: {gateway_host}:{gateway_port}")
+        logging.info(f"action: start_analysis | folders: {len(folders)} | gateway: {gateway_adress}")
 
         analyzer = Analyzer(analyzer_config, folders, shutdown_signal)
         analyzer.run()

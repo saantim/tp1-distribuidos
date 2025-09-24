@@ -14,9 +14,10 @@ serialization across different platforms and architectures.
 import struct
 from abc import ABC, abstractmethod
 from datetime import datetime
+from enum import IntEnum
 
 
-class MessageType:
+class PacketType(IntEnum):
     # file control
     FILE_SEND_START = 0
     FILE_SEND_END = 1
@@ -84,18 +85,18 @@ class Packet(ABC):
     def deserialize(cls, header: Header, payload: bytes) -> "Packet":
         """based on the header, deserializes it into a concrete packet object."""
         packet_classes = {
-            MessageType.FILE_SEND_START: FileSendStart,
-            MessageType.FILE_SEND_END: FileSendEnd,
-            MessageType.STORE_BATCH: StoreBatch,
-            MessageType.USERS_BATCH: UsersBatch,
-            MessageType.TRANSACTIONS_BATCH: TransactionsBatch,
-            MessageType.TRANSACTION_ITEMS_BATCH: TransactionItemsBatch,
-            MessageType.MENU_ITEMS_BATCH: MenuItemsBatch,
-            MessageType.ACK: AckPacket,
-            MessageType.ERROR: ErrorPacket,
+            PacketType.FILE_SEND_START: FileSendStart,
+            PacketType.FILE_SEND_END: FileSendEnd,
+            PacketType.STORE_BATCH: StoreBatch,
+            PacketType.USERS_BATCH: UsersBatch,
+            PacketType.TRANSACTIONS_BATCH: TransactionsBatch,
+            PacketType.TRANSACTION_ITEMS_BATCH: TransactionItemsBatch,
+            PacketType.MENU_ITEMS_BATCH: MenuItemsBatch,
+            PacketType.ACK: AckPacket,
+            PacketType.ERROR: ErrorPacket,
         }
 
-        packet_class = packet_classes.get(header.message_type)
+        packet_class = packet_classes.get(PacketType(header.message_type))
         if packet_class is None:
             raise ValueError(f"Unknown message type: {header.message_type}")
 
@@ -106,7 +107,7 @@ class FileSendStart(Packet):
     """file send start packet - empty payload"""
 
     def get_message_type(self) -> int:
-        return MessageType.FILE_SEND_START
+        return PacketType.FILE_SEND_START
 
     def serialize_payload(self) -> bytes:
         return b""
@@ -120,7 +121,7 @@ class FileSendEnd(Packet):
     """file send end packet - empty payload"""
 
     def get_message_type(self) -> int:
-        return MessageType.FILE_SEND_END
+        return PacketType.FILE_SEND_END
 
     def serialize_payload(self) -> bytes:
         return b""
@@ -147,7 +148,7 @@ class StoreBatch(Packet):
         self.eof = eof
 
     def get_message_type(self) -> int:
-        return MessageType.STORE_BATCH
+        return PacketType.STORE_BATCH
 
     def serialize_payload(self) -> bytes:
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
@@ -214,7 +215,7 @@ class UsersBatch(Packet):
         self.eof = eof
 
     def get_message_type(self) -> int:
-        return MessageType.USERS_BATCH
+        return PacketType.USERS_BATCH
 
     def serialize_payload(self) -> bytes:
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
@@ -271,7 +272,7 @@ class TransactionsBatch(Packet):
         self.eof = eof
 
     def get_message_type(self) -> int:
-        return MessageType.TRANSACTIONS_BATCH
+        return PacketType.TRANSACTIONS_BATCH
 
     def serialize_payload(self) -> bytes:
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
@@ -354,7 +355,7 @@ class TransactionItemsBatch(Packet):
         self.eof = eof
 
     def get_message_type(self) -> int:
-        return MessageType.TRANSACTION_ITEMS_BATCH
+        return PacketType.TRANSACTION_ITEMS_BATCH
 
     def serialize_payload(self) -> bytes:
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
@@ -419,7 +420,7 @@ class MenuItemsBatch(Packet):
         self.eof = eof
 
     def get_message_type(self) -> int:
-        return MessageType.MENU_ITEMS_BATCH
+        return PacketType.MENU_ITEMS_BATCH
 
     def serialize_payload(self) -> bytes:
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
@@ -472,7 +473,7 @@ class AckPacket(Packet):
     """acknowledgment packet - empty payload"""
 
     def get_message_type(self) -> int:
-        return MessageType.ACK
+        return PacketType.ACK
 
     def serialize_payload(self) -> bytes:
         return b""
@@ -496,7 +497,7 @@ class ErrorPacket(Packet):
         self.message = message
 
     def get_message_type(self) -> int:
-        return MessageType.ERROR
+        return PacketType.ERROR
 
     def serialize_payload(self) -> bytes:
         data = struct.pack(self.FORMAT, self.error_code)

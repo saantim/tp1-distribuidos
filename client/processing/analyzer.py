@@ -11,16 +11,15 @@ from typing import Any, Callable, Dict, List
 from batch import BatchConfig, BatchProcessor
 
 from shared.network import Network
-from shared.protocol import FileSendEnd, FileSendStart, Packet
+from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType
 from shared.shutdown import ShutdownSignal
 
 
 class AnalyzerConfig:
     """configuration for the analyzer."""
 
-    def __init__(self, gateway_ip: str, gateway_port: int, batch_config: BatchConfig):
-        self.gateway_host = gateway_ip
-        self.gateway_port = gateway_port
+    def __init__(self, gateway_address: str, batch_config: BatchConfig):
+        self.gateway_address = gateway_address
         self.batch_config = batch_config
 
 
@@ -66,7 +65,8 @@ class Analyzer:
             self._send_session_start()
             self._process_packet_queue()
             self._send_session_end()
-            # todo: aca debemos empezar a esperar por el "resultado final"
+            # todo: aca debemos empezar a esperar por el "resultado final" ya sea
+            #   a travÃ©s de la conexiÃ³n TCP o mediante el middleware esperar la cola "results."
 
         except Exception as e:
             print(f"analysis failed: {e}")
@@ -77,7 +77,7 @@ class Analyzer:
     def _connect_to_gateway(self):
         """establish tcp connection to server."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((self.config.gateway_host, self.config.gateway_port))
+        sock.connect(self.config.gateway_address)
         self.network = Network(sock, self.shutdown_signal)
 
     def _start_processing_threads(self):
@@ -108,9 +108,10 @@ class Analyzer:
             self.packet_queue.put(None)
 
     def _send_session_start(self):
-        """send session start packet to server."""
+        """send session start packet to server and wait for ACK."""
         start_packet = FileSendStart()
         self.network.send_packet(start_packet)
+        self._wait_for_ack("session start")
 
     def _process_packet_queue(self):
         """
@@ -119,6 +120,7 @@ class Analyzer:
         """
         finished_threads = 0
         total_threads = len(self.threads)
+        packet_count = 0
 
         while finished_threads < total_threads:
             if self.shutdown_signal.should_shutdown():
@@ -132,14 +134,27 @@ class Analyzer:
                     continue
 
                 self.network.send_packet(packet)
+                packet_count += 1
+                self._wait_for_ack(f"data packet #{packet_count}")
 
             except queue.Empty:
                 continue
 
     def _send_session_end(self):
-        """send session end packet to server."""
+        """send session end packet to server and wait for ACK."""
         end_packet = FileSendEnd()
         self.network.send_packet(end_packet)
+        self._wait_for_ack("session end")
+
+    def _wait_for_ack(self, stage: str):
+        """wait for ACK packet and handle errors."""
+        ack_packet = self.network.recv_packet()
+        if not ack_packet:
+            raise Exception(f"connection lost while waiting for ACK for {stage}")
+        elif ack_packet.get_message_type() == PacketType.ERROR:
+            raise Exception(f"server error for {stage}: {ack_packet.message}")
+        elif ack_packet.get_message_type() != PacketType.ACK:
+            raise Exception(f"did not receive ACK for {stage}")
 
     def _wait_for_threads(self):
         """wait for all processing threads to complete."""
