@@ -5,9 +5,8 @@ import logging
 import os
 from pathlib import Path
 
-from analyzer import Analyzer, AnalyzerConfig, FolderConfig
-from batch import BatchConfig
-
+from client.core.analyzer import Analyzer, AnalyzerConfig, FolderConfig
+from client.core.batch import BatchConfig
 from shared.protocol import MenuItemsBatch, StoreBatch, TransactionItemsBatch, TransactionsBatch, UsersBatch
 from shared.shutdown import ShutdownSignal
 
