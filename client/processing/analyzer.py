@@ -66,7 +66,7 @@ class Analyzer:
             self._process_packet_queue()
             self._send_session_end()
             # todo: aca debemos empezar a esperar por el "resultado final" ya sea
-            #   a travÃ©s de la conexiÃ³n TCP o mediante el middleware esperar la cola "results."
+            #   a través de la conexión TCP o mediante el middleware esperar la cola "results."
 
         except Exception as e:
             print(f"analysis failed: {e}")
