@@ -124,7 +124,7 @@ class Analyzer:
                 break
 
             try:
-                packet = self.packet_queue.get(timeout=1.0)
+                packet = self.packet_queue.get(timeout=2.0)
 
                 if packet is None:
                     finished_threads += 1
