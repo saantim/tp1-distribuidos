@@ -66,6 +66,7 @@ class Analyzer:
             self._send_session_start()
             self._process_packet_queue()
             self._send_session_end()
+            # todo: aca debemos empezar a esperar por el "resultado final"
 
         except Exception as e:
             print(f"analysis failed: {e}")
