@@ -53,17 +53,21 @@ class BatchProcessor:
         """
         generator that yields all packets from all csv files in folder.
         processes files in order. designed for queue.put() in threads.
+        sends final empty EOF packet when folder processing is complete.
         """
         csv_files = sorted(self.folder_path.glob("*.csv"))
 
         if not csv_files:
+            yield self.packet_creator([], True)
             return
 
         for csv_file in csv_files:
-            if self.shutdown_signal and self.shutdown_signal.should_shutdown():
+            if self.shutdown_signal.should_shutdown():
                 break
-
             yield from self._process_file(csv_file)
+
+        if not self.shutdown_signal.should_shutdown():
+            yield self.packet_creator([], True)
 
     def _process_file(self, csv_path: Path):
         """process single csv file, yielding batches."""
@@ -76,21 +80,19 @@ class BatchProcessor:
                 if self.shutdown_signal and self.shutdown_signal.should_shutdown():
                     break
 
-                clean_row = {key: value.strip() for key, value in row.items()}
-
                 if self._can_add_to_batch(current_batch):
-                    current_batch.append(clean_row)
+                    current_batch.append(row)
                 else:
                     if current_batch:
                         yield self.packet_creator(current_batch, False)
-                    current_batch = [clean_row]
+                    current_batch = [row]
 
                 if self.config.max_rows and len(current_batch) >= self.config.max_rows:
                     yield self.packet_creator(current_batch, False)
                     current_batch = []
 
             if current_batch:
-                yield self.packet_creator(current_batch, True)
+                yield self.packet_creator(current_batch, False)
 
     def _can_add_to_batch(self, current_batch: List[Dict[str, Any]]) -> bool:
         """check if adding new row would exceed size limit."""

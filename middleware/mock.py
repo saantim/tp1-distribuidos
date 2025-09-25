@@ -19,7 +19,7 @@ class MockPublisher(MessageMiddleware):
         self.consuming = False
 
     def send(self, message):
-        logging.debug(f"action: mock_publish | queue: {self.queue_name} | size: {len(message)}")
+        logging.info(f"action: mock_publish | queue: {self.queue_name} | size: {len(message)}")
 
     def close(self):
         logging.debug(f"action: mock_close | queue: {self.queue_name}")

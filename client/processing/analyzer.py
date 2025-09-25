@@ -4,9 +4,9 @@ manages threads for csv processing and handles tcp communication with gateway.
 """
 
 import logging
-import queue
 import socket
 import threading
+import time
 from typing import Any, Callable, Dict, List
 
 from shared.network import Network
@@ -53,7 +53,7 @@ class Analyzer:
         self.folders = folders
         self.shutdown_signal = shutdown_signal
 
-        self.packet_queue = queue.Queue(maxsize=1000)
+        self.network_lock = threading.Lock()
         self.threads = []
         self.network = None
 
@@ -64,13 +64,18 @@ class Analyzer:
         """
         try:
             self._connect_to_gateway()
-            self._start_processing_threads()
             self._send_session_start()
-            self._process_packet_queue()
+
+            start_time = time.time()
+            self._start_processing_threads()
+            self._wait_for_threads()
+            end_time = time.time()
+
+            total_time = end_time - start_time
+            logging.info(f"action: file_send | status: complete | total_time: {total_time:.2f}s")
+
             self._send_session_end()
             logging.info("action: analysis_complete | result: success")
-            # todo: aca debemos empezar a esperar por el "resultado final" ya sea
-            #   a través de la conexión TCP o mediante el middleware esperar la cola "results."
 
         except Exception as e:
             logging.error(f"coffee shop analysis error: {e}")
@@ -94,8 +99,10 @@ class Analyzer:
     def _process_folder(self, folder_config: FolderConfig):
         """
         worker thread function that processes a single folder.
-        sends packets to the shared queue.
+        sends packets directly to network with lock synchronization.
         """
+        folder_start_time = time.time()
+
         try:
             processor = BatchProcessor(
                 folder_config.path,
@@ -108,44 +115,27 @@ class Analyzer:
             for packet in processor.process():
                 if self.shutdown_signal.should_shutdown():
                     break
-                self.packet_queue.put(packet)
+
+                with self.network_lock:
+                    self.network.send_packet(packet)
+
+            if not self.shutdown_signal.should_shutdown():
+                folder_end_time = time.time()
+                folder_duration = folder_end_time - folder_start_time
+                logging.info(
+                    f"action: folder_send | status: complete |"
+                    f" folder: {folder_config.path} | duration: {folder_duration:.2f}s"
+                )
 
         except Exception as e:
             logging.error(f"error processing folder {folder_config.path}: {e}")
             self.shutdown_signal.trigger_shutdown()
-        finally:
-            logging.info(f"action: folder_send | status: complete | folder: {folder_config.path}")
-            self.packet_queue.put(None)
 
     def _send_session_start(self):
         """send session start packet to server and wait for ACK."""
         start_packet = FileSendStart()
         self.network.send_packet(start_packet)
         self._wait_for_ack("session start")
-
-    def _process_packet_queue(self):
-        """
-        main loop that processes packets from the queue and sends to server.
-        continues until all threads finish.
-        """
-        finished_threads = 0
-        total_threads = len(self.threads)
-
-        while finished_threads < total_threads:
-            if self.shutdown_signal.should_shutdown():
-                break
-
-            try:
-                packet = self.packet_queue.get(timeout=2.0)
-
-                if packet is None:
-                    finished_threads += 1
-                    continue
-
-                self.network.send_packet(packet)
-
-            except queue.Empty:
-                continue
 
     def _send_session_end(self):
         """send session end packet to server and wait for ACK."""
