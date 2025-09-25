@@ -5,11 +5,11 @@ handles FileSendStart -> batches -> FileSendEnd protocol.
 
 import logging
 
-from router import PacketRouter
-
 from shared.network import Network, NetworkError
 from shared.protocol import AckPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
+
+from .router import PacketRouter
 
 
 class ClientHandler:

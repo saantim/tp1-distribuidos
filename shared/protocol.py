@@ -18,16 +18,13 @@ from enum import IntEnum
 
 
 class PacketType(IntEnum):
-    # file control
     FILE_SEND_START = 0
     FILE_SEND_END = 1
-    # batches
     STORE_BATCH = 2
     USERS_BATCH = 3
     TRANSACTIONS_BATCH = 4
     TRANSACTION_ITEMS_BATCH = 5
     MENU_ITEMS_BATCH = 6
-    # control
     ACK = 20
     ERROR = 21
 
@@ -154,15 +151,16 @@ class StoreBatch(Packet):
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
 
         for row in self.rows:
-            # fixed fields
-            data += struct.pack(
-                self.ROW_FIXED_FORMAT, row["store_id"], row["postal_code"], row["latitude"], row["longitude"]
-            )
-            # variable strings
-            data += pack_string(row["store_name"])
-            data += pack_string(row["street"])
-            data += pack_string(row["city"])
-            data += pack_string(row["state"])
+            store_id = safe_int(row["store_id"])
+            postal_code = safe_int(row["postal_code"])
+            latitude = safe_float(row["latitude"])
+            longitude = safe_float(row["longitude"])
+
+            data += struct.pack(self.ROW_FIXED_FORMAT, store_id, postal_code, latitude, longitude)
+            data += pack_string(str(row["store_name"]))
+            data += pack_string(str(row["street"]))
+            data += pack_string(str(row["city"]))
+            data += pack_string(str(row["state"]))
 
         return data
 
@@ -173,11 +171,9 @@ class StoreBatch(Packet):
 
         rows = []
         for _ in range(row_count):
-            # fixed fields
             store_id, postal_code, latitude, longitude = struct.unpack_from(cls.ROW_FIXED_FORMAT, data, offset)
             offset += struct.calcsize(cls.ROW_FIXED_FORMAT)
 
-            # variable strings
             store_name, offset = unpack_string(data, offset)
             street, offset = unpack_string(data, offset)
             city, offset = unpack_string(data, offset)
@@ -221,11 +217,15 @@ class UsersBatch(Packet):
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
 
         for row in self.rows:
-            birthdate_ts = int(row["birthdate"].timestamp())
-            registered_at_ts = int(row["registered_at"].timestamp())
+            user_id = safe_int(row["user_id"])
+            birthdate = safe_birthdate(row["birthdate"])
+            registered_at = safe_timestamp(row["registered_at"])
 
-            data += struct.pack(self.ROW_FIXED_FORMAT, row["user_id"], birthdate_ts, registered_at_ts)
-            data += pack_string(row["gender"])
+            birthdate_ts = int(birthdate.timestamp())
+            registered_at_ts = int(registered_at.timestamp())
+
+            data += struct.pack(self.ROW_FIXED_FORMAT, user_id, birthdate_ts, registered_at_ts)
+            data += pack_string(str(row["gender"]))
 
         return data
 
@@ -264,8 +264,8 @@ class TransactionsBatch(Packet):
     """
 
     HEADER_FORMAT = ">IB"
-    ROW_FIXED_FORMAT = ">BIBB"  # store_id, payment_method_id, voucher_flag, user_flag
-    AMOUNTS_FORMAT = ">dddQ"  # original, discount, final, created_at
+    ROW_FIXED_FORMAT = ">BIBB"
+    AMOUNTS_FORMAT = ">dddQ"
 
     def __init__(self, rows: list[dict], eof: bool = False):
         self.rows = rows
@@ -278,22 +278,30 @@ class TransactionsBatch(Packet):
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
 
         for row in self.rows:
-            has_voucher = 1 if row.get("voucher_id") else 0
-            has_user = 1 if row.get("user_id") else 0
+            store_id = safe_int(row["store_id"])
+            payment_method_id = safe_int(row["payment_method_id"])
 
-            data += struct.pack(self.ROW_FIXED_FORMAT, row["store_id"], row["payment_method_id"], has_voucher, has_user)
+            voucher_id = safe_float(row.get("voucher_id", ""))
+            user_id = safe_float(row.get("user_id", ""))
 
-            data += pack_string(row["transaction_id"])
+            has_voucher = 1 if voucher_id is not None else 0
+            has_user = 1 if user_id is not None else 0
+
+            data += struct.pack(self.ROW_FIXED_FORMAT, store_id, payment_method_id, has_voucher, has_user)
+            data += pack_string(str(row["transaction_id"]))
 
             if has_voucher:
-                data += pack_string(row["voucher_id"])
+                data += struct.pack(">d", voucher_id)
             if has_user:
-                data += struct.pack(">I", row["user_id"])
+                data += struct.pack(">d", user_id)
 
-            created_at_ts = int(row["created_at"].timestamp())
-            data += struct.pack(
-                self.AMOUNTS_FORMAT, row["original_amount"], row["discount_applied"], row["final_amount"], created_at_ts
-            )
+            original_amount = safe_float(row["original_amount"])
+            discount_applied = safe_float(row["discount_applied"])
+            final_amount = safe_float(row["final_amount"])
+            created_at = safe_timestamp(row["created_at"])
+            created_at_ts = int(created_at.timestamp())
+
+            data += struct.pack(self.AMOUNTS_FORMAT, original_amount, discount_applied, final_amount, created_at_ts)
 
         return data
 
@@ -311,12 +319,13 @@ class TransactionsBatch(Packet):
 
             voucher_id = None
             if has_voucher:
-                voucher_id, offset = unpack_string(data, offset)
+                voucher_id = struct.unpack_from(">d", data, offset)[0]
+                offset += 8
 
             user_id = None
             if has_user:
-                user_id = struct.unpack_from(">I", data, offset)[0]
-                offset += 4
+                user_id = struct.unpack_from(">d", data, offset)[0]
+                offset += 8
 
             original, discount, final, created_at_ts = struct.unpack_from(cls.AMOUNTS_FORMAT, data, offset)
             offset += struct.calcsize(cls.AMOUNTS_FORMAT)
@@ -361,17 +370,15 @@ class TransactionItemsBatch(Packet):
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
 
         for row in self.rows:
-            created_at_ts = int(row["created_at"].timestamp())
+            item_id = safe_int(row["item_id"])
+            quantity = safe_int(row["quantity"])
+            unit_price = safe_float(row["unit_price"])
+            subtotal = safe_float(row["subtotal"])
+            created_at = safe_timestamp(row["created_at"])
+            created_at_ts = int(created_at.timestamp())
 
-            data += struct.pack(
-                self.ROW_FIXED_FORMAT,
-                row["item_id"],
-                row["quantity"],
-                row["unit_price"],
-                row["subtotal"],
-                created_at_ts,
-            )
-            data += pack_string(row["transaction_id"])
+            data += struct.pack(self.ROW_FIXED_FORMAT, item_id, quantity, unit_price, subtotal, created_at_ts)
+            data += pack_string(str(row["transaction_id"]))
 
         return data
 
@@ -404,16 +411,8 @@ class TransactionItemsBatch(Packet):
 
 
 class MenuItemsBatch(Packet):
-    """
-    menu items batch packet.
-
-    header: row_count (>I) + eof (>B)
-    per row: item_id (>B) + price (>d) + is_seasonal (>B) + available_from (>d) + available_to (>d)
-             + variable: item_name, category
-    """
-
     HEADER_FORMAT = ">IB"
-    ROW_FIXED_FORMAT = ">BdBdd"
+    ROW_FIXED_FORMAT = ">BdBQQ"
 
     def __init__(self, rows: list[dict], eof: bool = False):
         self.rows = rows
@@ -426,16 +425,19 @@ class MenuItemsBatch(Packet):
         data = struct.pack(self.HEADER_FORMAT, len(self.rows), 1 if self.eof else 0)
 
         for row in self.rows:
-            data += struct.pack(
-                self.ROW_FIXED_FORMAT,
-                row["item_id"],
-                row["price"],
-                1 if row["is_seasonal"] else 0,
-                row["available_from"],
-                row["available_to"],
-            )
-            data += pack_string(row["item_name"])
-            data += pack_string(row["category"])
+            item_id = safe_int(row["item_id"])
+            price = safe_float(row["price"])
+            is_seasonal = 1 if str(row.get("is_seasonal", "")).lower() == "true" else 0
+
+            available_from = safe_timestamp(row.get("available_from", ""))
+            available_to = safe_timestamp(row.get("available_to", ""))
+
+            available_from_ts = int(available_from.timestamp()) if available_from else 0
+            available_to_ts = int(available_to.timestamp()) if available_to else 0
+
+            data += struct.pack(self.ROW_FIXED_FORMAT, item_id, price, is_seasonal, available_from_ts, available_to_ts)
+            data += pack_string(str(row["item_name"]))
+            data += pack_string(str(row["category"]))
 
         return data
 
@@ -446,13 +448,16 @@ class MenuItemsBatch(Packet):
 
         rows = []
         for _ in range(row_count):
-            item_id, price, is_seasonal, available_from, available_to = struct.unpack_from(
+            (item_id, price, is_seasonal, available_from_ts, available_to_ts) = struct.unpack_from(
                 cls.ROW_FIXED_FORMAT, data, offset
             )
             offset += struct.calcsize(cls.ROW_FIXED_FORMAT)
 
             item_name, offset = unpack_string(data, offset)
             category, offset = unpack_string(data, offset)
+
+            available_from = datetime.fromtimestamp(available_from_ts) if available_from_ts else None
+            available_to = datetime.fromtimestamp(available_to_ts) if available_to_ts else None
 
             rows.append(
                 {
@@ -470,8 +475,6 @@ class MenuItemsBatch(Packet):
 
 
 class AckPacket(Packet):
-    """acknowledgment packet - empty payload"""
-
     def get_message_type(self) -> int:
         return PacketType.ACK
 
@@ -484,12 +487,6 @@ class AckPacket(Packet):
 
 
 class ErrorPacket(Packet):
-    """
-    error packet.
-
-    format: error_code (>I) + message (variable string)
-    """
-
     FORMAT = ">I"
 
     def __init__(self, error_code: int, message: str):
@@ -513,14 +510,48 @@ class ErrorPacket(Packet):
 
 
 def pack_string(s: str) -> bytes:
-    """pack string as length (>B) + utf8_bytes"""
     encoded = s.encode("utf-8")
     return struct.pack(">B", len(encoded)) + encoded
 
 
 def unpack_string(data: bytes, offset: int) -> tuple[str, int]:
-    """unpack string and return (string, new_offset)"""
     length = struct.unpack_from(">B", data, offset)[0]
     offset += 1
     string = data[offset : offset + length].decode("utf-8")
     return string, offset + length
+
+
+def safe_int(value):
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip():
+        return int(value)
+    if not value or (isinstance(value, str) and not value.strip()):
+        return 0
+    raise ValueError(f"Cannot convert to int: {value}")
+
+
+def safe_float(value):
+    if isinstance(value, float):
+        return value
+    if isinstance(value, str) and value.strip():
+        return float(value)
+    if not value or (isinstance(value, str) and not value.strip()):
+        return None
+    raise ValueError(f"Cannot convert to float: {value}")
+
+
+def safe_timestamp(value):
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value.strip():
+        return datetime.strptime(value.strip(), "%Y-%m-%d %H:%M:%S")
+    raise ValueError(f"Cannot parse timestamp: {value}")
+
+
+def safe_birthdate(value):
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value.strip():
+        return datetime.strptime(value.strip(), "%Y-%m-%d")
+    raise ValueError(f"Cannot parse birthdate: {value}")

@@ -3,23 +3,25 @@ main coffee shop analysis engine that coordinates batch sending and network comm
 manages threads for csv processing and handles tcp communication with gateway.
 """
 
+import logging
 import queue
 import socket
 import threading
 from typing import Any, Callable, Dict, List
 
-from batch import BatchConfig, BatchProcessor
-
 from shared.network import Network
 from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType
 from shared.shutdown import ShutdownSignal
+
+from .batch import BatchConfig, BatchProcessor
 
 
 class AnalyzerConfig:
     """configuration for the analyzer."""
 
-    def __init__(self, gateway_address: str, batch_config: BatchConfig):
-        self.gateway_address = gateway_address
+    def __init__(self, gateway_host: str, gateway_port: int, batch_config: BatchConfig):
+        self.gateway_host = gateway_host
+        self.gateway_port = gateway_port
         self.batch_config = batch_config
 
 
@@ -65,11 +67,12 @@ class Analyzer:
             self._send_session_start()
             self._process_packet_queue()
             self._send_session_end()
+            logging.info("action: analysis_complete | result: success")
             # todo: aca debemos empezar a esperar por el "resultado final" ya sea
             #   a través de la conexión TCP o mediante el middleware esperar la cola "results."
 
         except Exception as e:
-            print(f"analysis failed: {e}")
+            logging.error(f"coffee shop analysis error: {e}")
             self.shutdown_signal.trigger_shutdown()
         finally:
             self._cleanup()
@@ -77,7 +80,7 @@ class Analyzer:
     def _connect_to_gateway(self):
         """establish tcp connection to server."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(self.config.gateway_address)
+        sock.connect((self.config.gateway_host, self.config.gateway_port))
         self.network = Network(sock, self.shutdown_signal)
 
     def _start_processing_threads(self):
@@ -103,7 +106,7 @@ class Analyzer:
                 self.packet_queue.put(packet)
 
         except Exception as e:
-            print(f"error processing folder {folder_config.path}: {e}")
+            logging.error(f"error processing folder {folder_config.path}: {e}")
         finally:
             self.packet_queue.put(None)
 

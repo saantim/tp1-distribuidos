@@ -35,7 +35,7 @@ def initialize_config():
         config_params["menu_items_queue"] = os.getenv("MENU_ITEMS_QUEUE", config["QUEUES"]["MENU_ITEMS_QUEUE"])
 
     except KeyError as e:
-        raise KeyError("Key was not found. Error: {} .Aborting gateway".format(e))
+        raise KeyError("Key was not found. Error: {}. Aborting gateway".format(e))
     except ValueError as e:
         raise ValueError("Key could not be parsed. Error: {}. Aborting gateway".format(e))
 

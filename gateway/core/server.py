@@ -7,10 +7,10 @@ import logging
 import socket
 from typing import Optional
 
-from handler import ClientHandler
-from router import PacketRouter
-
 from shared.shutdown import ShutdownSignal
+
+from .handler import ClientHandler
+from .router import PacketRouter
 
 
 class Server:

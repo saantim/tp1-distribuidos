@@ -7,8 +7,8 @@ supports graceful shutdown signaling for responsive network operations.
 import socket
 from typing import Optional
 
-from protocol import Header, Packet
-from shutdown import ShutdownSignal
+from .protocol import Header, Packet
+from .shutdown import ShutdownSignal
 
 
 class NetworkError(Exception):

@@ -1,6 +1,6 @@
 import logging
 
-from interface import MessageMiddleware
+from .interface import MessageMiddleware
 
 
 class MockPublisher(MessageMiddleware):
