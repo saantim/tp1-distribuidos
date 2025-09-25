@@ -97,7 +97,6 @@ class ClientHandler:
                 try:
                     self.router.route_packet(packet)
                     batch_count += 1
-                    self._send_ack_packet()
 
                 except Exception as e:
                     logging.error(f"action: route_packet | result: fail | error: {e}")

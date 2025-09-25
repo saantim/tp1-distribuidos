@@ -29,6 +29,7 @@ class BatchProcessor:
         self,
         folder_path: str,
         packet_creator: Callable[[List[Dict[str, Any]], bool], Packet],
+        packet_size: int,
         config: BatchConfig,
         shutdown_signal: Optional[ShutdownSignal] = None,
     ):
@@ -38,11 +39,13 @@ class BatchProcessor:
         args:
             folder_path: path to folder containing csv files
             packet_creator: function to create packets from row batches
+            packet_size: size of packets to create
             config: batch size configuration
             shutdown_signal: optional shutdown signal handler
         """
         self.folder_path = Path(folder_path)
         self.packet_creator = packet_creator
+        self.packet_size = packet_size
         self.config = config
         self.shutdown_signal = shutdown_signal
 
@@ -75,7 +78,7 @@ class BatchProcessor:
 
                 clean_row = {key: value.strip() for key, value in row.items()}
 
-                if self._can_add_to_batch(current_batch, clean_row):
+                if self._can_add_to_batch(current_batch):
                     current_batch.append(clean_row)
                 else:
                     if current_batch:
@@ -89,13 +92,12 @@ class BatchProcessor:
             if current_batch:
                 yield self.packet_creator(current_batch, True)
 
-    def _can_add_to_batch(self, current_batch: List[Dict[str, Any]], new_row: Dict[str, Any]) -> bool:
+    def _can_add_to_batch(self, current_batch: List[Dict[str, Any]]) -> bool:
         """check if adding new row would exceed size limit."""
         if not current_batch:
             return True
 
-        test_batch = current_batch + [new_row]
-        test_packet = self.packet_creator(test_batch, False)
-        estimated_size = len(test_packet.serialize())
+        new_row_amount = len(current_batch) + 1
+        estimated_size = new_row_amount * self.packet_size
 
         return estimated_size <= self.config.max_bytes

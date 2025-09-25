@@ -28,9 +28,10 @@ class AnalyzerConfig:
 class FolderConfig:
     """configuration for a folder of CSVs to be processed."""
 
-    def __init__(self, path: str, packet_creator: Callable[[List[Dict[str, Any]], bool], Packet]):
+    def __init__(self, path: str, packet_creator: Callable[[List[Dict[str, Any]], bool], Packet], packet_size: int):
         self.path = path
         self.packet_creator = packet_creator
+        self.packet_size_estimate = packet_size
 
 
 class Analyzer:
@@ -52,7 +53,7 @@ class Analyzer:
         self.folders = folders
         self.shutdown_signal = shutdown_signal
 
-        self.packet_queue = queue.Queue()
+        self.packet_queue = queue.Queue(maxsize=1000)
         self.threads = []
         self.network = None
 
@@ -97,7 +98,11 @@ class Analyzer:
         """
         try:
             processor = BatchProcessor(
-                folder_config.path, folder_config.packet_creator, self.config.batch_config, self.shutdown_signal
+                folder_config.path,
+                folder_config.packet_creator,
+                folder_config.packet_size_estimate,
+                self.config.batch_config,
+                self.shutdown_signal,
             )
 
             for packet in processor.process():
@@ -109,6 +114,7 @@ class Analyzer:
             logging.error(f"error processing folder {folder_config.path}: {e}")
             self.shutdown_signal.trigger_shutdown()
         finally:
+            logging.info(f"action: folder_send | status: complete | folder: {folder_config.path}")
             self.packet_queue.put(None)
 
     def _send_session_start(self):
@@ -124,7 +130,6 @@ class Analyzer:
         """
         finished_threads = 0
         total_threads = len(self.threads)
-        packet_count = 0
 
         while finished_threads < total_threads:
             if self.shutdown_signal.should_shutdown():
@@ -138,8 +143,6 @@ class Analyzer:
                     continue
 
                 self.network.send_packet(packet)
-                packet_count += 1
-                self._wait_for_ack(f"data packet #{packet_count}")
 
             except queue.Empty:
                 continue

@@ -33,6 +33,20 @@ class Store:
             longitude=_safe_float(data.get("longitude"), default=0.0),
         )
 
+    @classmethod
+    def estimated_size(cls):
+        """
+        Fixed: store_id(1) + postal_code(4) + lat(8) + lon(8) = 21
+        Based on CSVs used by the data set.
+
+        Variable strings have a +1 for their prefix.
+            - store_name: ~25 chars avg ("G Coffee @ USJ 89q")
+            - street: ~20 chars avg ("Jalan Dewan Bahasa 5/9")
+            - city: ~15 chars avg ("USJ 89q")
+            - state: ~18 chars avg ("Selangor Darul Ehsan")
+        """
+        return 21 + (1 + 25) + (1 + 20) + (1 + 15) + (1 + 18)
+
 
 @dataclass
 class User:
@@ -52,6 +66,17 @@ class User:
             birthdate=_safe_date(data.get("birthdate"), default=EPOCH),
             registered_at=_safe_datetime(data.get("registered_at"), EPOCH),
         )
+
+    @classmethod
+    def estimated_size(cls):
+        """
+        Fixed: user_id(4) + birthdate(8) + registered_at(8) = 20
+
+        Based on CSVs used by the data set.
+        Variable strings have a +1 for their prefix.
+            - gender (~6 chars avg "female")
+        """
+        return 20 + (1 + 6)
 
 
 @dataclass
@@ -83,6 +108,17 @@ class Transaction:
             created_at=_safe_datetime(data.get("created_at"), EPOCH),
         )
 
+    @classmethod
+    def estimated_size(cls):
+        """
+        Fixed: store_id(1) + payment_id(4) + voucher_id(4) + user_id(4) + amounts(24) + created_at(8) = 45
+
+        Based on CSVs used by the data set.
+        Variable strings have a +1 for their prefix.
+            - transaction_id (36 chars UUID)
+        """
+        return 45 + (1 + 36)
+
 
 @dataclass
 class TransactionItem:
@@ -106,6 +142,17 @@ class TransactionItem:
             subtotal=_safe_float(data.get("subtotal"), default=0.0),
             created_at=_safe_datetime(data.get("created_at"), EPOCH),
         )
+
+    @classmethod
+    def estimated_size(cls):
+        """
+        Fixed: item_id(1) + quantity(4) + unit_price(8) + subtotal(8) + created_at(8) = 29
+
+        Based on CSVs used by the data set.
+        Variable strings have a +1 for their prefix.
+            - transaction_id (36 chars UUID)
+        """
+        return 29 + (1 + 36)
 
 
 @dataclass
@@ -133,8 +180,19 @@ class MenuItem:
             available_to=_safe_datetime(data.get("available_to"), EPOCH),
         )
 
+    @classmethod
+    def estimated_size(cls):
+        """
+        Fixed: item_id(1) + price(8) + is_seasonal(1) + available_from(8) + available_to(8) = 26
 
-# Helper functions for safe conversion with sensible defaults
+        Based on CSVs used by the data set.
+        Variable strings have a +1 for their prefix.
+            - item_name: ~12 chars avg ("Matcha Latte")
+            - category: ~8 chars avg ("non-coffee")
+        """
+        return 26 + (1 + 12) + (1 + 8)
+
+
 def _safe_str(value: Any, default: str = "") -> str:
     """Convert to string, handling None and empty values"""
     if value is None or value == "":
@@ -173,7 +231,7 @@ def _safe_bool(value: Any, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.strip().lower() in ("true", "1", "yes", "on")
+        return value.strip().lower() in ("true", "1")
     return bool(value)
 
 

@@ -14,11 +14,20 @@ from shared.shutdown import ShutdownSignal
 
 
 PACKET_CREATORS = {
-    "stores": lambda rows, eof: StoreBatch([Store.from_dict(row) for row in rows], eof),
-    "users": lambda rows, eof: UsersBatch([User.from_dict(row) for row in rows], eof),
-    "transactions": lambda rows, eof: TransactionsBatch([Transaction.from_dict(row) for row in rows], eof),
-    "transaction_items": lambda rows, eof: TransactionItemsBatch([TransactionItem.from_dict(row) for row in rows], eof),
-    "menu_items": lambda rows, eof: MenuItemsBatch([MenuItem.from_dict(row) for row in rows], eof),
+    "stores": (lambda rows, eof: StoreBatch([Store.from_dict(row) for row in rows], eof), Store.estimated_size()),
+    "users": (lambda rows, eof: UsersBatch([User.from_dict(row) for row in rows], eof), User.estimated_size()),
+    "transactions": (
+        lambda rows, eof: TransactionsBatch([Transaction.from_dict(row) for row in rows], eof),
+        Transaction.estimated_size(),
+    ),
+    "transaction_items": (
+        lambda rows, eof: TransactionItemsBatch([TransactionItem.from_dict(row) for row in rows], eof),
+        TransactionItem.estimated_size(),
+    ),
+    "menu_items": (
+        lambda rows, eof: MenuItemsBatch([MenuItem.from_dict(row) for row in rows], eof),
+        MenuItem.estimated_size(),
+    ),
 }
 
 
@@ -51,10 +60,10 @@ def load_folders(config_params) -> list[FolderConfig]:
     folders = []
     data_dir = Path(config_params["data_dir"])
 
-    for folder_name, packet_creator in PACKET_CREATORS.items():
+    for folder_name, (packet_creator, packet_size) in PACKET_CREATORS.items():
         folder_path = data_dir / folder_name
         if folder_path.exists() and folder_path.is_dir():
-            folder_config = FolderConfig(str(folder_path), packet_creator)
+            folder_config = FolderConfig(str(folder_path), packet_creator, packet_size)
             folders.append(folder_config)
         else:
             raise Exception("Folder {} does not exist".format(folder_path))
