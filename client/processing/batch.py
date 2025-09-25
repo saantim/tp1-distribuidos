@@ -62,8 +62,6 @@ class BatchProcessor:
             return
 
         for csv_file in csv_files:
-            if self.shutdown_signal.should_shutdown():
-                break
             yield from self._process_file(csv_file)
 
         if not self.shutdown_signal.should_shutdown():
