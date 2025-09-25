@@ -8,16 +8,17 @@ from pathlib import Path
 from processing.analyzer import Analyzer, AnalyzerConfig, FolderConfig
 from processing.batch import BatchConfig
 
+from shared.entity import MenuItem, Store, Transaction, TransactionItem, User
 from shared.protocol import MenuItemsBatch, StoreBatch, TransactionItemsBatch, TransactionsBatch, UsersBatch
 from shared.shutdown import ShutdownSignal
 
 
 PACKET_CREATORS = {
-    "stores": lambda rows, eof: StoreBatch(rows, eof),
-    "users": lambda rows, eof: UsersBatch(rows, eof),
-    "transactions": lambda rows, eof: TransactionsBatch(rows, eof),
-    "transaction_items": lambda rows, eof: TransactionItemsBatch(rows, eof),
-    "menu_items": lambda rows, eof: MenuItemsBatch(rows, eof),
+    "stores": lambda rows, eof: StoreBatch([Store.from_dict(row) for row in rows], eof),
+    "users": lambda rows, eof: UsersBatch([User.from_dict(row) for row in rows], eof),
+    "transactions": lambda rows, eof: TransactionsBatch([Transaction.from_dict(row) for row in rows], eof),
+    "transaction_items": lambda rows, eof: TransactionItemsBatch([TransactionItem.from_dict(row) for row in rows], eof),
+    "menu_items": lambda rows, eof: MenuItemsBatch([MenuItem.from_dict(row) for row in rows], eof),
 }
 
 

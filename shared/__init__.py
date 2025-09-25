@@ -1,1 +1,1 @@
-__all__ = ["shutdown", "network", "protocol", "entity", "middleware"]
+__all__ = ["shutdown", "network", "protocol", "entity"]

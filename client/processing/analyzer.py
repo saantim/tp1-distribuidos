@@ -107,6 +107,7 @@ class Analyzer:
 
         except Exception as e:
             logging.error(f"error processing folder {folder_config.path}: {e}")
+            self.shutdown_signal.trigger_shutdown()
         finally:
             self.packet_queue.put(None)
 
