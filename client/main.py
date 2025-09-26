@@ -8,26 +8,16 @@ from pathlib import Path
 from processing.analyzer import Analyzer, AnalyzerConfig, FolderConfig
 from processing.batch import BatchConfig
 
-from shared.entity import MenuItem, Store, Transaction, TransactionItem, User
 from shared.protocol import MenuItemsBatch, StoreBatch, TransactionItemsBatch, TransactionsBatch, UsersBatch
 from shared.shutdown import ShutdownSignal
 
 
 PACKET_CREATORS = {
-    "stores": (lambda rows, eof: StoreBatch([Store.from_dict(row) for row in rows], eof), Store.estimated_size()),
-    "users": (lambda rows, eof: UsersBatch([User.from_dict(row) for row in rows], eof), User.estimated_size()),
-    "transactions": (
-        lambda rows, eof: TransactionsBatch([Transaction.from_dict(row) for row in rows], eof),
-        Transaction.estimated_size(),
-    ),
-    "transaction_items": (
-        lambda rows, eof: TransactionItemsBatch([TransactionItem.from_dict(row) for row in rows], eof),
-        TransactionItem.estimated_size(),
-    ),
-    "menu_items": (
-        lambda rows, eof: MenuItemsBatch([MenuItem.from_dict(row) for row in rows], eof),
-        MenuItem.estimated_size(),
-    ),
+    "stores": (lambda rows, eof: StoreBatch(rows, eof), StoreBatch.UNIT_SIZE),
+    "users": (lambda rows, eof: UsersBatch(rows, eof), UsersBatch.UNIT_SIZE),
+    "transactions": (lambda rows, eof: TransactionsBatch(rows, eof), TransactionsBatch.UNIT_SIZE),
+    "transaction_items": (lambda rows, eof: TransactionItemsBatch(rows, eof), TransactionItemsBatch.UNIT_SIZE),
+    "menu_items": (lambda rows, eof: MenuItemsBatch(rows, eof), MenuItemsBatch.UNIT_SIZE),
 }
 
 
