@@ -7,7 +7,7 @@ import os
 from core.router import PacketRouter
 from core.server import Server
 
-from middleware.mock import MockPublisher
+from middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.protocol import PacketType
 from shared.shutdown import ShutdownSignal
 
@@ -25,7 +25,7 @@ def initialize_config():
         config_params["port"] = int(os.getenv("PORT", config["DEFAULT"]["PORT"]))
         config_params["listen_backlog"] = int(os.getenv("LISTEN_BACKLOG", config["DEFAULT"]["LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
-
+        config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
         config_params["stores_queue"] = os.getenv("STORES_QUEUE", config["QUEUES"]["STORES_QUEUE"])
         config_params["users_queue"] = os.getenv("USERS_QUEUE", config["QUEUES"]["USERS_QUEUE"])
         config_params["transactions_queue"] = os.getenv("TRANSACTIONS_QUEUE", config["QUEUES"]["TRANSACTIONS_QUEUE"])
@@ -44,14 +44,21 @@ def initialize_config():
 
 def create_router(config_params) -> PacketRouter:
     """create packet router with middleware publishers."""
-    # todo: usamos por el momento mocks para publicar, cuando el resto del team termine el middleware, usar esos.
+
+    middleware_host = config_params["middleware_host"]
 
     publishers = {
-        PacketType.STORE_BATCH: MockPublisher(config_params["stores_queue"]),
-        PacketType.USERS_BATCH: MockPublisher(config_params["users_queue"]),
-        PacketType.TRANSACTIONS_BATCH: MockPublisher(config_params["transactions_queue"]),
-        PacketType.TRANSACTION_ITEMS_BATCH: MockPublisher(config_params["transaction_items_queue"]),
-        PacketType.MENU_ITEMS_BATCH: MockPublisher(config_params["menu_items_queue"]),
+        PacketType.STORE_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["stores_queue"]),
+        PacketType.USERS_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["users_queue"]),
+        PacketType.TRANSACTIONS_BATCH: MessageMiddlewareQueueMQ(
+            middleware_host, queue_name=config_params["transactions_queue"]
+        ),
+        PacketType.TRANSACTION_ITEMS_BATCH: MessageMiddlewareQueueMQ(
+            middleware_host, queue_name=config_params["transaction_items_queue"]
+        ),
+        PacketType.MENU_ITEMS_BATCH: MessageMiddlewareQueueMQ(
+            middleware_host, queue_name=config_params["menu_items_queue"]
+        ),
     }
 
     return PacketRouter(publishers)

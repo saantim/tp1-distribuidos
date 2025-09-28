@@ -1,14 +1,18 @@
-from typing import Callable, Any
-from middleware import MessageMiddlewareQueue
+from typing import Any, Callable
+
+from middleware.interface import MessageMiddlewareQueue
+
 
 class Enricher:
 
-    def __init__(self,
-                 from_queue: MessageMiddlewareQueue,
-                 to_queue: MessageMiddlewareQueue,
-                 enricher_queue: MessageMiddlewareQueue,
-                 build_enricher_fn: Callable[[Any, Any], Any],
-                 enricher_fn: Callable[[Any, Any], Any]) -> None:
+    def __init__(
+        self,
+        from_queue: MessageMiddlewareQueue,
+        to_queue: MessageMiddlewareQueue,
+        enricher_queue: MessageMiddlewareQueue,
+        build_enricher_fn: Callable[[Any, Any], Any],
+        enricher_fn: Callable[[Any, Any], Any],
+    ) -> None:
         self._from_queue = from_queue
         self._to_queue = to_queue
         self._enricher_queue = enricher_queue

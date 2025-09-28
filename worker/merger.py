@@ -1,23 +1,25 @@
-from typing import Callable, Any
-from middleware import MessageMiddlewareQueue
+from typing import Any, Callable
+
+from middleware.interface import MessageMiddlewareQueue
+
 
 class Merger:
 
-    def __init__(self,
-                 from_queue: MessageMiddlewareQueue,
-                 to_queue: MessageMiddlewareQueue,
-                 merger_fn: Callable[[Any, Any], Any]) -> None:
+    def __init__(
+        self, from_queue: MessageMiddlewareQueue, to_queue: MessageMiddlewareQueue, merger_fn: Callable[[Any, Any], Any]
+    ) -> None:
         self._from_queue = from_queue
         self._to_queue = to_queue
-        self._aggregator_fn = merger_fn
-        self._aggregated = None
+        self._merger_fn = merger_fn
+        self._merged = None
 
-    def _on_message(self, message: str) -> None:
+    def _on_message(self, message: bytes) -> None:
+
         if message == "EOF":
-            self._to_queue.send(self._aggregated)
+            self._to_queue.send(self._merged)
             self.stop()
             return
-        self._aggregated = self._aggregator_fn(self._aggregated, message)
+        self._merged = self._merger_fn(self._merged, message)
 
     def start(self) -> None:
         self._from_queue.start_consuming(self._on_message)

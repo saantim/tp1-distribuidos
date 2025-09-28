@@ -15,3 +15,5 @@ docker-compose.yaml
 
 # Files
 .data/
+
+**/__pycache__
