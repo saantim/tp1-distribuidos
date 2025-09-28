@@ -1,0 +1,17 @@
+# Mac
+**.DS_Store
+
+# Executables
+bin/
+
+# Python
+venv/
+
+# Docker
+docker-compose.yaml
+
+# Jetbrains
+.idea/
+
+# Files
+.data/
