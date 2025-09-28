@@ -33,6 +33,7 @@ def initialize_config():
             "TRANSACTION_ITEMS_QUEUE", config["QUEUES"]["TRANSACTION_ITEMS_QUEUE"]
         )
         config_params["menu_items_queue"] = os.getenv("MENU_ITEMS_QUEUE", config["QUEUES"]["MENU_ITEMS_QUEUE"])
+        config_params["results_queue"] = os.getenv("RESULTS_QUEUE", config["QUEUES"]["RESULTS_QUEUE"])
 
     except KeyError as e:
         raise KeyError("Key was not found. Error: {}. Aborting gateway".format(e))
@@ -64,6 +65,16 @@ def create_router(config_params) -> PacketRouter:
     return PacketRouter(publishers)
 
 
+def create_listener(config_params):
+    """create result listener with middleware consumer."""
+    middleware_host = config_params["middleware_host"]
+    results_queue = config_params["results_queue"]
+
+    consumer = MessageMiddlewareQueueMQ(middleware_host, results_queue)
+    # Note: Network will be set per client in the server
+    return consumer
+
+
 def initialize_log(logging_level):
     """python custom logging initialization."""
     logging.basicConfig(
@@ -84,21 +95,23 @@ def main():
     listen_backlog = config_params["listen_backlog"]
     logging_level = config_params["logging_level"]
     rabbit = config_params["middleware_host"]
+    results_queue = config_params["results_queue"]
 
     initialize_log(logging_level)
 
     logging.debug(
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
-        f"logging_level: {logging_level} | rabbit_host: {rabbit}"
+        f"logging_level: {logging_level} | rabbit_host: {rabbit} | "
+        f"results_queue: {results_queue}"
     )
 
     try:
         shutdown_signal = ShutdownSignal()
         router = create_router(config_params)
-        server = Server(port, listen_backlog, router, shutdown_signal)
+        server = Server(port, listen_backlog, router, rabbit, results_queue, shutdown_signal)
 
-        logging.info(f"action: start_gateway | port: {port}")
+        logging.info(f"action: start_gateway | port: {port} | results_queue: {results_queue}")
         server.run()
 
     except Exception as e:

@@ -2,6 +2,7 @@
 binary serialization using ByteWriter and Reader utils.
 """
 
+import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import IntEnum
@@ -18,6 +19,7 @@ class PacketType(IntEnum):
     TRANSACTIONS_BATCH = 4
     TRANSACTION_ITEMS_BATCH = 5
     MENU_ITEMS_BATCH = 6
+    RESULT = 19
     ACK = 20
     ERROR = 21
 
@@ -123,6 +125,22 @@ class AckPacket(Packet):
     @classmethod
     def deserialize_payload(cls, data: bytes) -> "AckPacket":
         return cls()
+
+
+class ResultPacket(Packet):
+    def __init__(self, data: dict):
+        self.data = data
+
+    def get_message_type(self) -> int:
+        return PacketType.RESULT
+
+    def serialize_payload(self) -> bytes:
+        return json.dumps(self.data).encode("utf-8")
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "ResultPacket":
+        data = json.loads(data.decode("utf-8"))
+        return cls(data)
 
 
 class ErrorPacket(Packet):

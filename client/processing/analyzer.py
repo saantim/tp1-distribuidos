@@ -1,8 +1,10 @@
 """
 main coffee shop analysis engine that coordinates batch sending and network communication.
 manages threads for csv processing and handles tcp communication with gateway.
+now includes result listening capability.
 """
 
+import json
 import logging
 import socket
 import threading
@@ -10,7 +12,7 @@ import time
 from typing import Any, Callable, Dict, List
 
 from shared.network import Network
-from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType
+from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType, ResultPacket
 from shared.shutdown import ShutdownSignal
 
 from .batch import BatchConfig, BatchProcessor
@@ -37,7 +39,7 @@ class FolderConfig:
 class Analyzer:
     """
     main analysis engine that processes csv folders and sends data to server.
-    coordinates multiple threads for parallel csv processing.
+    coordinates multiple threads for parallel csv processing and result listening.
     """
 
     def __init__(self, config: AnalyzerConfig, folders: List[FolderConfig], shutdown_signal: ShutdownSignal):
@@ -60,7 +62,7 @@ class Analyzer:
     def run(self):
         """
         run the complete analysis process.
-        connects to gateway, starts processing threads, and handles communication.
+        connects to gateway, starts processing threads, handles communication, and waits for results.
         """
         try:
             self._connect_to_gateway()
@@ -75,6 +77,8 @@ class Analyzer:
             logging.info(f"action: file_send | status: complete | total_time: {total_time:.2f}s")
 
             self._send_session_end()
+
+            self._wait_for_results()
             logging.info("action: analysis_complete | result: success")
 
         except Exception as e:
@@ -88,6 +92,50 @@ class Analyzer:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((self.config.gateway_host, self.config.gateway_port))
         self.network = Network(sock, self.shutdown_signal)
+
+    def _wait_for_results(self):
+        """wait for result packet on the same TCP connection after session end."""
+        try:
+            logging.info("action: waiting_for_results | status: started")
+
+            packet = self.network.recv_packet()
+            if packet is None:
+                logging.warning("action: wait_for_results | result: connection_closed")
+                return
+
+            if packet.get_message_type() == PacketType.RESULT:
+                self._handle_result_packet(packet)
+            elif packet.get_message_type() == PacketType.ERROR:
+                logging.error(f"action: receive_results | result: server_error | error: {packet.message}")
+            else:
+                logging.warning(
+                    f"action: wait_for_results | result: unexpected_packet |" f" type: {packet.get_message_type()}"
+                )
+
+        except Exception as e:
+            logging.error(f"action: wait_for_results | result: fail | error: {e}")
+
+    def _handle_result_packet(self, packet: ResultPacket):
+        """handle received result packet."""
+        try:
+            results = packet.data
+            logging.info("action: receive_results | result: success")
+            logging.info(f"Pipeline results: {json.dumps(results, indent=2)}")
+            self._send_ack_for_results()
+
+        except Exception as e:
+            logging.error(f"action: handle_result_packet | result: fail | error: {e}")
+
+    def _send_ack_for_results(self):
+        """send ACK packet for received results."""
+        try:
+            from shared.protocol import AckPacket
+
+            ack_packet = AckPacket()
+            self.network.send_packet(ack_packet)
+            logging.info("action: ack_results | result: success")
+        except Exception as e:
+            logging.error(f"action: ack_results | result: fail | error: {e}")
 
     def _start_processing_threads(self):
         """start worker threads for each folder."""
@@ -161,5 +209,6 @@ class Analyzer:
     def _cleanup(self):
         """cleanup resources and wait for threads."""
         self._wait_for_threads()
+
         if self.network:
             self.network.close()

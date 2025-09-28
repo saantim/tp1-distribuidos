@@ -9,6 +9,7 @@ from shared.network import Network, NetworkError
 from shared.protocol import AckPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
+from .results import ResultListener
 from .router import PacketRouter
 
 
@@ -18,16 +19,18 @@ class ClientHandler:
     processes packet stream and routes data packets to middleware.
     """
 
-    def __init__(self, client_socket, router: PacketRouter, shutdown_signal: ShutdownSignal):
+    def __init__(self, client_socket, router: PacketRouter, listener: ResultListener, shutdown_signal: ShutdownSignal):
         """
         create client handler.
 
         args:
             client_socket: connected client socket
             router: packet router for middleware publishing
+            listener: result listener for consuming results
             shutdown_signal: shutdown signal handler
         """
         self.network = Network(client_socket, shutdown_signal)
+        self.result_listener = listener
         self.router = router
         self.shutdown_signal = shutdown_signal
 
@@ -40,6 +43,7 @@ class ClientHandler:
             if not self._wait_for_session_start():
                 return
 
+            self.result_listener.start()
             self._process_data_batches()
 
             if not self.shutdown_signal.should_shutdown():
@@ -52,6 +56,7 @@ class ClientHandler:
             logging.exception(f"action: handle_session | result: fail | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
+            self.result_listener.stop()
             self.network.close()
 
     def _wait_for_session_start(self) -> bool:
