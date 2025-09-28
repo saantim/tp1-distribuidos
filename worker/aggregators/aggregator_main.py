@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from middleware.interface import MessageMiddleware
+from shared.middleware.interface import MessageMiddleware
 from shared.protocol import Header, Packet, PacketType
 
 

@@ -7,7 +7,7 @@ import os
 from core.router import PacketRouter
 from core.server import Server
 
-from middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.protocol import PacketType
 from shared.shutdown import ShutdownSignal
 

@@ -77,6 +77,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
             self._consumer_tag = self._channel.basic_consume(
                 queue=self._queue_name,
                 on_message_callback=on_message_callback,
+                auto_ack=True,
             )
             self._channel.start_consuming()
         except AMQPConnectionError as e:

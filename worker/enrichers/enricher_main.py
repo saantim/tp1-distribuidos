@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from middleware.interface import MessageMiddlewareQueue
+from shared.middleware.interface import MessageMiddlewareQueue
 
 
 class Enricher:

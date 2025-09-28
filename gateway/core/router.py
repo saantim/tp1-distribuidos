@@ -5,7 +5,11 @@ packet router that routes incoming packets to appropriate middleware queues.
 import logging
 from typing import Dict
 
-from middleware.interface import MessageMiddleware, MessageMiddlewareDisconnectedError, MessageMiddlewareMessageError
+from shared.middleware.interface import (
+    MessageMiddleware,
+    MessageMiddlewareDisconnectedError,
+    MessageMiddlewareMessageError,
+)
 from shared.protocol import Packet, PacketType
 
 
@@ -18,6 +22,7 @@ class PacketRouter:
 
     def route_packet(self, packet: Packet):
         """route packet to appropriate middleware queue."""
+        # todo: shutdown middleware connection after receive EOF
         packet_type = packet.get_message_type()
         publisher = self.publishers.get(PacketType(packet_type))
 
