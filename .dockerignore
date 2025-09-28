@@ -1,0 +1,2 @@
+# Ignoramos lo que hacemos mount en el compose.
+.data/
