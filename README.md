@@ -7,7 +7,7 @@
 - Crear `venv` de Python ejecutando el siguiente comando:
 
 ```bash
-python3 -m venv venv
+python3.13 -m venv venv
 ```
 
 - Inicializar `venv` con el comando:

@@ -46,10 +46,10 @@ class ClientHandler:
                 self._wait_for_session_end()
 
         except NetworkError as e:
-            logging.error(f"action: handle_session | result: network_error | error: {e}")
+            logging.exception(f"action: handle_session | result: network_error | error: {e}")
             self._send_error_packet(500, str(e))
         except Exception as e:
-            logging.error(f"action: handle_session | result: fail | error: {e}")
+            logging.exception(f"action: handle_session | result: fail | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
             self.network.close()

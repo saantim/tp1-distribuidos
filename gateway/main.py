@@ -83,13 +83,14 @@ def main():
     port = config_params["port"]
     listen_backlog = config_params["listen_backlog"]
     logging_level = config_params["logging_level"]
+    rabbit = config_params["middleware_host"]
 
     initialize_log(logging_level)
 
     logging.debug(
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
-        f"logging_level: {logging_level}"
+        f"logging_level: {logging_level} | rabbit_host: {rabbit}"
     )
 
     try:

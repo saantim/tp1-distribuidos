@@ -1,17 +1,17 @@
 import logging
 from typing import Optional
 
+import pika
 from pika.exceptions import AMQPConnectionError
 
-from interface import (
-    MessageMiddlewareExchange,
-    MessageMiddlewareQueue,
-    MessageMiddlewareMessageError,
-    MessageMiddlewareDisconnectedError,
+from .interface import (
     MessageMiddlewareCloseError,
     MessageMiddlewareDeleteError,
+    MessageMiddlewareDisconnectedError,
+    MessageMiddlewareExchange,
+    MessageMiddlewareMessageError,
+    MessageMiddlewareQueue,
 )
-import pika
 
 
 class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
