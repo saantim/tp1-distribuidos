@@ -9,6 +9,8 @@ class Message(ABC):
 
     @classmethod
     def from_dict(cls, data: dict):
+        if isinstance(data.get("created_at"), str):
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
         return cls(**data)
 
     @classmethod
@@ -42,7 +44,7 @@ class TransactionItem(Message):
     quantity: int
     unit_price: float
     subtotal: float
-    created_ts: datetime
+    created_at: datetime
     transaction_id: str
 
 

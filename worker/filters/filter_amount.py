@@ -1,6 +1,11 @@
 from worker.types import Transaction
+import logging
 
 
-def filter_fn(message: bytes) -> bool:
-    transaction = Transaction.deserialize(message)
-    return transaction.amount > 15
+def filter_fn(payload: bytes) -> bool:
+    try:
+        transaction: Transaction = Transaction.deserialize(payload)
+        return transaction.final_amount > 15  # todo checkear que sea final_amount
+    except Exception as e:
+        logging.exception(e)
+        return False

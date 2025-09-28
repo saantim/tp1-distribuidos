@@ -32,6 +32,86 @@ services:
     depends_on:
       - gateway
 
+  filter_amount:
+    image: filter_amount
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=filtered_tx_6am_11pm
+      - TO_QUEUE=filtered_amount
+      - FILTER_MODULE_NAME=filter_amount
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 2
+
+  filter_tx_2024_2025:
+    image: filter_amount
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=transactions_source
+      - TO_QUEUE=filtered_tx_2024_2025
+      - FILTER_MODULE_NAME=filter_tx_2024_2025
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 2
+
+  filter_tx_item_2024_2025:
+    image: filter_amount
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=transactions_source
+      - TO_QUEUE=filtered_amount
+      - FILTER_MODULE_NAME=filter_tx_item_2024_2025
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 2
+
+  filter_tx_6am_11pm:
+    image: filter_amount
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=filtered_tx_2024_2025
+      - TO_QUEUE=filtered_tx_6am_11pm
+      - FILTER_MODULE_NAME=filter_tx_6am_11pm
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 2
+
   rabbitmq:
     container_name: rabbitmq-container
     image: rabbitmq:4.1.4-management
