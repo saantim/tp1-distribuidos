@@ -12,6 +12,8 @@ services:
       - PYTHONUNBUFFERED=1
     networks:
       - coffee
+    depends_on:
+      - rabbitmq
 
   client:
     container_name: coffee-client
@@ -29,6 +31,25 @@ services:
     depends_on:
       - gateway
 
+  rabbitmq:
+    container_name: rabbitmq-container
+    image: rabbitmq:4.1.4-management
+    volumes:
+      - rabbitmq-volume:/var/lib/rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+      - RABBITMQ_NODENAME=rabbit@rabbitmq
+    ports:
+      - "5672:5672"
+      - "8080:15672"
+    networks:
+      - coffee
+
+volumes:
+  rabbitmq-volume:
+
 networks:
   coffee:
     driver: bridge
+
