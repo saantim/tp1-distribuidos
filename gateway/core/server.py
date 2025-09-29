@@ -7,7 +7,7 @@ import logging
 import socket
 from typing import Optional
 
-from middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network
 from shared.shutdown import ShutdownSignal
 

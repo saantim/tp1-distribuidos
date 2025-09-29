@@ -7,6 +7,7 @@ import os
 from core.router import PacketRouter
 from core.server import Server
 
+from shared.entity import MenuItem, Store, Transaction, TransactionItem, User
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.protocol import PacketType
 from shared.shutdown import ShutdownSignal
@@ -44,7 +45,7 @@ def initialize_config():
 
 
 def create_router(config_params) -> PacketRouter:
-    """create packet router with middleware publishers."""
+    """create packet router with middleware publishers and entity mappings."""
 
     middleware_host = config_params["middleware_host"]
 
@@ -62,7 +63,15 @@ def create_router(config_params) -> PacketRouter:
         ),
     }
 
-    return PacketRouter(publishers)
+    entity_mappings = {
+        PacketType.STORE_BATCH: Store,
+        PacketType.USERS_BATCH: User,
+        PacketType.TRANSACTIONS_BATCH: Transaction,
+        PacketType.TRANSACTION_ITEMS_BATCH: TransactionItem,
+        PacketType.MENU_ITEMS_BATCH: MenuItem,
+    }
+
+    return PacketRouter(publishers, entity_mappings)
 
 
 def create_listener(config_params):
@@ -71,7 +80,6 @@ def create_listener(config_params):
     results_queue = config_params["results_queue"]
 
     consumer = MessageMiddlewareQueueMQ(middleware_host, results_queue)
-    # Note: Network will be set per client in the server
     return consumer
 
 

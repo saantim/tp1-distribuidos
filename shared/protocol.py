@@ -6,7 +6,6 @@ import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import IntEnum
-from typing import Any, Dict, List
 
 from .utils import ByteReader, ByteWriter
 
@@ -165,7 +164,13 @@ class ErrorPacket(Packet):
         return cls(error_code, message)
 
 
-class StoreBatch(Packet):
+class BatchPacket(Packet, ABC):
+    def __init__(self, csv_rows: list, eof: bool = False):
+        self.csv_rows = csv_rows
+        self.eof = eof
+
+
+class StoreBatch(BatchPacket):
 
     # Estimated size:
     # Fixed: store_id(1) + postal_code(4) + lat(8) + lon(8) = 21
@@ -175,10 +180,6 @@ class StoreBatch(Packet):
     #   - city: ~15 chars avg + 1 = 16
     #   - state: ~18 chars avg + 1 = 19
     UNIT_SIZE = 21 + 26 + 21 + 16 + 19  # = 103
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.STORE_BATCH
@@ -248,17 +249,13 @@ class StoreBatch(Packet):
         return cls(stores, eof)
 
 
-class UsersBatch(Packet):
+class UsersBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: user_id(4) + birthdate(8) + registered_at(8) = 20
     # Variable strings with 1-byte length prefix:
     #   - gender: ~6 chars avg + 1 = 7
     UNIT_SIZE = 20 + 7  # = 27
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.USERS_BATCH
@@ -315,17 +312,13 @@ class UsersBatch(Packet):
         return cls(users, eof)
 
 
-class TransactionsBatch(Packet):
+class TransactionsBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: store_id(1) + payment_id(4) + voucher_id(4) + user_id(4) + amounts(24) + created_at(8) = 45
     # Variable strings with 1-byte length prefix:
     #   - transaction_id: ~36 chars UUID + 1 = 37
     UNIT_SIZE = 45 + 37  # = 82
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.TRANSACTIONS_BATCH
@@ -403,17 +396,13 @@ class TransactionsBatch(Packet):
         return cls(transactions, eof)
 
 
-class TransactionItemsBatch(Packet):
+class TransactionItemsBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: item_id(1) + quantity(4) + unit_price(8) + subtotal(8) + created_at(8) = 29
     # Variable strings with 1-byte length prefix:
     #   - transaction_id: ~36 chars UUID + 1 = 37
     UNIT_SIZE = 29 + 37  # = 66
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.TRANSACTION_ITEMS_BATCH
@@ -469,7 +458,7 @@ class TransactionItemsBatch(Packet):
         return cls(items, eof)
 
 
-class MenuItemsBatch(Packet):
+class MenuItemsBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: item_id(1) + price(8) + is_seasonal(1) + available_from(8) + available_to(8) = 26
@@ -477,10 +466,6 @@ class MenuItemsBatch(Packet):
     #   - item_name: ~12 chars avg + 1 = 13
     #   - category: ~8 chars avg + 1 = 9
     UNIT_SIZE = 26 + 13 + 9  # = 48
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.MENU_ITEMS_BATCH

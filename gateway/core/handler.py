@@ -4,9 +4,10 @@ handles FileSendStart -> batches -> FileSendEnd protocol.
 """
 
 import logging
+from typing import cast
 
 from shared.network import Network, NetworkError
-from shared.protocol import AckPacket, ErrorPacket, PacketType
+from shared.protocol import AckPacket, BatchPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
 from .results import ResultListener
@@ -98,9 +99,10 @@ class ClientHandler:
                 self._send_ack_packet()
                 break
 
-            if self._is_data_packet(packet_type):
+            if self._is_batch_packet(packet_type):
                 try:
-                    self.router.route_packet(packet)
+                    batch = cast(BatchPacket, packet)
+                    self.router.route_packet(batch)
                     batch_count += 1
 
                 except Exception as e:
@@ -120,7 +122,7 @@ class ClientHandler:
             self._send_ack_packet()
 
     @staticmethod
-    def _is_data_packet(packet_type: int) -> bool:
+    def _is_batch_packet(packet_type: int) -> bool:
         """check if packet type is a data batch packet."""
         data_packet_types = {
             PacketType.STORE_BATCH,

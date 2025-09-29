@@ -1,5 +1,6 @@
-from worker.types import Transaction
 import logging
+
+from shared.entity import Transaction
 
 
 def filter_fn(payload: bytes) -> bool:

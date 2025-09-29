@@ -1,4 +1,4 @@
-from worker.types import Transaction
+from shared.entity import Transaction
 
 
 def filter_fn(message_encoded: bytes) -> bool:

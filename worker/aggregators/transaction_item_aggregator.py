@@ -1,6 +1,7 @@
 from typing import Optional
 
-from worker.types import TransactionItem, TransactionItemByPeriod
+from shared.entity import TransactionItem
+from worker.types import TransactionItemByPeriod
 
 
 def aggregator_fn(aggregated: Optional[TransactionItemByPeriod], message):

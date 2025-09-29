@@ -3,7 +3,7 @@ import logging
 import threading
 from typing import Any, Dict
 
-from middleware.interface import MessageMiddleware
+from shared.middleware.interface import MessageMiddleware
 from shared.network import Network
 from shared.protocol import PacketType, ResultPacket
 
