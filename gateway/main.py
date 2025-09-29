@@ -4,11 +4,9 @@ import configparser
 import logging
 import os
 
-from core.router import PacketRouter
 from core.server import Server
 
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-from shared.protocol import PacketType
 from shared.shutdown import ShutdownSignal
 
 
@@ -25,14 +23,11 @@ def initialize_config():
         config_params["port"] = int(os.getenv("PORT", config["DEFAULT"]["PORT"]))
         config_params["listen_backlog"] = int(os.getenv("LISTEN_BACKLOG", config["DEFAULT"]["LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
+
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
-        config_params["stores_queue"] = os.getenv("STORES_QUEUE", config["QUEUES"]["STORES_QUEUE"])
-        config_params["users_queue"] = os.getenv("USERS_QUEUE", config["QUEUES"]["USERS_QUEUE"])
-        config_params["transactions_queue"] = os.getenv("TRANSACTIONS_QUEUE", config["QUEUES"]["TRANSACTIONS_QUEUE"])
-        config_params["transaction_items_queue"] = os.getenv(
-            "TRANSACTION_ITEMS_QUEUE", config["QUEUES"]["TRANSACTION_ITEMS_QUEUE"]
-        )
-        config_params["menu_items_queue"] = os.getenv("MENU_ITEMS_QUEUE", config["QUEUES"]["MENU_ITEMS_QUEUE"])
+
+        config_params["demux_queue"] = os.getenv("DEMUX_QUEUE", config["QUEUES"]["DEMUX_QUEUE"])
+        config_params["results_queue"] = os.getenv("RESULTS_QUEUE", config["QUEUES"]["RESULTS_QUEUE"])
 
     except KeyError as e:
         raise KeyError("Key was not found. Error: {}. Aborting gateway".format(e))
@@ -42,26 +37,13 @@ def initialize_config():
     return config_params
 
 
-def create_router(config_params) -> PacketRouter:
-    """create packet router with middleware publishers."""
-
+def create_listener(config_params):
+    """create result listener with middleware consumer."""
     middleware_host = config_params["middleware_host"]
+    results_queue = config_params["results_queue"]
 
-    publishers = {
-        PacketType.STORE_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["stores_queue"]),
-        PacketType.USERS_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["users_queue"]),
-        PacketType.TRANSACTIONS_BATCH: MessageMiddlewareQueueMQ(
-            middleware_host, queue_name=config_params["transactions_queue"]
-        ),
-        PacketType.TRANSACTION_ITEMS_BATCH: MessageMiddlewareQueueMQ(
-            middleware_host, queue_name=config_params["transaction_items_queue"]
-        ),
-        PacketType.MENU_ITEMS_BATCH: MessageMiddlewareQueueMQ(
-            middleware_host, queue_name=config_params["menu_items_queue"]
-        ),
-    }
-
-    return PacketRouter(publishers)
+    consumer = MessageMiddlewareQueueMQ(middleware_host, results_queue)
+    return consumer
 
 
 def initialize_log(logging_level):
@@ -84,21 +66,23 @@ def main():
     listen_backlog = config_params["listen_backlog"]
     logging_level = config_params["logging_level"]
     rabbit = config_params["middleware_host"]
+    demux_queue = config_params["demux_queue"]
+    results_queue = config_params["results_queue"]
 
     initialize_log(logging_level)
 
     logging.debug(
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
-        f"logging_level: {logging_level} | rabbit_host: {rabbit}"
+        f"logging_level: {logging_level} | rabbit_host: {rabbit} | "
+        f"results_queue: {results_queue}"
     )
 
     try:
         shutdown_signal = ShutdownSignal()
-        router = create_router(config_params)
-        server = Server(port, listen_backlog, router, shutdown_signal)
+        server = Server(port, listen_backlog, rabbit, demux_queue, results_queue, shutdown_signal)
 
-        logging.info(f"action: start_gateway | port: {port}")
+        logging.info(f"action: start_gateway | port: {port} | results_queue: {results_queue}")
         server.run()
 
     except Exception as e:

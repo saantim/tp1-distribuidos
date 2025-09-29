@@ -1,1 +1,1 @@
-__all__ = ["filter"]
+__all__ = ["filters", "demux"]

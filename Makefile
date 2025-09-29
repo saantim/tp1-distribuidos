@@ -3,7 +3,7 @@ SHELL := /bin/bash
 default: docker-compose-up
 
 docker-compose-up:
-	docker compose -f docker-compose.yml up -d --build
+	docker compose -f docker-compose.yml up -d --build --force-recreate
 .PHONY: docker-compose-up
 
 docker-compose-down:

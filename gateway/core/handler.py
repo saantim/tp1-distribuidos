@@ -5,11 +5,12 @@ handles FileSendStart -> batches -> FileSendEnd protocol.
 
 import logging
 
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
 from shared.protocol import AckPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
-from .router import PacketRouter
+from .results import ResultListener
 
 
 class ClientHandler:
@@ -18,17 +19,25 @@ class ClientHandler:
     processes packet stream and routes data packets to middleware.
     """
 
-    def __init__(self, client_socket, router: PacketRouter, shutdown_signal: ShutdownSignal):
+    def __init__(
+        self,
+        client_socket,
+        publisher: MessageMiddlewareQueueMQ,
+        listener: ResultListener,
+        shutdown_signal: ShutdownSignal,
+    ):
         """
         create client handler.
 
         args:
             client_socket: connected client socket
             router: packet router for middleware publishing
+            listener: result listener for consuming results
             shutdown_signal: shutdown signal handler
         """
         self.network = Network(client_socket, shutdown_signal)
-        self.router = router
+        self.result_listener = listener
+        self.publisher = publisher
         self.shutdown_signal = shutdown_signal
 
     def handle_session(self):
@@ -40,6 +49,7 @@ class ClientHandler:
             if not self._wait_for_session_start():
                 return
 
+            self.result_listener.start()
             self._process_data_batches()
 
             if not self.shutdown_signal.should_shutdown():
@@ -52,6 +62,7 @@ class ClientHandler:
             logging.exception(f"action: handle_session | result: fail | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
+            self.result_listener.stop()
             self.network.close()
 
     def _wait_for_session_start(self) -> bool:
@@ -93,9 +104,9 @@ class ClientHandler:
                 self._send_ack_packet()
                 break
 
-            if self._is_data_packet(packet_type):
+            if self._is_batch_packet(packet_type):
                 try:
-                    self.router.route_packet(packet)
+                    self.publisher.send(packet.serialize())
                     batch_count += 1
 
                 except Exception as e:
@@ -115,7 +126,7 @@ class ClientHandler:
             self._send_ack_packet()
 
     @staticmethod
-    def _is_data_packet(packet_type: int) -> bool:
+    def _is_batch_packet(packet_type: int) -> bool:
         """check if packet type is a data batch packet."""
         data_packet_types = {
             PacketType.STORE_BATCH,
