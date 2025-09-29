@@ -1,5 +1,5 @@
 import json
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 
@@ -15,7 +15,6 @@ class DateTimeEncoder(json.JSONEncoder):
 @dataclass
 class Message(ABC):
 
-    @abstractmethod
     def serialize(self) -> bytes:
         return json.dumps(asdict(self), cls=DateTimeEncoder).encode()
 

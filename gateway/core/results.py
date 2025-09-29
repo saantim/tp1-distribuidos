@@ -43,7 +43,7 @@ class ResultListener:
                 self.consumer.close()
 
             if self.listener_thread and self.listener_thread.is_alive():
-                self.listener_thread.join(timeout=5.0)
+                self.listener_thread.join()
 
             logging.info("action: stop_result_listener | result: success")
         except Exception as e:

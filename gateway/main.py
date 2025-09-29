@@ -26,7 +26,12 @@ def initialize_config():
         config_params["port"] = int(os.getenv("PORT", config["DEFAULT"]["PORT"]))
         config_params["listen_backlog"] = int(os.getenv("LISTEN_BACKLOG", config["DEFAULT"]["LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
+
+        config_params["routing_workers"] = int(os.getenv("ROUTING_WORKERS", config["ROUTING"]["WORKERS"]))
+        config_params["routing_queue_size"] = int(os.getenv("ROUTING_QUEUE_SIZE", config["ROUTING"]["QUEUE_SIZE"]))
+
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
+
         config_params["stores_queue"] = os.getenv("STORES_QUEUE", config["QUEUES"]["STORES_QUEUE"])
         config_params["users_queue"] = os.getenv("USERS_QUEUE", config["QUEUES"]["USERS_QUEUE"])
         config_params["transactions_queue"] = os.getenv("TRANSACTIONS_QUEUE", config["QUEUES"]["TRANSACTIONS_QUEUE"])
@@ -48,6 +53,8 @@ def create_router(config_params) -> PacketRouter:
     """create packet router with middleware publishers and entity mappings."""
 
     middleware_host = config_params["middleware_host"]
+    routing_workers = config_params["routing_workers"]
+    routing_queue_size = config_params["routing_queue_size"]
 
     publishers = {
         PacketType.STORE_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["stores_queue"]),
@@ -71,7 +78,7 @@ def create_router(config_params) -> PacketRouter:
         PacketType.MENU_ITEMS_BATCH: MenuItem,
     }
 
-    return PacketRouter(publishers, entity_mappings)
+    return PacketRouter(publishers, entity_mappings, routing_workers, routing_queue_size)
 
 
 def create_listener(config_params):

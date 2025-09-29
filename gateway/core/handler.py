@@ -57,6 +57,7 @@ class ClientHandler:
             logging.exception(f"action: handle_session | result: fail | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
+            self.router.shutdown()
             self.result_listener.stop()
             self.network.close()
 
