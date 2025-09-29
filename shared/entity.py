@@ -1,30 +1,45 @@
 import json
 from abc import ABC
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass, fields
 from datetime import datetime
+from typing import Dict, Set
 
 
-class DateTimeEncoder(json.JSONEncoder):
+_DATETIME_FIELDS: Dict[type, Set[str]] = {}
 
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+
+def _get_datetime_fields(cls) -> Set[str]:
+    """cache which fields are datetime to avoid repeated introspection."""
+    if cls not in _DATETIME_FIELDS:
+        _DATETIME_FIELDS[cls] = {field.name for field in fields(cls) if field.type == datetime}
+    return _DATETIME_FIELDS[cls]
 
 
 @dataclass
 class Message(ABC):
 
     def serialize(self) -> bytes:
-        return json.dumps(asdict(self), cls=DateTimeEncoder).encode()
+        """Optimized serialization."""
+
+        data = self.__dict__.copy()
+
+        datetime_fields = _get_datetime_fields(self.__class__)
+        for field_name in datetime_fields:
+            if field_name in data and data[field_name] is not None:
+                data[field_name] = data[field_name].isoformat()
+
+        return json.dumps(data).encode()
 
     @classmethod
     def from_dict(cls, data: dict):
-        for field in fields(cls):
-            if field.type == datetime and field.name in data:
-                value = data[field.name]
+        """deserialization with cached field lookup."""
+        datetime_fields = _get_datetime_fields(cls)
+
+        for field_name in datetime_fields:
+            if field_name in data:
+                value = data[field_name]
                 if isinstance(value, str):
-                    data[field.name] = datetime.fromisoformat(value)
+                    data[field_name] = datetime.fromisoformat(value)
         return cls(**data)
 
     @classmethod

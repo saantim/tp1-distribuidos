@@ -56,18 +56,15 @@ def create_router(config_params) -> PacketRouter:
     routing_workers = config_params["routing_workers"]
     routing_queue_size = config_params["routing_queue_size"]
 
-    publishers = {
-        PacketType.STORE_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["stores_queue"]),
-        PacketType.USERS_BATCH: MessageMiddlewareQueueMQ(middleware_host, queue_name=config_params["users_queue"]),
-        PacketType.TRANSACTIONS_BATCH: MessageMiddlewareQueueMQ(
-            middleware_host, queue_name=config_params["transactions_queue"]
-        ),
-        PacketType.TRANSACTION_ITEMS_BATCH: MessageMiddlewareQueueMQ(
-            middleware_host, queue_name=config_params["transaction_items_queue"]
-        ),
-        PacketType.MENU_ITEMS_BATCH: MessageMiddlewareQueueMQ(
-            middleware_host, queue_name=config_params["menu_items_queue"]
-        ),
+    publishers_config = {
+        PacketType.STORE_BATCH: {"host": middleware_host, "queue_name": config_params["stores_queue"]},
+        PacketType.USERS_BATCH: {"host": middleware_host, "queue_name": config_params["users_queue"]},
+        PacketType.TRANSACTIONS_BATCH: {"host": middleware_host, "queue_name": config_params["transactions_queue"]},
+        PacketType.TRANSACTION_ITEMS_BATCH: {
+            "host": middleware_host,
+            "queue_name": config_params["transaction_items_queue"],
+        },
+        PacketType.MENU_ITEMS_BATCH: {"host": middleware_host, "queue_name": config_params["menu_items_queue"]},
     }
 
     entity_mappings = {
@@ -78,7 +75,7 @@ def create_router(config_params) -> PacketRouter:
         PacketType.MENU_ITEMS_BATCH: MenuItem,
     }
 
-    return PacketRouter(publishers, entity_mappings, routing_workers, routing_queue_size)
+    return PacketRouter(publishers_config, entity_mappings, routing_workers, routing_queue_size)
 
 
 def create_listener(config_params):
