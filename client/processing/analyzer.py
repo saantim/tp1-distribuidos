@@ -203,10 +203,7 @@ class Analyzer:
                 if self.shutdown_signal.should_shutdown():
                     break
 
-                try:
-                    self.send_queue.put(packet, timeout=1.0)
-                except queue.Full:
-                    self.send_queue.put(packet)
+                self.send_queue.put(packet)
 
             if not self.shutdown_signal.should_shutdown():
                 folder_end_time = time.time()

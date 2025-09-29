@@ -4,11 +4,10 @@ handles FileSendStart -> batches -> FileSendEnd protocol.
 """
 
 import logging
-from typing import cast
 
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
-from shared.protocol import AckPacket, BatchPacket, ErrorPacket, PacketType
+from shared.protocol import AckPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
 from .results import ResultListener
@@ -107,8 +106,7 @@ class ClientHandler:
 
             if self._is_batch_packet(packet_type):
                 try:
-                    batch = cast(BatchPacket, packet)
-                    self.publisher.send(batch.serialize())
+                    self.publisher.send(packet.serialize())
                     batch_count += 1
 
                 except Exception as e:

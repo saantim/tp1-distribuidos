@@ -24,9 +24,6 @@ def initialize_config():
         config_params["listen_backlog"] = int(os.getenv("LISTEN_BACKLOG", config["DEFAULT"]["LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
 
-        config_params["routing_workers"] = int(os.getenv("ROUTING_WORKERS", config["ROUTING"]["WORKERS"]))
-        config_params["routing_queue_size"] = int(os.getenv("ROUTING_QUEUE_SIZE", config["ROUTING"]["QUEUE_SIZE"]))
-
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
 
         config_params["demux_queue"] = os.getenv("DEMUX_QUEUE", config["QUEUES"]["DEMUX_QUEUE"])
