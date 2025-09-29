@@ -6,12 +6,12 @@ handles FileSendStart -> batches -> FileSendEnd protocol.
 import logging
 from typing import cast
 
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
 from shared.protocol import AckPacket, BatchPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
 from .results import ResultListener
-from .router import PacketRouter
 
 
 class ClientHandler:
@@ -20,7 +20,13 @@ class ClientHandler:
     processes packet stream and routes data packets to middleware.
     """
 
-    def __init__(self, client_socket, router: PacketRouter, listener: ResultListener, shutdown_signal: ShutdownSignal):
+    def __init__(
+        self,
+        client_socket,
+        publisher: MessageMiddlewareQueueMQ,
+        listener: ResultListener,
+        shutdown_signal: ShutdownSignal,
+    ):
         """
         create client handler.
 
@@ -32,7 +38,7 @@ class ClientHandler:
         """
         self.network = Network(client_socket, shutdown_signal)
         self.result_listener = listener
-        self.router = router
+        self.publisher = publisher
         self.shutdown_signal = shutdown_signal
 
     def handle_session(self):
@@ -57,7 +63,6 @@ class ClientHandler:
             logging.exception(f"action: handle_session | result: fail | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
-            self.router.shutdown()
             self.result_listener.stop()
             self.network.close()
 
@@ -103,7 +108,7 @@ class ClientHandler:
             if self._is_batch_packet(packet_type):
                 try:
                     batch = cast(BatchPacket, packet)
-                    self.router.route_packet(batch)
+                    self.publisher.send(batch.serialize())
                     batch_count += 1
 
                 except Exception as e:

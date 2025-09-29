@@ -206,7 +206,6 @@ class Analyzer:
                 try:
                     self.send_queue.put(packet, timeout=1.0)
                 except queue.Full:
-                    logging.warning(f"send queue full for folder {folder_config.path}, waiting...")
                     self.send_queue.put(packet)
 
             if not self.shutdown_signal.should_shutdown():
