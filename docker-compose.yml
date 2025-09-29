@@ -26,11 +26,29 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
     volumes:
-    - ./.data:/client/.data
+      - ./.data:/client/.data
     networks:
       - coffee
     depends_on:
       - gateway
+
+  demux:
+    image: demux_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/demux/demux_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=INFO
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=demux_queue
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 2
 
   filter_amount:
     image: filter_amount

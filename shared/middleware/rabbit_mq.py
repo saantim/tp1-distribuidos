@@ -46,7 +46,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
             )
         )
         self._channel = self._connection.channel()
-        self._channel.queue_declare(queue=self._queue_name, durable=True)
+        self._channel.queue_declare(queue=self._queue_name, durable=False)
 
     def start_consuming(self, on_message_callback) -> None:
         """
@@ -126,7 +126,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
                 exchange="",
                 routing_key=self._queue_name,
                 body=message,
-                properties=pika.BasicProperties(delivery_mode=2),
+                properties=pika.BasicProperties(delivery_mode=1),
             )
         except AMQPConnectionError as e:
             logging.exception(e)

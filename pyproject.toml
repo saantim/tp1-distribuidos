@@ -15,4 +15,4 @@ force_alphabetical_sort_within_sections = true
 
 [tool.flake8]
 max-line-length = 120
-extend-ignore = ["E203", "W503"]
+extend-ignore = ["E203", "W503", "B024"]

@@ -5,12 +5,12 @@ handles FileSendStart -> batches -> FileSendEnd protocol.
 
 import logging
 
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
 from shared.protocol import AckPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
 from .results import ResultListener
-from .router import PacketRouter
 
 
 class ClientHandler:
@@ -19,7 +19,13 @@ class ClientHandler:
     processes packet stream and routes data packets to middleware.
     """
 
-    def __init__(self, client_socket, router: PacketRouter, listener: ResultListener, shutdown_signal: ShutdownSignal):
+    def __init__(
+        self,
+        client_socket,
+        publisher: MessageMiddlewareQueueMQ,
+        listener: ResultListener,
+        shutdown_signal: ShutdownSignal,
+    ):
         """
         create client handler.
 
@@ -31,7 +37,7 @@ class ClientHandler:
         """
         self.network = Network(client_socket, shutdown_signal)
         self.result_listener = listener
-        self.router = router
+        self.publisher = publisher
         self.shutdown_signal = shutdown_signal
 
     def handle_session(self):
@@ -98,9 +104,9 @@ class ClientHandler:
                 self._send_ack_packet()
                 break
 
-            if self._is_data_packet(packet_type):
+            if self._is_batch_packet(packet_type):
                 try:
-                    self.router.route_packet(packet)
+                    self.publisher.send(packet.serialize())
                     batch_count += 1
 
                 except Exception as e:
@@ -120,7 +126,7 @@ class ClientHandler:
             self._send_ack_packet()
 
     @staticmethod
-    def _is_data_packet(packet_type: int) -> bool:
+    def _is_batch_packet(packet_type: int) -> bool:
         """check if packet type is a data batch packet."""
         data_packet_types = {
             PacketType.STORE_BATCH,
