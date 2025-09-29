@@ -1,6 +1,18 @@
+import importlib
+import logging
+import os
+from types import ModuleType
 from typing import Any, Callable
 
 from shared.middleware.interface import MessageMiddlewareQueue
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from worker.types import EOF
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="MERGER - %(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 class Merger:
@@ -8,23 +20,47 @@ class Merger:
     def __init__(
         self, from_queue: MessageMiddlewareQueue, to_queue: MessageMiddlewareQueue, merger_fn: Callable[[Any, Any], Any]
     ) -> None:
-        self._from_queue = from_queue
-        self._to_queue = to_queue
-        self._merger_fn = merger_fn
-        self._merged = None
+        self._from_queue: MessageMiddlewareQueue = from_queue
+        self._to_queue: MessageMiddlewareQueue = to_queue
+        self._merger_fn: Callable[[Any, Any], Any] = merger_fn
+        self._merged: Any = None
 
-    def _on_message(self, message: bytes) -> None:
-
-        if message == "EOF":
-            self._to_queue.send(self._merged)
+    def _on_message(self, channel, method, properties, body) -> None:
+        try:
+            EOF.deserialize(body)
+            logging.info("Received EOF, stopping merger worker")
             self.stop()
             return
-        self._merged = self._merger_fn(self._merged, message)
+        except Exception:
+            pass
+
+        self._merged = self._merger_fn(self._merged, body)
 
     def start(self) -> None:
+        logging.info("Starting merger worker")
         self._from_queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
+        logging.info("Stopping merger worker")
         self._from_queue.stop_consuming()
-        self._to_queue.send("EOF")
+        self._to_queue.send(self._merged)
+        self._to_queue.send(EOF().serialize())
         self._to_queue.close()
+
+
+def main():
+    host: str = os.getenv("MIDDLEWARE_HOST")
+    from_queue_name: str = os.getenv("FROM_QUEUE")
+    to_queue_name: str = os.getenv("TO_QUEUE")
+    merger_module_name: str = os.getenv("MODULE_NAME")
+
+    from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
+    to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)
+    merger_module: ModuleType = importlib.import_module(merger_module_name)
+
+    merger_worker = Merger(from_queue, to_queue, merger_module.merger_fn)
+    merger_worker.start()
+
+
+if __name__ == "__main__":
+    main()

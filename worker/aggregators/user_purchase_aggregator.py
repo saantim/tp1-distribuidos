@@ -3,7 +3,7 @@ from typing import Optional
 from worker.types import Transaction, UserPurchasesByStore
 
 
-def aggregator_fn(aggregated: Optional[UserPurchasesByStore], message):
+def aggregator_fn(aggregated: Optional[UserPurchasesByStore], message: bytes):
     transaction = Transaction.deserialize(message)
     if aggregated is None:
         aggregated = UserPurchasesByStore(user_purchases_by_store=dict())

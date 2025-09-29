@@ -1,17 +1,20 @@
-from dataclasses import dataclass
+import importlib
+import logging
+import os
+from types import ModuleType
 from typing import Any, Callable
 
 from shared.middleware.interface import MessageMiddleware
-from shared.protocol import Header, Packet, PacketType
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.protocol import Packet
+from worker.types import EOF
 
 
-@dataclass
-class PacketItem(Packet):
-    item: str
-
-    @classmethod
-    def deserialize(cls, data: dict):
-        return cls(item=data["item"])
+logging.basicConfig(
+    level=logging.INFO,
+    format="AGGREGATOR - %(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 class Aggregator:
@@ -24,19 +27,41 @@ class Aggregator:
         self._aggregator_fn = aggregator_fn
         self._aggregated: Any = None
 
-    def _on_message(self, message: bytes) -> None:
-        header = Header.deserialize(message)
-        packet = Packet.deserialize(header, message)
-        if packet.get_message_type() == PacketType.EOF:
-            self._to_queue.send(self._aggregated)
+    def _on_message(self, channel, method, properties, body) -> None:
+        try:
+            EOF.deserialize(body)
+            logging.info("EOF received, stopping aggregator worker...")
             self.stop()
             return
-        self._aggregated = self._aggregator_fn(self._aggregated, packet)
+        except Exception:
+            pass
+        self._aggregated = self._aggregator_fn(self._aggregated, body)
 
     def start(self) -> None:
+        logging.info("Starting aggregator worker...")
         self._from_queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
+        logging.info("Stopping aggregator worker...")
         self._from_queue.stop_consuming()
-        self._to_queue.send("EOF")
+        self._to_queue.send(self._aggregated)
+        self._to_queue.send(EOF().serialize())
         self._to_queue.close()
+
+
+def main():
+    host: str = os.getenv("MIDDLEWARE_HOST")
+    from_queue_name: str = os.getenv("FROM_QUEUE")
+    to_queue_name: str = os.getenv("TO_QUEUE")
+    aggregator_module_name: str = os.getenv("MODULE_NAME")
+
+    from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
+    to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)
+    aggregator_module: ModuleType = importlib.import_module(aggregator_module_name)
+
+    aggregator_worker = Aggregator(from_queue, to_queue, aggregator_module.aggregator_fn)
+    aggregator_worker.start()
+
+
+if __name__ == "__main__":
+    main()

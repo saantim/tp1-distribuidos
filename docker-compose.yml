@@ -44,13 +44,13 @@ services:
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_QUEUE=filtered_tx_6am_11pm
       - TO_QUEUE=filtered_amount
-      - FILTER_MODULE_NAME=filter_amount
+      - MODULE_NAME=filter_amount
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   filter_tx_2024_2025:
     image: filter_amount
@@ -64,13 +64,13 @@ services:
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_QUEUE=transactions_source
       - TO_QUEUE=filtered_tx_2024_2025
-      - FILTER_MODULE_NAME=filter_tx_2024_2025
+      - MODULE_NAME=filter_tx_2024_2025
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   filter_tx_item_2024_2025:
     image: filter_amount
@@ -82,15 +82,15 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=transactions_source
-      - TO_QUEUE=filtered_amount
-      - FILTER_MODULE_NAME=filter_tx_item_2024_2025
+      - FROM_QUEUE=transaction_items_queue
+      - TO_QUEUE=filtered_item_amount
+      - MODULE_NAME=filter_tx_item_2024_2025
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   filter_tx_6am_11pm:
     image: filter_amount
@@ -104,13 +104,74 @@ services:
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_QUEUE=filtered_tx_2024_2025
       - TO_QUEUE=filtered_tx_6am_11pm
-      - FILTER_MODULE_NAME=filter_tx_6am_11pm
+      - MODULE_NAME=filter_tx_6am_11pm
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
+
+  aggregator_period:
+    image: aggregator_period
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=filtered_item_amount
+      - TO_QUEUE=aggregated_item_by_period
+      - MODULE_NAME=period_aggregator
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
+
+  enricher_item:
+    image: enricher_item
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=merged_item_by_period
+      - ENRICHER_QUEUE=menu_items_queue
+      - TO_QUEUE=enriched_item_by_period
+      - MODULE_NAME=item_enricher
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
+
+  merger_period:
+    image: merger_period
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/mergers/merger_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=aggregated_item_by_period
+      - TO_QUEUE=merged_item_by_period
+      - MODULE_NAME=merge_period_results
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
 
   rabbitmq:
     container_name: rabbitmq-container
