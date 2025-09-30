@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from typing import NewType
 
-from shared.entity import Message, User, ItemId, ItemName
-
+from shared.entity import Message, User, ItemId, ItemName, StoreId, StoreName
 
 
 # USER PURCHASE AGGREGATOR
@@ -51,3 +50,32 @@ class TransactionItemByPeriod(Message):
                 parsed_items[item_id] = item_info
             parsed[period] = parsed_items
         return cls(transaction_item_per_period=parsed)
+
+# SEMESTER AGGREGATOR (Q3)
+@dataclass
+class StoreInfo(Message):
+    store_name: StoreName
+    amount: float
+
+
+Semester = NewType('Semester', str)
+@dataclass
+class SemesterTPVByStore(Message):
+    semester_tpv_by_store: dict[Semester, dict[StoreId, StoreInfo]]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SemesterTPVByStore":
+        raw = data["semester_tpv_by_store"]
+        parsed: dict[Semester, dict[StoreId, StoreInfo]] = {}
+        for semester_str, stores_dict in raw.items():
+            semester = Semester(semester_str)
+            parsed_stores: dict[StoreId, StoreInfo] = {}
+            for store_id_str, store_info_dict in stores_dict.items():
+                store_id = StoreId(store_id_str)
+                store_info = StoreInfo(
+                    store_name=StoreName(store_info_dict["store_name"]),
+                    amount=store_info_dict["amount"],
+                )
+                parsed_stores[store_id] = store_info
+            parsed[semester] = parsed_stores
+        return cls(semester_tpv_by_store=parsed)

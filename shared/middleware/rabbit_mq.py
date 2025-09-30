@@ -42,7 +42,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         self._consumer_tag: Optional[str] = None
         self._connection = pika.BlockingConnection(
             pika.ConnectionParameters(
-                host=self._host, port=5672, credentials=pika.PlainCredentials(username="admin", password="admin")
+                host=self._host, port=5672, credentials=pika.PlainCredentials(username="admin", password="admin"), heartbeat=120
             )
         )
         self._channel = self._connection.channel()

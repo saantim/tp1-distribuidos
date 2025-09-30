@@ -7,7 +7,7 @@ from typing import Any, Callable
 from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
-
+from worker import utils
 
 logging.basicConfig(
     level=logging.INFO,
@@ -83,27 +83,15 @@ class Enricher:
 
 
 def main():
-    host: str = os.getenv("MIDDLEWARE_HOST")
-    from_queue_name: str = os.getenv("FROM_QUEUE")
-    enricher_exchange_name: str = os.getenv("ENRICHER_EXCHANGE")
-    to_queue_name: str = os.getenv("TO_QUEUE")
+    logging.getLogger("pika").setLevel(logging.WARNING)
     enricher_module_name: str = os.getenv("MODULE_NAME")
     stage_replicas: int = int(os.getenv("REPLICAS"))
-
-    logging.info(f"host = {host}")
-    logging.info(f"from_queue_name = {from_queue_name}")
-    logging.info(f"enricher_exchange_name = {enricher_exchange_name}")
-    logging.info(f"to_queue_name = {to_queue_name}")
-    logging.info(f"enricher_module_name = {enricher_module_name}")
-
-    logging.getLogger("pika").setLevel(logging.WARNING)
-
-    from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
-    to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)
-    enricher_queue: MessageMiddlewareExchangeRMQ = MessageMiddlewareExchangeRMQ(
-        host=host, exchange_name=enricher_exchange_name, route_keys=["common"]
-    )
     enricher_module: ModuleType = importlib.import_module(enricher_module_name)
+
+
+    from_queue = utils.get_input_queue()
+    to_queue = utils.get_output_queue()
+    enricher_queue = utils.get_enricher_queue()
 
     enricher_worker = Enricher(
         from_queue,

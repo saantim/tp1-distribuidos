@@ -3,11 +3,9 @@ import logging
 import os
 from types import ModuleType
 from typing import Any, Callable
-
 from shared.entity import EOF
-from shared.middleware.interface import MessageMiddlewareQueue
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-
+from worker import utils
+from shared.middleware.interface import MessageMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,8 +18,8 @@ class Filter:
 
     def __init__(
         self,
-        from_queue: MessageMiddlewareQueue,
-        to_queue: MessageMiddlewareQueue,
+        from_queue: MessageMiddleware,
+        to_queue: MessageMiddleware,
         filter_fn: Callable[[Any], bool],
         replicas: int,
     ) -> None:
@@ -64,21 +62,16 @@ class Filter:
 
 
 def main():
-    host: str = os.getenv("MIDDLEWARE_HOST")
-    from_queue_name: str = os.getenv("FROM_QUEUE")
-    to_queue_name: str = os.getenv("TO_QUEUE")
+    logging.getLogger("pika").setLevel(logging.WARNING)
     filter_module_name: str = os.getenv("MODULE_NAME")
     stage_replicas: int = int(os.getenv("REPLICAS"))
 
-    logging.getLogger("pika").setLevel(logging.WARNING)
+    from_queue = utils.get_input_queue()
+    to_queue = utils.get_output_queue()
 
-    from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
-    to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)
     filter_module: ModuleType = importlib.import_module(filter_module_name)
-
     filter_worker = Filter(from_queue, to_queue, filter_module.filter_fn, stage_replicas)
     filter_worker.start()
-
 
 if __name__ == "__main__":
     main()

@@ -16,21 +16,7 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  client:
-    container_name: coffee-client
-    build:
-      context: .
-      dockerfile: ./client/Dockerfile
-    entrypoint: python main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-    volumes:
-      - ./.data:/client/.data
-    networks:
-      - coffee
-    depends_on:
-      - gateway
+# Client
 
   demux:
     image: demux_worker
@@ -42,7 +28,7 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=INFO
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=demux_queue
+      - FROM=demux_queue
     networks:
       - coffee
     depends_on:
@@ -60,8 +46,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=filtered_tx_6am_11pm
-      - TO_QUEUE=filtered_amount
+      - FROM_TYPE=QUEUE
+      - FROM=filtered_tx_6am_11pm
+      - TO_TYPE=QUEUE
+      - TO=filtered_amount
       - MODULE_NAME=filter_amount
       - REPLICAS=2
     networks:
@@ -81,8 +69,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=transactions_source
-      - TO_QUEUE=filtered_tx_2024_2025
+      - FROM_TYPE=QUEUE
+      - FROM=transactions_source
+      - TO_TYPE=QUEUE
+      - TO=filtered_tx_2024_2025
       - MODULE_NAME=filter_tx_2024_2025
       - REPLICAS=2
     networks:
@@ -102,8 +92,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=transaction_items_queue
-      - TO_QUEUE=filtered_item_amount
+      - FROM_TYPE=QUEUE
+      - FROM=transaction_items_queue
+      - TO_TYPE=QUEUE
+      - TO=filtered_item_amount
       - MODULE_NAME=filter_tx_item_2024_2025
       - REPLICAS=1
     networks:
@@ -123,8 +115,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=filtered_tx_2024_2025
-      - TO_QUEUE=filtered_tx_6am_11pm
+      - FROM_TYPE=QUEUE
+      - FROM=filtered_tx_2024_2025
+      - TO_TYPE=QUEUE
+      - TO=filtered_tx_6am_11pm
       - MODULE_NAME=filter_tx_6am_11pm
       - REPLICAS=2
     networks:
@@ -144,8 +138,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=filtered_item_amount
-      - TO_QUEUE=aggregated_item_by_period
+      - FROM_TYPE=QUEUE
+      - FROM=filtered_item_amount
+      - TO_TYPE=QUEUE
+      - TO=aggregated_item_by_period
       - MODULE_NAME=period_aggregator
       - REPLICAS=1
     networks:
@@ -165,9 +161,13 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=merged_item_by_period
-      - ENRICHER_EXCHANGE=menu_items_queue
-      - TO_QUEUE=enriched_item_by_period
+      - FROM_TYPE=QUEUE
+      - FROM=merged_item_by_period
+      - ENRICHER_TYPE=EXCHANGE
+      - ENRICHER_STRATEGY=FANOUT
+      - ENRICHER=menu_items_queue
+      - TO_TYPE=QUEUE
+      - TO=enriched_item_by_period
       - MODULE_NAME=item_enricher
       - REPLICAS=1
     networks:
@@ -187,8 +187,10 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=aggregated_item_by_period
-      - TO_QUEUE=merged_item_by_period
+      - FROM_TYPE=QUEUE
+      - FROM=aggregated_item_by_period
+      - TO_TYPE=QUEUE
+      - TO=merged_item_by_period
       - MODULE_NAME=merge_period_results
       - REPLICAS=1
     networks:
@@ -208,7 +210,7 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=INFO
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_QUEUE=filtered_amount
+      - FROM=filtered_amount
       - RESULTS_QUEUE=results_q1
       - MODULE_NAME=sink_q1
       - REPLICAS=2

@@ -5,9 +5,8 @@ from types import ModuleType
 from typing import Any, Callable
 
 from shared.entity import EOF
-from shared.middleware.interface import MessageMiddlewareQueue
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-
+from shared.middleware.interface import MessageMiddleware
+from worker import utils
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,12 +19,12 @@ class Merger:
 
     def __init__(
         self,
-        from_queue: MessageMiddlewareQueue,
-        to_queue: MessageMiddlewareQueue,
+        from_queue: MessageMiddleware,
+        to_queue: MessageMiddleware,
         merger_fn: Callable[[Any, Any], Any],
     ) -> None:
-        self._from_queue: MessageMiddlewareQueue = from_queue
-        self._to_queue: MessageMiddlewareQueue = to_queue
+        self._from_queue: MessageMiddleware = from_queue
+        self._to_queue: MessageMiddleware = to_queue
         self._merger_fn: Callable[[Any, Any], Any] = merger_fn
         self._merged: Any = None
 
@@ -63,17 +62,14 @@ class Merger:
 
 
 def main():
-    host: str = os.getenv("MIDDLEWARE_HOST")
-    from_queue_name: str = os.getenv("FROM_QUEUE")
-    to_queue_name: str = os.getenv("TO_QUEUE")
-    merger_module_name: str = os.getenv("MODULE_NAME")
-
     logging.getLogger("pika").setLevel(logging.WARNING)
 
-    from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
-    to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)
-    merger_module: ModuleType = importlib.import_module(merger_module_name)
+    merger_module_name: str = os.getenv("MODULE_NAME")
 
+    from_queue = utils.get_input_queue()
+    to_queue = utils.get_output_queue()
+
+    merger_module: ModuleType = importlib.import_module(merger_module_name)
     merger_worker = Merger(from_queue, to_queue, merger_module.merger_fn)
     merger_worker.start()
 
