@@ -1,99 +1,89 @@
-import json
+"""
+result collector that listens to multiple query result queues and streams to client.
+"""
+
 import logging
 import threading
-from typing import Any, Dict
 
-from shared.middleware.interface import MessageMiddleware
-from shared.network import Network
-from shared.protocol import PacketType, ResultPacket
+from shared.entity import EOF
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.network import Network, NetworkError
+from shared.protocol import ResultPacket
+from shared.shutdown import ShutdownSignal
 
 
-class ResultListener:
-    """subscribes to result queue and aggregates results."""
+class ResultCollector:
+    """
+    Listens to multiple result queues and streams results back to client.
+    Each query has its own result queue, results are streamed as they arrive.
+    """
 
-    EXPECTED_RESULTS = 4
-
-    def __init__(self, consumer: MessageMiddleware, network: Network):
-        self.consumer = consumer
+    def __init__(self, network: Network, middleware_host: str, shutdown_signal: ShutdownSignal):
         self.network = network
-        self.results: Dict[int, Any] = {}
-        self.listener_thread = None
-        self.shutdown_event = threading.Event()
+        self.middleware_host = middleware_host
+        self.shutdown_signal = shutdown_signal
+        self.result_queues = {}
+        self.eof_received = {}
+        self.lock = threading.Lock()
 
-    def start(self):
-        """start the result listener in a separate thread."""
-        self.listener_thread = threading.Thread(target=self.listen, daemon=True)
-        self.listener_thread.start()
-        logging.info("action: start_result_listener | result: success")
+    def add_query(self, query_id: str, queue_name: str):
+        """Register a query result queue to listen to."""
+        self.result_queues[query_id] = MessageMiddlewareQueueMQ(self.middleware_host, queue_name)
+        self.eof_received[query_id] = False
+        logging.info(f"Registered result queue for {query_id}: {queue_name}")
 
-    def listen(self):
-        """main listening loop that runs in the thread."""
-        try:
-            self.consumer.start_consuming(self.store_result)
-        except Exception as e:
-            logging.error(f"action: listen_results | result: fail | error: {e}")
+    def start_listening(self):
+        """Start listening to all result queues in separate threads."""
+        threads = []
+        for query_id, queue in self.result_queues.items():
+            thread = threading.Thread(target=self._listen_to_queue, args=(query_id, queue), name=f"results-{query_id}")
+            thread.start()
+            threads.append(thread)
 
-    def stop(self):
-        """stop the result listener and close the consumer."""
-        try:
-            self.shutdown_event.set()
+        for thread in threads:
+            thread.join()
 
-            if self.consumer:
-                self.consumer.stop_consuming()
-                self.consumer.close()
+        logging.info("All query results collected and sent to client")
 
-            if self.listener_thread and self.listener_thread.is_alive():
-                self.listener_thread.join()
+    def _listen_to_queue(self, query_id: str, queue: MessageMiddlewareQueueMQ):
+        """Listen to a specific query's result queue and stream to client."""
 
-            logging.info("action: stop_result_listener | result: success")
-        except Exception as e:
-            logging.error(f"action: stop_result_listener | result: fail | error: {e}")
-
-    def store_result(self, channel, method, properties, body: bytes):
-        """callback for storing received results."""
-        if self.shutdown_event.is_set():
-            return
-
-        try:
-            res_n = len(self.results) + 1
-            if res_n > self.EXPECTED_RESULTS:
-                channel.basic_ack(delivery_tag=method.delivery_tag)
+        def on_message(channel, method, properties, body):
+            if self.shutdown_signal.should_shutdown():
+                queue.stop_consuming()
                 return
 
-            res = json.loads(body)
-            logging.info(f"Received result nº{res_n}: {res}")
+            try:
+                # Check if EOF
+                EOF.deserialize(body)
+                logging.info(f"Query {query_id} complete, sending EOF to client")
 
-            self.results[res_n] = res
+                eof_packet = ResultPacket(query_id, body)
+                self.network.send_packet(eof_packet)
 
-            if res_n == self.EXPECTED_RESULTS:
-                self.send()
+                with self.lock:
+                    self.eof_received[query_id] = True
 
-            channel.basic_ack(delivery_tag=method.delivery_tag)
+                queue.stop_consuming()
+                return
+            except Exception:
+                pass
 
-        except json.JSONDecodeError as e:
-            logging.error(f"action: store_result | result: json_decode_error | error: {e}")
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-        except Exception as e:
-            logging.error(f"action: store_result | result: fail | error: {e}")
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+            try:
+                result_packet = ResultPacket(query_id, body)
+                self.network.send_packet(result_packet)
+                logging.debug(f"Streamed result for {query_id} ({len(body)} bytes)")
+            except NetworkError as e:
+                logging.error(f"Failed to send result for {query_id}: {e}")
+                queue.stop_consuming()
 
-    def send(self):
-        """send aggregated results to client."""
-        if self.shutdown_event.is_set():
-            return
-
-        packet = ResultPacket(self.results)
         try:
-            self.network.send_packet(packet)
-            self._wait_for_ack()
-            logging.info("action: result_send | result: success")
+            logging.info(f"Starting to listen for {query_id} results")
+            queue.start_consuming(on_message)
         except Exception as e:
-            logging.exception("failed while sending results", e)
-
-    def _wait_for_ack(self):
-        """wait for ACK packet if not already received."""
-        packet = self.network.recv_packet()
-        if packet and packet.get_message_type() == PacketType.ACK:
-            return
-        else:
-            raise Exception("result packet not acked by client")
+            logging.error(f"Error in result listener for {query_id}: {e}")
+        finally:
+            try:
+                queue.close()
+            except Exception:
+                pass

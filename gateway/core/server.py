@@ -8,11 +8,9 @@ import socket
 from typing import Optional
 
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-from shared.network import Network
 from shared.shutdown import ShutdownSignal
 
 from .handler import ClientHandler
-from .results import ResultListener
 
 
 class Server:
@@ -27,7 +25,6 @@ class Server:
         listen_backlog: int,
         middleware_host: str,
         demux_queue: str,
-        results_queue: str,
         shutdown_signal: ShutdownSignal,
     ):
         """
@@ -37,13 +34,11 @@ class Server:
             port: tcp port to listen on
             router: packet router for middleware publishing
             middleware_host: RabbitMQ host for result queue
-            results_queue: name of the results queue
             shutdown_signal: shutdown signal handler
         """
         self.port = port
         self.middleware_host = middleware_host
         self.demux_queue = demux_queue
-        self.results_queue = results_queue
         self.shutdown_signal = shutdown_signal
         self.backlog = listen_backlog
         self.server_socket: Optional[socket.socket] = None
@@ -77,12 +72,9 @@ class Server:
 
                 logging.info(f"action: client_connect | client: {client_address}")
 
-                network = Network(client_socket, self.shutdown_signal)
                 demux_publisher = MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queue)
-                result_consumer = MessageMiddlewareQueueMQ(self.middleware_host, self.results_queue)
-                listener = ResultListener(result_consumer, network)
 
-                handler = ClientHandler(client_socket, demux_publisher, listener, self.shutdown_signal)
+                handler = ClientHandler(client_socket, demux_publisher, self.middleware_host, self.shutdown_signal)
                 handler.handle_session()
 
                 logging.info(f"action: client_disconnect | client: {client_address}")

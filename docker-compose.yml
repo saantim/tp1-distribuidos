@@ -16,21 +16,21 @@ services:
       rabbitmq:
         condition: service_healthy
 
-#  client:
-#    container_name: coffee-client
-#    build:
-#      context: .
-#      dockerfile: ./client/Dockerfile
-#    entrypoint: python main.py
-#    environment:
-#      - PYTHONUNBUFFERED=1
-#      - LOGGING_LEVEL=DEBUG
-#    volumes:
-#      - ./.data:/client/.data
-#    networks:
-#      - coffee
-#    depends_on:
-#      - gateway
+  client:
+    container_name: coffee-client
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    entrypoint: python main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+    volumes:
+      - ./.data:/client/.data
+    networks:
+      - coffee
+    depends_on:
+      - gateway
 
   demux:
     image: demux_worker
@@ -43,13 +43,12 @@ services:
       - LOGGING_LEVEL=INFO
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_QUEUE=demux_queue
-      - REPLICAS=2
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   filter_amount:
     image: filter_amount
@@ -64,13 +63,13 @@ services:
       - FROM_QUEUE=filtered_tx_6am_11pm
       - TO_QUEUE=filtered_amount
       - MODULE_NAME=filter_amount
-      - REPLICAS=1
+      - REPLICAS=2
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 1
+    scale: 2
 
   filter_tx_2024_2025:
     image: filter_amount
@@ -85,13 +84,13 @@ services:
       - FROM_QUEUE=transactions_source
       - TO_QUEUE=filtered_tx_2024_2025
       - MODULE_NAME=filter_tx_2024_2025
-      - REPLICAS=1
+      - REPLICAS=2
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 1
+    scale: 2
 
   filter_tx_item_2024_2025:
     image: filter_amount
@@ -127,13 +126,13 @@ services:
       - FROM_QUEUE=filtered_tx_2024_2025
       - TO_QUEUE=filtered_tx_6am_11pm
       - MODULE_NAME=filter_tx_6am_11pm
-      - REPLICAS=1
+      - REPLICAS=2
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 1
+    scale: 2
 
   aggregator_period:
     image: aggregator_period
@@ -198,6 +197,27 @@ services:
       rabbitmq:
         condition: service_healthy
     scale: 1
+
+  sink_q1:
+    image: sink_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=INFO
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_QUEUE=filtered_amount
+      - RESULTS_QUEUE=results_q1
+      - MODULE_NAME=sink_q1
+      - REPLICAS=2
+      - STREAM_MODE=true
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   rabbitmq:
     container_name: rabbitmq-container

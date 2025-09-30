@@ -82,7 +82,7 @@ class Demux:
                 self._message_count += 1
 
             if batch_packet.eof:
-                target_queue.send(EOF().serialize())
+                target_queue.send(EOF(0).serialize())
                 logging.info(f"EOF sent for packet_type {packet_type}")
 
             self._batch_count += 1
@@ -126,6 +126,8 @@ def main():
 
     shutdown_signal = ShutdownSignal()  # todo. capaz conviene agregar un callback custom para los workers.
     from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
+
+    logging.getLogger("pika").setLevel(logging.WARNING)
 
     demux_worker = Demux(from_queue, host, shutdown_signal)
     demux_worker.start()

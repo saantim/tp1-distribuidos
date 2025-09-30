@@ -27,7 +27,6 @@ def initialize_config():
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
 
         config_params["demux_queue"] = os.getenv("DEMUX_QUEUE", config["QUEUES"]["DEMUX_QUEUE"])
-        config_params["results_queue"] = os.getenv("RESULTS_QUEUE", config["QUEUES"]["RESULTS_QUEUE"])
 
     except KeyError as e:
         raise KeyError("Key was not found. Error: {}. Aborting gateway".format(e))
@@ -67,22 +66,20 @@ def main():
     logging_level = config_params["logging_level"]
     rabbit = config_params["middleware_host"]
     demux_queue = config_params["demux_queue"]
-    results_queue = config_params["results_queue"]
 
     initialize_log(logging_level)
 
     logging.debug(
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
-        f"logging_level: {logging_level} | rabbit_host: {rabbit} | "
-        f"results_queue: {results_queue}"
+        f"logging_level: {logging_level} | rabbit_host: {rabbit}"
     )
 
     try:
         shutdown_signal = ShutdownSignal()
-        server = Server(port, listen_backlog, rabbit, demux_queue, results_queue, shutdown_signal)
+        server = Server(port, listen_backlog, rabbit, demux_queue, shutdown_signal)
 
-        logging.info(f"action: start_gateway | port: {port} | results_queue: {results_queue}")
+        logging.info(f"action: start_gateway | port: {port}")
         server.run()
 
     except Exception as e:
