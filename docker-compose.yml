@@ -16,21 +16,21 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  client:
-    container_name: coffee-client
-    build:
-      context: .
-      dockerfile: ./client/Dockerfile
-    entrypoint: python main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-    volumes:
-      - ./.data:/client/.data
-    networks:
-      - coffee
-    depends_on:
-      - gateway
+#  client:
+#    container_name: coffee-client
+#    build:
+#      context: .
+#      dockerfile: ./client/Dockerfile
+#    entrypoint: python main.py
+#    environment:
+#      - PYTHONUNBUFFERED=1
+#      - LOGGING_LEVEL=DEBUG
+#    volumes:
+#      - ./.data:/client/.data
+#    networks:
+#      - coffee
+#    depends_on:
+#      - gateway
 
   demux:
     image: demux_worker
@@ -43,6 +43,7 @@ services:
       - LOGGING_LEVEL=INFO
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_QUEUE=demux_queue
+      - REPLICAS=2
     networks:
       - coffee
     depends_on:
@@ -63,6 +64,7 @@ services:
       - FROM_QUEUE=filtered_tx_6am_11pm
       - TO_QUEUE=filtered_amount
       - MODULE_NAME=filter_amount
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
@@ -83,6 +85,7 @@ services:
       - FROM_QUEUE=transactions_source
       - TO_QUEUE=filtered_tx_2024_2025
       - MODULE_NAME=filter_tx_2024_2025
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
@@ -103,6 +106,7 @@ services:
       - FROM_QUEUE=transaction_items_queue
       - TO_QUEUE=filtered_item_amount
       - MODULE_NAME=filter_tx_item_2024_2025
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
@@ -123,6 +127,7 @@ services:
       - FROM_QUEUE=filtered_tx_2024_2025
       - TO_QUEUE=filtered_tx_6am_11pm
       - MODULE_NAME=filter_tx_6am_11pm
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
@@ -143,6 +148,7 @@ services:
       - FROM_QUEUE=filtered_item_amount
       - TO_QUEUE=aggregated_item_by_period
       - MODULE_NAME=period_aggregator
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
@@ -161,9 +167,10 @@ services:
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_QUEUE=merged_item_by_period
-      - ENRICHER_QUEUE=menu_items_queue
+      - ENRICHER_EXCHANGE=menu_items_queue
       - TO_QUEUE=enriched_item_by_period
       - MODULE_NAME=item_enricher
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
@@ -184,6 +191,7 @@ services:
       - FROM_QUEUE=aggregated_item_by_period
       - TO_QUEUE=merged_item_by_period
       - MODULE_NAME=merge_period_results
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:

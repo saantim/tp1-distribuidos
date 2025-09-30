@@ -207,7 +207,7 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
             )
         )
         self._channel = self._connection.channel()
-        self._channel.exchange_declare(exchange=self._exchange_name, exchange_type="direct", durable=True)
+        self._channel.exchange_declare(exchange=self._exchange_name, exchange_type="direct", durable=False)
 
     def start_consuming(self, on_message_callback) -> None:
         """

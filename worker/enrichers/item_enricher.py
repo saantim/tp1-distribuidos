@@ -1,7 +1,8 @@
 import logging
 from typing import Optional
 
-from worker.types import ItemId, TransactionItemByPeriod, MenuItem, ItemName
+from shared.entity import MenuItem
+from worker.types import ItemId, TransactionItemByPeriod, ItemName
 
 
 def build_enricher_fn(enricher: Optional[dict[ItemId, str]], payload: bytes) -> dict[ItemId, str]:
@@ -13,13 +14,12 @@ def build_enricher_fn(enricher: Optional[dict[ItemId, str]], payload: bytes) -> 
     return enricher
 
 
-def enricher_fn(payload: bytes, enricher: dict[ItemId, str]) -> TransactionItemByPeriod:
+def enricher_fn(enricher: dict[ItemId, str], payload: bytes) -> TransactionItemByPeriod:
     enriched: TransactionItemByPeriod = TransactionItemByPeriod.deserialize(payload)
-    logging.info("enriched: %s", enriched)
+    logging.info("enriched 1: %s", enriched)
     for period in enriched.transaction_item_per_period.keys():
-        for item_info in enriched.transaction_item_per_period[period].keys():
-            new_key = item_info
-            same_value = enriched.transaction_item_per_period[period].pop(item_info)
-            new_key.item_name = ItemName(enricher.get(item_info.item_id))
-            enriched.transaction_item_per_period[period][new_key] = same_value
+        for item_id, item_info in enriched.transaction_item_per_period[period].items():
+            logging.info(f"DEBUGGING --> item_id {item_id}, item_info: {item_info}")
+            item_info.item_name = ItemName(enricher.get(item_id, ""))
+    logging.info("enriched 2: %s", enriched)
     return enriched

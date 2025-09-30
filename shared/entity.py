@@ -1,6 +1,6 @@
 import json
 from abc import ABC
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, asdict
 from datetime import datetime
 from typing import Dict, Set, NewType
 
@@ -11,7 +11,9 @@ _DATETIME_FIELDS: Dict[type, Set[str]] = {}
 def _get_datetime_fields(cls) -> Set[str]:
     """cache which fields are datetime to avoid repeated introspection."""
     if cls not in _DATETIME_FIELDS:
-        _DATETIME_FIELDS[cls] = {field.name for field in fields(cls) if field.type == datetime}
+        _DATETIME_FIELDS[cls] = {
+            field.name for field in fields(cls) if field.type in [datetime, CreatedAt, AvailableFromTs, AvailableToTs]
+        }
     return _DATETIME_FIELDS[cls]
 
 
@@ -21,7 +23,7 @@ class Message(ABC):
     def serialize(self) -> bytes:
         """Optimized serialization."""
 
-        data = self.__dict__.copy()
+        data = asdict(self)
 
         datetime_fields = _get_datetime_fields(self.__class__)
         for field_name in datetime_fields:
@@ -40,6 +42,11 @@ class Message(ABC):
                 value = data[field_name]
                 if isinstance(value, str):
                     data[field_name] = datetime.fromisoformat(value)
+
+        for field in fields(cls):
+            if hasattr(field, "from_dict"):
+                data[field.name] = field.from_dict(data[field.name])
+
         return cls(**data)
 
     @classmethod
@@ -50,7 +57,7 @@ class Message(ABC):
 
 @dataclass
 class EOF(Message):
-    pass
+    metadata: int
 
 
 StoreId = NewType("StoreId", int)

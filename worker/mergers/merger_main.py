@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from shared.middleware.interface import MessageMiddlewareQueue
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-from worker.types import EOF
+from shared.entity import EOF
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,7 +18,10 @@ logging.basicConfig(
 class Merger:
 
     def __init__(
-        self, from_queue: MessageMiddlewareQueue, to_queue: MessageMiddlewareQueue, merger_fn: Callable[[Any, Any], Any]
+        self,
+        from_queue: MessageMiddlewareQueue,
+        to_queue: MessageMiddlewareQueue,
+        merger_fn: Callable[[Any, Any], Any],
     ) -> None:
         self._from_queue: MessageMiddlewareQueue = from_queue
         self._to_queue: MessageMiddlewareQueue = to_queue
@@ -26,15 +29,8 @@ class Merger:
         self._merged: Any = None
 
     def _on_message(self, channel, method, properties, body) -> None:
-        try:
-            EOF.deserialize(body)
-            logging.info("Received EOF, stopping merger worker")
-            self.stop()
-            return
-        except Exception:
-            pass
-
-        self._merged = self._merger_fn(self._merged, body)
+        if not self._handle_eof(body):
+            self._merged = self._merger_fn(self._merged, body)
 
     def start(self) -> None:
         logging.info("Starting merger worker")
@@ -42,10 +38,27 @@ class Merger:
 
     def stop(self) -> None:
         logging.info("Stopping merger worker")
+        # self._from_queue.stop_consuming()
+        # self._to_queue.send(self._merged)
+        # self._to_queue.send(EOF(0).serialize())
+        # self._to_queue.close()
+        pass
+
+    def _handle_eof(self, body: bytes) -> bool:
+        try:
+            EOF.deserialize(body)
+        except Exception as e:
+            _ = e
+            return False
+
+        logging.info("EOF received, stopping worker...")
         self._from_queue.stop_consuming()
-        self._to_queue.send(self._merged)
-        self._to_queue.send(EOF().serialize())
-        self._to_queue.close()
+        self._to_queue.send(self._merged.serialize())
+        self._to_queue.send(EOF(0).serialize())
+        logging.info("EOF sent to next stage")
+        self.stop()
+
+        return True
 
 
 def main():

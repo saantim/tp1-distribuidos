@@ -29,15 +29,25 @@ Period = NewType('Period', str)
 
 # PERIOD AGGREGATOR (Q2)
 @dataclass
-class ItemSold(Message):
+class ItemInfo(Message):
     amount: float
     quantity: int
-
-@dataclass(unsafe_hash=True)
-class ItemInfo(Message):
-    item_id: ItemId
     item_name: ItemName
 
 @dataclass
 class TransactionItemByPeriod(Message):
-    transaction_item_per_period: dict[Period, dict[ItemInfo, ItemSold]]
+    transaction_item_per_period: dict[Period, dict[ItemId, ItemInfo]]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TransactionItemByPeriod":
+        raw = data["transaction_item_per_period"]
+        parsed: dict[Period, dict[ItemId, ItemInfo]] = {}
+        for period_str, items_dict in raw.items():
+            period = Period(period_str)
+            parsed_items = {}
+            for item_id_str, item_info_dict in items_dict.items():
+                item_id = ItemId(item_id_str)
+                item_info = ItemInfo(item_info_dict["amount"], item_info_dict["quantity"], ItemName(item_info_dict["item_name"]))
+                parsed_items[item_id] = item_info
+            parsed[period] = parsed_items
+        return cls(transaction_item_per_period=parsed)
