@@ -211,7 +211,6 @@ services:
       - FROM_QUEUE=filtered_amount
       - RESULTS_QUEUE=results_q1
       - MODULE_NAME=sink_q1
-      - REPLICAS=2
       - STREAM_MODE=true
     networks:
       - coffee

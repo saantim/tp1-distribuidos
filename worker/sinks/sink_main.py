@@ -28,13 +28,11 @@ class Sink:
         from_queue: MessageMiddlewareQueue,
         results_queue: MessageMiddlewareQueue,
         format_fn: Callable[[Any], bytes],
-        replicas: int,
         stream_mode: bool = False,
     ) -> None:
         self._from_queue = from_queue
         self._results_queue = results_queue
         self._format_fn = format_fn
-        self._replicas = replicas
         self._stream_mode = stream_mode
         self._results_collected = [] if not stream_mode else None
         self._eof_count = 0
@@ -58,12 +56,7 @@ class Sink:
             return False
 
         self._eof_count += 1
-        logging.info(f"EOF received ({self._eof_count}/{self._replicas})")
-
-        if self._eof_count < self._replicas:
-            return True
-
-        logging.info(f"All {self._eof_count} EOFs received, finalizing")
+        logging.info(f"EOF received for sink: {self._results_queue}!")
         self._from_queue.stop_consuming()
 
         if not self._stream_mode and self._results_collected:
@@ -87,7 +80,7 @@ class Sink:
 
     def start(self) -> None:
         mode = "streaming" if self._stream_mode else "batch"
-        logging.info(f"Starting sink worker in {mode} mode (replicas={self._replicas})")
+        logging.info(f"Starting sink worker in {mode} mode")
         self._from_queue.start_consuming(self._on_message)
 
     @staticmethod
@@ -100,14 +93,12 @@ def main():
     from_queue_name = os.getenv("FROM_QUEUE")
     results_queue_name = os.getenv("RESULTS_QUEUE")
     sink_module_name = os.getenv("MODULE_NAME")
-    stage_replicas = int(os.getenv("REPLICAS", "1"))
     stream_mode = os.getenv("STREAM_MODE", "false").lower() == "true"
 
     logging.info("Sink configuration:")
     logging.info(f"  FROM_QUEUE: {from_queue_name}")
     logging.info(f"  RESULTS_QUEUE: {results_queue_name}")
     logging.info(f"  MODULE_NAME: {sink_module_name}")
-    logging.info(f"  REPLICAS: {stage_replicas}")
     logging.info(f"  STREAM_MODE: {stream_mode}")
 
     logging.getLogger("pika").setLevel(logging.WARNING)
@@ -116,7 +107,7 @@ def main():
     results_queue = MessageMiddlewareQueueMQ(host, results_queue_name)
     sink_module: ModuleType = importlib.import_module(sink_module_name)
 
-    sink_worker = Sink(from_queue, results_queue, sink_module.format_fn, stage_replicas, stream_mode)
+    sink_worker = Sink(from_queue, results_queue, sink_module.format_fn, stream_mode)
     sink_worker.start()
 
 

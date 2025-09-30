@@ -14,7 +14,7 @@ def _get_datetime_fields(cls) -> Set[str]:
         _DATETIME_FIELDS[cls] = {
             field.name
             for field in fields(cls)
-            if field.type in [datetime, CreatedAt, AvailableFrom, AvailableTo, RegisteredAt]
+            if field.type in [Birthdate, CreatedAt, AvailableFrom, AvailableTo, RegisteredAt, datetime]
         }
     return _DATETIME_FIELDS[cls]
 

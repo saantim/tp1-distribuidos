@@ -18,10 +18,14 @@ class ResultCollector:
     Each query has its own result queue, results are streamed as they arrive.
     """
 
-    def __init__(self, network: Network, middleware_host: str, shutdown_signal: ShutdownSignal):
+    def __init__(
+        self, network: Network, middleware_host: str, user_cond: threading.Condition, shutdown_signal: ShutdownSignal
+    ):
         self.network = network
         self.middleware_host = middleware_host
         self.shutdown_signal = shutdown_signal
+        self.user_ready_var = user_cond
+        self.can_send = False
         self.result_queues = {}
         self.eof_received = {}
         self.lock = threading.Lock()
@@ -54,7 +58,6 @@ class ResultCollector:
                 return
 
             try:
-                # Check if EOF
                 EOF.deserialize(body)
                 logging.info(f"Query {query_id} complete, sending EOF to client")
 
@@ -71,13 +74,17 @@ class ResultCollector:
 
             try:
                 result_packet = ResultPacket(query_id, body)
-                self.network.send_packet(result_packet)
-                logging.debug(f"Streamed result for {query_id} ({len(body)} bytes)")
+                with self.lock:
+                    self.network.send_packet(result_packet)
             except NetworkError as e:
                 logging.error(f"Failed to send result for {query_id}: {e}")
                 queue.stop_consuming()
 
         try:
+            with self.user_ready_var:
+                while not self.can_send:
+                    self.user_ready_var.wait()
+                    self.can_send = True
             logging.info(f"Starting to listen for {query_id} results")
             queue.start_consuming(on_message)
         except Exception as e:

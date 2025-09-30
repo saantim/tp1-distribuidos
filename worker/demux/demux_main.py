@@ -83,7 +83,7 @@ class Demux:
 
             if batch_packet.eof:
                 target_queue.send(EOF(0).serialize())
-                logging.info(f"EOF sent for packet_type {packet_type}")
+                logging.info(f"EOF sent for packet_type {type(batch_packet)}")
 
             self._batch_count += 1
 
