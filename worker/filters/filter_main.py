@@ -1,11 +1,13 @@
+import importlib
 import logging
 import os
-import importlib
 from types import ModuleType
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from typing import Any, Callable
-from shared.middleware.interface import MessageMiddlewareQueue
+
 from shared.entity import EOF
+from shared.middleware.interface import MessageMiddlewareQueue
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,6 +69,8 @@ def main():
     to_queue_name: str = os.getenv("TO_QUEUE")
     filter_module_name: str = os.getenv("MODULE_NAME")
     stage_replicas: int = int(os.getenv("REPLICAS"))
+
+    logging.getLogger("pika").setLevel(logging.WARNING)
 
     from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
     to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)

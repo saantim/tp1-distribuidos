@@ -1,12 +1,13 @@
 import importlib
-import os
 import logging
+import os
 from types import ModuleType
 from typing import Any, Callable
 
-from shared.middleware.interface import MessageMiddleware
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ, MessageMiddlewareExchangeRMQ
 from shared.entity import EOF
+from shared.middleware.interface import MessageMiddleware
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,6 +95,8 @@ def main():
     logging.info(f"enricher_exchange_name = {enricher_exchange_name}")
     logging.info(f"to_queue_name = {to_queue_name}")
     logging.info(f"enricher_module_name = {enricher_module_name}")
+
+    logging.getLogger("pika").setLevel(logging.WARNING)
 
     from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
     to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)

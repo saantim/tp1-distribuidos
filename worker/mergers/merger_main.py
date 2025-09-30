@@ -4,9 +4,10 @@ import os
 from types import ModuleType
 from typing import Any, Callable
 
+from shared.entity import EOF
 from shared.middleware.interface import MessageMiddlewareQueue
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-from shared.entity import EOF
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,6 +67,8 @@ def main():
     from_queue_name: str = os.getenv("FROM_QUEUE")
     to_queue_name: str = os.getenv("TO_QUEUE")
     merger_module_name: str = os.getenv("MODULE_NAME")
+
+    logging.getLogger("pika").setLevel(logging.WARNING)
 
     from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
     to_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, to_queue_name)

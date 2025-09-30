@@ -11,8 +11,9 @@ import threading
 import time
 from typing import Any, Callable, Dict, List
 
+from shared.entity import EOF
 from shared.network import Network
-from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType, ResultPacket
+from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType
 from shared.shutdown import ShutdownSignal
 
 from .batch import BatchConfig, BatchProcessor
@@ -133,48 +134,87 @@ class Analyzer:
             self.shutdown_signal.trigger_shutdown()
 
     def _wait_for_results(self):
-        """wait for result packet on the same TCP connection after session end."""
+        """
+        Wait for result packets on the same TCP connection after session end.
+        Receives multiple ResultPackets (streamed), one EOF per query signals completion.
+        """
         try:
             logging.info("action: waiting_for_results | status: started")
 
-            packet = self.network.recv_packet()
-            if packet is None:
-                logging.warning("action: wait_for_results | result: connection_closed")
-                return
+            results_by_query = {}
+            queries_complete = set()
+            expected_queries = {"Q1"}
 
-            if packet.get_message_type() == PacketType.RESULT:
-                self._handle_result_packet(packet)
-            elif packet.get_message_type() == PacketType.ERROR:
-                logging.error(f"action: receive_results | result: server_error | error: {packet.message}")
-            else:
-                logging.warning(
-                    f"action: wait_for_results | result: unexpected_packet |" f" type: {packet.get_message_type()}"
-                )
+            while len(queries_complete) < len(expected_queries):
+                if self.shutdown_signal.should_shutdown():
+                    break
+
+                packet = self.network.recv_packet()
+
+                if packet is None:
+                    logging.warning("action: wait_for_results | result: connection_closed")
+                    break
+
+                if packet.get_message_type() == PacketType.RESULT:
+                    query_id = packet.query_id
+                    data = packet.data
+
+                    try:
+                        EOF.deserialize(data)
+                        queries_complete.add(query_id)
+                        logging.info(f"query {query_id} complete ({len(queries_complete)}/{len(expected_queries)})")
+                        continue
+                    except Exception:
+                        pass
+
+                    if query_id not in results_by_query:
+                        results_by_query[query_id] = []
+                    results_by_query[query_id].append(data)
+
+                elif packet.get_message_type() == PacketType.ERROR:
+                    logging.error(f"action: receive_results | result: server_error | error: {packet.message}")
+                    break
+                else:
+                    logging.warning(
+                        f"action: wait_for_results | result: unexpected_packet |" f" type: {packet.get_message_type()}"
+                    )
+
+            self._display_results(results_by_query)
 
         except Exception as e:
             logging.error(f"action: wait_for_results | result: fail | error: {e}")
 
-    def _handle_result_packet(self, packet: ResultPacket):
-        """handle received result packet."""
-        try:
-            results = packet.data
-            logging.info("action: receive_results | result: success")
-            logging.info(f"Pipeline results: {json.dumps(results, indent=2)}")
-            self._send_ack_for_results()
+    @staticmethod
+    def _display_results(results_by_query: dict):
+        """Display collected results from all queries."""
+        for query_id in sorted(results_by_query.keys()):
+            logging.info(f"\n========== {query_id} Results ==========")
+            results = results_by_query[query_id]
 
-        except Exception as e:
-            logging.error(f"action: handle_result_packet | result: fail | error: {e}")
+            if query_id == "Q1":
+                logging.info(f"Total Q1 filtered transactions: {len(results)}")
+                logging.info("\nFirst 10:")
+                for result_bytes in results[:10]:
+                    try:
+                        result = json.loads(result_bytes.decode("utf-8"))
+                        logging.info(f"  {result}")
+                    except Exception as e:
+                        logging.error(f"Failed to parse result: {e}")
 
-    def _send_ack_for_results(self):
-        """send ACK packet for received results."""
-        try:
-            from shared.protocol import AckPacket
-
-            ack_packet = AckPacket()
-            self.network.send_packet(ack_packet)
-            logging.info("action: ack_results | result: success")
-        except Exception as e:
-            logging.error(f"action: ack_results | result: fail | error: {e}")
+                logging.info("\nLast 10:")
+                for result_bytes in results[-10:]:
+                    try:
+                        result = json.loads(result_bytes.decode("utf-8"))
+                        logging.info(f"  {result}")
+                    except Exception as e:
+                        logging.error(f"Failed to parse result: {e}")
+            else:
+                for result_bytes in results:
+                    try:
+                        result = json.loads(result_bytes.decode("utf-8"))
+                        logging.info(json.dumps(result, indent=2))
+                    except Exception as e:
+                        logging.error(f"Failed to parse result: {e}")
 
     def _start_processing_threads(self):
         """start worker threads for each folder."""

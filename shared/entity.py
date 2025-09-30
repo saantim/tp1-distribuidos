@@ -1,8 +1,8 @@
 import json
 from abc import ABC
-from dataclasses import dataclass, fields, asdict
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime
-from typing import Dict, Set, NewType
+from typing import Dict, NewType, Set
 
 
 _DATETIME_FIELDS: Dict[type, Set[str]] = {}
@@ -12,7 +12,9 @@ def _get_datetime_fields(cls) -> Set[str]:
     """cache which fields are datetime to avoid repeated introspection."""
     if cls not in _DATETIME_FIELDS:
         _DATETIME_FIELDS[cls] = {
-            field.name for field in fields(cls) if field.type in [datetime, CreatedAt, AvailableFromTs, AvailableToTs]
+            field.name
+            for field in fields(cls)
+            if field.type in [datetime, CreatedAt, AvailableFrom, AvailableTo, RegisteredAt]
         }
     return _DATETIME_FIELDS[cls]
 
@@ -61,6 +63,7 @@ class EOF(Message):
 
 
 StoreId = NewType("StoreId", int)
+PostalCode = NewType("PostalCode", int)
 Latitude = NewType("Latitude", float)
 Longitude = NewType("Longitude", float)
 StoreName = NewType("StoreName", str)
@@ -72,6 +75,7 @@ State = NewType("State", str)
 @dataclass
 class Store(Message):
     store_id: StoreId
+    postal_code: PostalCode
     latitude: Latitude
     longitude: Longitude
     store_name: StoreName
@@ -102,8 +106,8 @@ ItemName = NewType("ItemName", str)
 Category = NewType("Category", str)
 Price = NewType("Price", float)
 IsSeasonal = NewType("IsSeasonal", bool)
-AvailableFromTs = NewType("AvailableFromTs", datetime)
-AvailableToTs = NewType("AvailableToTs", datetime)
+AvailableFrom = NewType("AvailableFrom", datetime)
+AvailableTo = NewType("AvailableTo", datetime)
 
 
 @dataclass
@@ -113,8 +117,8 @@ class MenuItem(Message):
     category: Category
     price: Price
     is_seasonal: IsSeasonal
-    available_from_ts: AvailableFromTs
-    available_to_ts: AvailableToTs
+    available_from: AvailableFrom
+    available_to: AvailableTo
 
 
 # Strong types for each field

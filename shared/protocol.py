@@ -2,7 +2,6 @@
 binary serialization using ByteWriter and Reader utils.
 """
 
-import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import IntEnum
@@ -79,6 +78,7 @@ class Packet(ABC):
             PacketType.TRANSACTIONS_BATCH: TransactionsBatch,
             PacketType.TRANSACTION_ITEMS_BATCH: TransactionItemsBatch,
             PacketType.MENU_ITEMS_BATCH: MenuItemsBatch,
+            PacketType.RESULT: ResultPacket,
             PacketType.ACK: AckPacket,
             PacketType.ERROR: ErrorPacket,
         }
@@ -127,19 +127,31 @@ class AckPacket(Packet):
 
 
 class ResultPacket(Packet):
-    def __init__(self, data: dict):
+    def __init__(self, query_id: str, data: bytes):
+        """
+        Result packet that can stream data for a specific query.
+        """
+
+        self.query_id = query_id
         self.data = data
 
     def get_message_type(self) -> int:
         return PacketType.RESULT
 
     def serialize_payload(self) -> bytes:
-        return json.dumps(self.data).encode("utf-8")
+        writer = ByteWriter()
+        writer.write_string(self.query_id)
+        writer.write_uint32(len(self.data))
+        writer.write_bytes(self.data)
+        return writer.get_bytes()
 
     @classmethod
     def deserialize_payload(cls, data: bytes) -> "ResultPacket":
-        data = json.loads(data.decode("utf-8"))
-        return cls(data)
+        reader = ByteReader(data)
+        query_id = reader.read_string()
+        data_length = reader.read_uint32()
+        result_data = reader.read_bytes(data_length)
+        return cls(query_id, result_data)
 
 
 class ErrorPacket(Packet):
