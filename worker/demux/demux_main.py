@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from enum import IntEnum
 from typing import cast, Dict, Tuple, Type
 
@@ -73,6 +74,7 @@ class Demux:
             entity_class = ENTITY_MAP[packet_type]
             target_publisher = self.publishers.get(PacketType(packet_type))
 
+            demux_start = time.time()
             for row in batch_packet.csv_rows:
                 if self._shutdown_signal.should_shutdown():
                     logging.info("shutdown requested, stopping mid-batch")
@@ -82,12 +84,14 @@ class Demux:
                 entity = entity_class.from_dict(row)
                 target_publisher.send(entity.serialize())
                 self._message_count += 1
+            demux_end = time.time()
 
             if batch_packet.eof:
                 target_publisher.send(EOF(0).serialize())
                 logging.info(f"EOF sent for packet_type {type(batch_packet)}")
 
             self._batch_count += 1
+            logging.info(f"batch #{self._batch_count} took {demux_end - demux_start:.2f} seconds")
 
             if self._batch_count % 100 == 0:
                 logging.info(f"checkpoint: processed {self._batch_count} batches, {self._message_count} messages")

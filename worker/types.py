@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import NewType
 
-from shared.entity import Message, User, ItemId, ItemName, StoreId, StoreName
+from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, User
 
 
 # USER PURCHASE AGGREGATOR
@@ -13,7 +13,6 @@ class UserPurchasesOnStore(Message):
 
 @dataclass
 class UserPurchasesByStore(Message):
-
     user_purchases_by_store: dict[int, list[UserPurchasesOnStore]]
 
 
@@ -22,8 +21,9 @@ class UserPurchasesByStore(Message):
 class Top3UsersPurchasesOnStore(Message):
     top_3: UserPurchasesByStore
 
-TransactionAmount = NewType('TransactionAmount', int)
-Period = NewType('Period', str)
+
+TransactionAmount = NewType("TransactionAmount", int)
+Period = NewType("Period", str)
 
 
 # PERIOD AGGREGATOR (Q2)
@@ -32,6 +32,7 @@ class ItemInfo(Message):
     amount: float
     quantity: int
     item_name: ItemName
+
 
 @dataclass
 class TransactionItemByPeriod(Message):
@@ -46,10 +47,13 @@ class TransactionItemByPeriod(Message):
             parsed_items = {}
             for item_id_str, item_info_dict in items_dict.items():
                 item_id = ItemId(item_id_str)
-                item_info = ItemInfo(item_info_dict["amount"], item_info_dict["quantity"], ItemName(item_info_dict["item_name"]))
+                item_info = ItemInfo(
+                    item_info_dict["amount"], item_info_dict["quantity"], ItemName(item_info_dict["item_name"])
+                )
                 parsed_items[item_id] = item_info
             parsed[period] = parsed_items
         return cls(transaction_item_per_period=parsed)
+
 
 # SEMESTER AGGREGATOR (Q3)
 @dataclass
@@ -58,7 +62,9 @@ class StoreInfo(Message):
     amount: float
 
 
-Semester = NewType('Semester', str)
+Semester = NewType("Semester", str)
+
+
 @dataclass
 class SemesterTPVByStore(Message):
     semester_tpv_by_store: dict[Semester, dict[StoreId, StoreInfo]]

@@ -66,13 +66,13 @@ services:
       - TO_TYPE=QUEUE
       - TO=filtered_amount
       - MODULE_NAME=filter_amount
-      - REPLICAS=2
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   filter_tx_2024_2025:
     image: filter_amount
@@ -89,13 +89,13 @@ services:
       - TO_TYPE=QUEUE
       - TO=filtered_tx_2024_2025
       - MODULE_NAME=filter_tx_2024_2025
-      - REPLICAS=2
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   filter_tx_item_2024_2025:
     image: filter_amount
@@ -136,13 +136,13 @@ services:
       - TO_STRATEGY=FANOUT
       - TO=filtered_tx_6am_11pm
       - MODULE_NAME=filter_tx_6am_11pm
-      - REPLICAS=2
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 2
+    scale: 1
 
   aggregator_period:
     image: aggregator_period
@@ -278,7 +278,7 @@ services:
       - FROM=merged_semester_by_store
       - ENRICHER_TYPE=EXCHANGE
       - ENRICHER_STRATEGY=FANOUT
-      - ENRICHER=store_source
+      - ENRICHER=stores_source
       - TO_TYPE=QUEUE
       - TO=enriched_semester_tx
       - MODULE_NAME=store_enricher
@@ -323,6 +323,25 @@ services:
       - FROM=enriched_item_by_period
       - RESULTS_QUEUE=results_q2
       - MODULE_NAME=sink_q2
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  sink_q3:
+    image: sink_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=INFO
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM=enriched_semester_tx
+      - RESULTS_QUEUE=results_q3
+      - MODULE_NAME=sink_q3
     networks:
       - coffee
     depends_on:

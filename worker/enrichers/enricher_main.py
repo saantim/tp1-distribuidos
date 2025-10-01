@@ -63,10 +63,12 @@ class Enricher:
         try:
             EOF.deserialize(body)
             logging.info("EOF received, stopping enricher + start consuming from queue")
+            logging.info(f"EnricherFinalized: {self._enricher}")
+            self._enricher_queue.stop_consuming()
             self._from_queue.start_consuming(self._on_message)
-            self._enricher_queue.close()
             return
-        except Exception:
+        except Exception as e:
+            _ = e
             pass
         self._enricher = self._build_enricher_fn(self._enricher, body)
 

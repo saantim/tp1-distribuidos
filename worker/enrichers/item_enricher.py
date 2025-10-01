@@ -2,24 +2,25 @@ import logging
 from typing import Optional
 
 from shared.entity import MenuItem
-from worker.types import ItemId, TransactionItemByPeriod, ItemName
+from worker.types import ItemInfo, ItemName, TransactionItemByPeriod
 
 
-def build_enricher_fn(enricher: Optional[dict[ItemId, str]], payload: bytes) -> dict[ItemId, str]:
+def build_enricher_fn(enricher: Optional[dict[int, str]], payload: bytes) -> dict[int, str]:
     menu_item: MenuItem = MenuItem.deserialize(payload)
-    logging.info(f"Processing enriched message: {menu_item}")
     if not enricher:
         enricher = {}
-    enricher[menu_item.item_id] = menu_item.item_name
+    enricher[int(menu_item.item_id)] = menu_item.item_name
     return enricher
 
 
-def enricher_fn(enricher: dict[ItemId, str], payload: bytes) -> TransactionItemByPeriod:
+def enricher_fn(enricher: dict[int, str], payload: bytes) -> TransactionItemByPeriod:
     enriched: TransactionItemByPeriod = TransactionItemByPeriod.deserialize(payload)
-    logging.info("enriched 1: %s", enriched)
-    for period in enriched.transaction_item_per_period.keys():
-        for item_id, item_info in enriched.transaction_item_per_period[period].items():
-            logging.info(f"DEBUGGING --> item_id {item_id}, item_info: {item_info}")
-            item_info.item_name = ItemName(enricher.get(item_id, ""))
-    logging.info("enriched 2: %s", enriched)
+    for period, items in enriched.transaction_item_per_period.items():
+        for item_id, item_info in items.items():
+            name = enricher.get(int(item_id), "")
+            if name:
+                new = ItemInfo(item_name=ItemName(name), amount=item_info.amount, quantity=item_info.quantity)
+                enriched.transaction_item_per_period[period][item_id] = new
+                logging.info(f"enriched from {item_id} to {name}")
+
     return enriched
