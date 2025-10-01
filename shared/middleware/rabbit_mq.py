@@ -1,4 +1,6 @@
 import logging
+import socket
+import time
 from typing import Optional
 
 import pika
@@ -30,24 +32,39 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
     Args:
         host: RabbitMQ host to connect to.
         queue_name: Name of the queue to declare and use as routing key.
+        max_retries: Maximum number of connection attempts.
 
     Raises:
-        pika.exceptions.AMQPConnectionError: If the initial connection cannot be established.
+        pika.exceptions.AMQPConnectionError: If connection cannot be established after retries.
     """
 
-    def __init__(self, host: str, queue_name: str) -> None:
+    def __init__(self, host: str, queue_name: str, max_retries: int = 10) -> None:
         super().__init__(host, queue_name)
         self._host: str = host
         self._queue_name: str = queue_name
         self._consumer_tag: Optional[str] = None
-        self._connection = pika.BlockingConnection(
-            pika.ConnectionParameters(
-                host=self._host,
-                port=5672,
-                credentials=pika.PlainCredentials(username="admin", password="admin"),
-                heartbeat=600,
-            )
-        )
+
+        for attempt in range(max_retries):
+            try:
+                self._connection = pika.BlockingConnection(
+                    pika.ConnectionParameters(
+                        host=self._host,
+                        port=5672,
+                        credentials=pika.PlainCredentials(username="admin", password="admin"),
+                        heartbeat=600,
+                    )
+                )
+                break
+            except (AMQPConnectionError, socket.gaierror, OSError):
+                if attempt == max_retries - 1:
+                    logging.error(f"Failed to connect to RabbitMQ after {max_retries} attempts")
+                    raise
+                wait_time = min(2**attempt, 10)
+                logging.warning(
+                    f"RabbitMQ connection failed (attempt {attempt + 1}/{max_retries}), " f"retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+
         self._channel = self._connection.channel()
         self._channel.queue_declare(queue=self._queue_name, durable=False)
 
@@ -193,22 +210,40 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
         host: RabbitMQ hostname or IP (e.g., "localhost" or a container hostname).
         exchange_name: Name of the direct exchange to declare/use.
         route_keys: Routing keys to bind and consume from.
+        max_retries: Maximum number of connection attempts.
 
     Raises:
-        pika.exceptions.AMQPConnectionError: If the initial connection cannot be established.
+        pika.exceptions.AMQPConnectionError: If connection cannot be established after retries.
     """
 
-    def __init__(self, host: str, exchange_name: str, route_keys: list[str]) -> None:
+    def __init__(self, host: str, exchange_name: str, route_keys: list[str], max_retries: int = 10) -> None:
         super().__init__(host, exchange_name, route_keys)
         self._host: str = host
         self._exchange_name: str = exchange_name
         self._route_keys: list[str] = route_keys
         self._consumer_tags: list[str] = []
-        self._connection = pika.BlockingConnection(
-            pika.ConnectionParameters(
-                host=self._host, port=5672, credentials=pika.PlainCredentials(username="admin", password="admin")
-            )
-        )
+
+        for attempt in range(max_retries):
+            try:
+                self._connection = pika.BlockingConnection(
+                    pika.ConnectionParameters(
+                        host=self._host,
+                        port=5672,
+                        credentials=pika.PlainCredentials(username="admin", password="admin"),
+                        heartbeat=600,
+                    )
+                )
+                break
+            except AMQPConnectionError:
+                if attempt == max_retries - 1:
+                    logging.error(f"Failed to connect to RabbitMQ after {max_retries} attempts")
+                    raise
+                wait_time = min(2**attempt, 10)  # Exponential backoff, capped at 10s
+                logging.warning(
+                    f"RabbitMQ connection failed (attempt {attempt + 1}/{max_retries}), " f"retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+
         self._channel = self._connection.channel()
         self._channel.exchange_declare(exchange=self._exchange_name, exchange_type="direct", durable=False)
 
@@ -221,7 +256,7 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
           2) binds it to ``self._exchange_name`` with that routing key, and
           3) registers ``on_message_callback`` as the consumer callback.
 
-        After registering all consumers, it enters Pika’s blocking consuming loop
+        After registering all consumers, it enters Pika's blocking consuming loop
         via ``channel.start_consuming()``, which does not return until the loop is
         stopped or the channel/connection is closed.
 

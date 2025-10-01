@@ -8,6 +8,7 @@ from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
 from worker import utils
 
+
 logging.basicConfig(
     level=logging.INFO,
     format="MERGER - %(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -27,6 +28,7 @@ class Merger:
         self._to_queue: MessageMiddleware = to_queue
         self._merger_fn: Callable[[Any, Any], Any] = merger_fn
         self._merged: Any = None
+        self.eof_handler = utils.get_eof_handler(from_queue, to_queue)
 
     def _on_message(self, channel, method, properties, body) -> None:
         if not self._handle_eof(body):

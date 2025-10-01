@@ -3,9 +3,10 @@ import logging
 import os
 from types import ModuleType
 from typing import Any, Callable
-from shared.entity import EOF
-from worker import utils
+
 from shared.middleware.interface import MessageMiddleware
+from worker import utils
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,40 +18,26 @@ logging.basicConfig(
 class Filter:
 
     def __init__(
-        self,
-        from_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
-        filter_fn: Callable[[Any], bool],
-        replicas: int,
+        self, from_queue: MessageMiddleware, to_queue: MessageMiddleware, filter_fn: Callable[[Any], bool]
     ) -> None:
-        self._replicas = replicas
+        self.name = os.getenv("MODULE_NAME")
         self._from_queue = from_queue
         self._to_queue = to_queue
         self._filter_fn = filter_fn
+        self._eof_handler = utils.get_eof_handler(from_queue, to_queue)
+
+        self.received = 0
+        self.passed = 0
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
-        if not self._handle_eof(body):
+        self.received += 1
+        if not self._eof_handler.handle_eof(body):
             if self._filter_fn(body):
+                self.passed += 1
                 self._to_queue.send(body)
 
-    def _handle_eof(self, body: bytes) -> bool:
-        try:
-            eof_message: EOF = EOF.deserialize(body)
-        except Exception as e:
-            _ = e
-            return False
-
-        logging.info("EOF received, stopping filter worker...")
-        self._from_queue.stop_consuming()
-        if eof_message.metadata + 1 == self._replicas:
-            self._to_queue.send(EOF(0).serialize())
-            logging.info("EOF sent to next stage")
-        else:
-            eof_message.metadata += 1
-            self._from_queue.send(eof_message.serialize())
-        self.stop()
-
-        return True
+        if self.received % 100000 == 0:
+            logging.info(f"[{self.name}] checkpoint: " f"received={self.received}, pass={self.passed}")
 
     def start(self) -> None:
         self._from_queue.start_consuming(self._on_message)
@@ -64,14 +51,14 @@ class Filter:
 def main():
     logging.getLogger("pika").setLevel(logging.WARNING)
     filter_module_name: str = os.getenv("MODULE_NAME")
-    stage_replicas: int = int(os.getenv("REPLICAS"))
 
     from_queue = utils.get_input_queue()
     to_queue = utils.get_output_queue()
-
     filter_module: ModuleType = importlib.import_module(filter_module_name)
-    filter_worker = Filter(from_queue, to_queue, filter_module.filter_fn, stage_replicas)
+
+    filter_worker = Filter(from_queue, to_queue, filter_module.filter_fn)
     filter_worker.start()
+
 
 if __name__ == "__main__":
     main()

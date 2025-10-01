@@ -1,22 +1,23 @@
-import logging
 from typing import Optional
 
-from shared.entity import ItemId, ItemName, StoreName
-from worker.types import TransactionItemByPeriod, ItemInfo, SemesterTPVByStore, StoreInfo
+from shared.entity import StoreName
+from worker.types import SemesterTPVByStore, StoreInfo
 
 
 def merger_fn(merged: Optional[SemesterTPVByStore], payload: bytes) -> SemesterTPVByStore:
-    logging.info(f"Running semester merger fn {payload.decode()}")
     message: SemesterTPVByStore = SemesterTPVByStore.deserialize(payload)
 
     if merged is None:
         return message
 
-    for semester, dict_of_semester_store_tpv in message.semester_tpv_by_store.values():
-        for store_id, amount in dict_of_semester_store_tpv.values():
-            if not merged.semester_tpv_by_store.get(semester):
-                merged.semester_tpv_by_store[semester] = {}
-            if not merged.semester_tpv_by_store[semester].get(store_id):
+    for semester, dict_of_semester_store_tpv in message.semester_tpv_by_store.items():
+        if semester not in merged.semester_tpv_by_store:
+            merged.semester_tpv_by_store[semester] = {}
+
+        for store_id, store_info in dict_of_semester_store_tpv.items():
+            if store_id not in merged.semester_tpv_by_store[semester]:
                 merged.semester_tpv_by_store[semester][store_id] = StoreInfo(store_name=StoreName(""), amount=0.0)
-            merged.semester_tpv_by_store[semester][store_id].amount += amount
+
+            merged.semester_tpv_by_store[semester][store_id].amount += store_info.amount
+
     return merged

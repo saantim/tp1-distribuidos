@@ -4,7 +4,6 @@ import os
 from types import ModuleType
 from typing import Any, Callable
 
-from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
 from shared.protocol import Packet
 from worker import utils
@@ -20,20 +19,21 @@ logging.basicConfig(
 class Aggregator:
 
     def __init__(
-        self,
-        from_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
-        aggregator_fn: Callable[[Any, Packet], Any],
-        replicas: int,
+        self, from_queue: MessageMiddleware, to_queue: MessageMiddleware, aggregator_fn: Callable[[Any, Packet], Any]
     ) -> None:
         self._from_queue = from_queue
         self._to_queue = to_queue
         self._aggregator_fn = aggregator_fn
         self._aggregated: Any = None
-        self._replicas = replicas
+        self._eof_handler = utils.get_eof_handler(from_queue, to_queue)
 
     def _on_message(self, channel, method, properties, body) -> None:
-        if not self._handle_eof(body):
+
+        def send_results():
+            if self._aggregated:
+                self._to_queue.send(self._aggregated.serialize())
+
+        if not self._eof_handler.handle_eof(body, on_eof_callback=send_results):
             self._aggregated = self._aggregator_fn(self._aggregated, body)
 
     def start(self) -> None:
@@ -45,39 +45,16 @@ class Aggregator:
         # self._to_queue.close()
         pass
 
-    def _handle_eof(self, body: bytes) -> bool:
-        try:
-            eof_message: EOF = EOF.deserialize(body)
-        except Exception as e:
-            _ = e
-            return False
-
-        logging.info("EOF received, stopping worker...")
-        self._from_queue.stop_consuming()
-        if eof_message.metadata + 1 == self._replicas:
-
-            self._to_queue.send(self._aggregated.serialize())
-            self._to_queue.send(EOF(0).serialize())
-            logging.info("EOF sent to next stage")
-        else:
-            eof_message.metadata += 1
-            self._from_queue.send(eof_message.serialize())
-        self.stop()
-
-        return True
-
 
 def main():
+    logging.getLogger("pika").setLevel(logging.WARNING)
     aggregator_module_name: str = os.getenv("MODULE_NAME")
-    stage_replicas: int = int(os.getenv("REPLICAS"))
-    aggregator_module: ModuleType = importlib.import_module(aggregator_module_name)
 
+    aggregator_module: ModuleType = importlib.import_module(aggregator_module_name)
     from_queue = utils.get_input_queue()
     to_queue = utils.get_output_queue()
 
-    logging.getLogger("pika").setLevel(logging.WARNING)
-
-    aggregator_worker = Aggregator(from_queue, to_queue, aggregator_module.aggregator_fn, stage_replicas)
+    aggregator_worker = Aggregator(from_queue, to_queue, aggregator_module.aggregator_fn)
     aggregator_worker.start()
 
 

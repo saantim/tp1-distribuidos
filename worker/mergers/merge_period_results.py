@@ -1,5 +1,5 @@
-from shared.entity import ItemId, ItemName
-from worker.types import TransactionItemByPeriod, ItemInfo
+from shared.entity import ItemName
+from worker.types import ItemInfo, TransactionItemByPeriod
 
 
 def merger_fn(merged: TransactionItemByPeriod, payload: bytes) -> TransactionItemByPeriod:
@@ -8,15 +8,17 @@ def merger_fn(merged: TransactionItemByPeriod, payload: bytes) -> TransactionIte
     if merged is None:
         return message
 
-    for period, dict_of_period_item_sold in message.transaction_item_per_period.values():
-        for item_info, item_sold in dict_of_period_item_sold.values():
-            merged_items: dict[ItemId, ItemInfo] = merged.transaction_item_per_period.get(period, {})
+    for period, dict_of_period_item_sold in message.transaction_item_per_period.items():
+        if period not in merged.transaction_item_per_period:
+            merged.transaction_item_per_period[period] = {}
 
-            item: ItemInfo = merged_items.get(item_info, ItemInfo(0, 0, ItemName("")))
-            item.quantity += item_sold.get(item_info).quantity
-            item.amount += item_sold.get(item_info).amount
+        for item_id, item_info in dict_of_period_item_sold.items():
+            if item_id not in merged.transaction_item_per_period[period]:
+                merged.transaction_item_per_period[period][item_id] = ItemInfo(
+                    quantity=0, amount=0.0, item_name=ItemName("")
+                )
 
-            merged_items[item_info] = item
-            merged.transaction_item_per_period[period] = merged_items
+            merged.transaction_item_per_period[period][item_id].quantity += item_info.quantity
+            merged.transaction_item_per_period[period][item_id].amount += item_info.amount
 
     return merged
