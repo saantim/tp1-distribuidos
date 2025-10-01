@@ -75,6 +75,8 @@ def main():
     from_queue = utils.get_input_queue()
     to_queue = utils.get_output_queue()
 
+    logging.getLogger("pika").setLevel(logging.WARNING)
+
     aggregator_worker = Aggregator(from_queue, to_queue, aggregator_module.aggregator_fn, stage_replicas)
     aggregator_worker.start()
 

@@ -91,7 +91,9 @@ class Demux:
                 logging.info(f"EOF sent for packet_type {type(batch_packet)}")
 
             self._batch_count += 1
-            logging.info(f"batch #{self._batch_count} took {demux_end - demux_start:.2f} seconds")
+            logging.info(
+                f"batch #{self._batch_count} of type {type(batch_packet)} took {demux_end - demux_start:.2f} seconds"
+            )
 
             if self._batch_count % 100 == 0:
                 logging.info(f"checkpoint: processed {self._batch_count} batches, {self._message_count} messages")
