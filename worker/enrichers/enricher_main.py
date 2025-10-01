@@ -6,8 +6,8 @@ from typing import Any, Callable
 
 from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
-from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 from worker import utils
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,7 +72,7 @@ class Enricher:
 
     def start(self) -> None:
         logging.info("Starting Enricher!")
-        logging.info("started consuming enricher queue")
+        logging.info(f"started consuming enricher queue: {self._enricher_queue}")
         self._enricher_queue.start_consuming(self._enricher_msg)
 
     def stop(self) -> None:
@@ -87,7 +87,6 @@ def main():
     enricher_module_name: str = os.getenv("MODULE_NAME")
     stage_replicas: int = int(os.getenv("REPLICAS"))
     enricher_module: ModuleType = importlib.import_module(enricher_module_name)
-
 
     from_queue = utils.get_input_queue()
     to_queue = utils.get_output_queue()

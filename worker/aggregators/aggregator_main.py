@@ -68,7 +68,6 @@ class Aggregator:
 
 
 def main():
-    logging.getLogger("pika").setLevel(logging.WARNING)
     aggregator_module_name: str = os.getenv("MODULE_NAME")
     stage_replicas: int = int(os.getenv("REPLICAS"))
     aggregator_module: ModuleType = importlib.import_module(aggregator_module_name)

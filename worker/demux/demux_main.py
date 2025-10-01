@@ -1,12 +1,18 @@
 import logging
 import os
-from typing import cast, Dict, Type
+from enum import IntEnum
+from typing import cast, Dict, Tuple, Type
 
 from shared.entity import EOF, MenuItem, Message, Store, Transaction, TransactionItem, User
-from shared.middleware.interface import MessageMiddlewareQueue
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.middleware.interface import MessageMiddleware, MessageMiddlewareQueue
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 from shared.protocol import BatchPacket, Header, Packet, PacketType
 from shared.shutdown import ShutdownSignal
+
+
+class PublisherType(IntEnum):
+    QUEUE = (1,)
+    EXCHANGE = (2,)
 
 
 ENTITY_MAP: Dict[int, Type[Message]] = {
@@ -17,33 +23,29 @@ ENTITY_MAP: Dict[int, Type[Message]] = {
     PacketType.MENU_ITEMS_BATCH: MenuItem,
 }
 
-QUEUE_MAP: Dict[int, str] = {
-    PacketType.STORE_BATCH: "stores_source",
-    PacketType.USERS_BATCH: "users_source",
-    PacketType.TRANSACTIONS_BATCH: "transactions_source",
-    PacketType.TRANSACTION_ITEMS_BATCH: "transaction_items_source",
-    PacketType.MENU_ITEMS_BATCH: "menu_items_source",
+PUBLISHER_MAP: Dict[int, Tuple[str, PublisherType]] = {
+    PacketType.STORE_BATCH: ("stores_source", PublisherType.EXCHANGE),
+    PacketType.USERS_BATCH: ("users_source", PublisherType.QUEUE),
+    PacketType.TRANSACTIONS_BATCH: ("transactions_source", PublisherType.QUEUE),
+    PacketType.TRANSACTION_ITEMS_BATCH: ("transaction_items_source", PublisherType.QUEUE),
+    PacketType.MENU_ITEMS_BATCH: ("menu_items_source", PublisherType.EXCHANGE),
 }
 
 
 class Demux:
 
     def __init__(
-        self, from_queue: MessageMiddlewareQueue, middleware_host: str, shutdown_signal: ShutdownSignal
+        self,
+        from_queue: MessageMiddlewareQueue,
+        publishers: Dict[PacketType, MessageMiddleware],
+        shutdown_signal: ShutdownSignal,
     ) -> None:
         self._from_queue = from_queue
-        self._middleware_host = middleware_host
+        self.publishers = publishers
         self._shutdown_signal = shutdown_signal
         self._to_queues: Dict[int, MessageMiddlewareQueue] = {}
         self._batch_count = 0
         self._message_count = 0
-
-    def _get_target_queue(self, packet_type: int) -> MessageMiddlewareQueue:
-        if packet_type not in self._to_queues:
-            queue_name = QUEUE_MAP[packet_type]
-            self._to_queues[packet_type] = MessageMiddlewareQueueMQ(self._middleware_host, queue_name)
-            logging.info(f"created output queue: {queue_name}")
-        return self._to_queues[packet_type]
 
     def _on_message(self, channel, method, properties, body) -> None:
         if self._shutdown_signal.should_shutdown():
@@ -69,7 +71,7 @@ class Demux:
             packet_type = batch_packet.get_message_type()
 
             entity_class = ENTITY_MAP[packet_type]
-            target_queue = self._get_target_queue(packet_type)
+            target_publisher = self.publishers.get(PacketType(packet_type))
 
             for row in batch_packet.csv_rows:
                 if self._shutdown_signal.should_shutdown():
@@ -78,11 +80,11 @@ class Demux:
                     return
 
                 entity = entity_class.from_dict(row)
-                target_queue.send(entity.serialize())
+                target_publisher.send(entity.serialize())
                 self._message_count += 1
 
             if batch_packet.eof:
-                target_queue.send(EOF(0).serialize())
+                target_publisher.send(EOF(0).serialize())
                 logging.info(f"EOF sent for packet_type {type(batch_packet)}")
 
             self._batch_count += 1
@@ -120,7 +122,7 @@ class Demux:
 
 def main():
     host: str = os.getenv("MIDDLEWARE_HOST")
-    from_queue_name: str = os.getenv("FROM_QUEUE", "demux_batches")
+    from_queue_name: str = os.getenv("FROM", "demux_batches")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -129,7 +131,15 @@ def main():
 
     logging.getLogger("pika").setLevel(logging.WARNING)
 
-    demux_worker = Demux(from_queue, host, shutdown_signal)
+    publishers: Dict[PacketType, MessageMiddleware] = {}
+    for packet_type, (name, publisher_type) in PUBLISHER_MAP.items():
+        ptype = PacketType(packet_type)
+        if publisher_type == PublisherType.QUEUE:
+            publishers[ptype] = MessageMiddlewareQueueMQ(host, name)
+        elif publisher_type == PublisherType.EXCHANGE:
+            publishers[ptype] = MessageMiddlewareExchangeRMQ(host, name, ["common"])
+
+    demux_worker = Demux(from_queue, publishers, shutdown_signal)
     demux_worker.start()
 
 

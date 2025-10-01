@@ -31,7 +31,6 @@ class ClientHandler:
         self.publisher = publisher
         self.middleware_host = middleware_host
         self.shutdown_signal = shutdown_signal
-        self.user_listen_cond = threading.Condition()
 
     def handle_session(self):
         """
@@ -42,20 +41,15 @@ class ClientHandler:
             if not self._wait_for_session_start():
                 return
 
-            result_collector = ResultCollector(
-                self.network, self.middleware_host, self.user_listen_cond, self.shutdown_signal
-            )
+            result_collector = ResultCollector(self.network, self.middleware_host, self.shutdown_signal)
             result_collector.add_query("Q1", "results_q1")
-            # result_collector.add_query("Q2", "results_q2")
+            result_collector.add_query("Q2", "results_q2")
             # result_collector.add_query("Q3", "results_q3")
             # result_collector.add_query("Q4", "results_q4")
             results_thread = threading.Thread(target=result_collector.start_listening, name="results-collector")
             results_thread.start()
-
             self._process_data_batches()
-            with self.user_listen_cond:
-                logging.debug("action: wake_up_results | status: done")
-                self.user_listen_cond.notify_all()
+            result_collector.signal_ready()
 
             results_thread.join()
             logging.info("Session complete, all results sent to client")

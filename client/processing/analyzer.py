@@ -148,7 +148,7 @@ class Analyzer:
 
             results_by_query = {}
             queries_complete = set()
-            expected_queries = {"Q1"}
+            expected_queries = {"Q1", "Q2"}
 
             while len(queries_complete) < len(expected_queries):
                 if self.shutdown_signal.should_shutdown():

@@ -16,7 +16,21 @@ services:
       rabbitmq:
         condition: service_healthy
 
-# Client
+  client:
+    container_name: coffee-client
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    entrypoint: python main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+    volumes:
+      - ./.data:/client/.data
+    networks:
+      - coffee
+    depends_on:
+      - gateway
 
   demux:
     image: demux_worker
@@ -93,7 +107,7 @@ services:
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_TYPE=QUEUE
-      - FROM=transaction_items_queue
+      - FROM=transaction_items_source
       - TO_TYPE=QUEUE
       - TO=filtered_item_amount
       - MODULE_NAME=filter_tx_item_2024_2025
@@ -165,7 +179,7 @@ services:
       - FROM=merged_item_by_period
       - ENRICHER_TYPE=EXCHANGE
       - ENRICHER_STRATEGY=FANOUT
-      - ENRICHER=menu_items_queue
+      - ENRICHER=menu_items_source
       - TO_TYPE=QUEUE
       - TO=enriched_item_by_period
       - MODULE_NAME=item_enricher
@@ -214,6 +228,25 @@ services:
       - RESULTS_QUEUE=results_q1
       - MODULE_NAME=sink_q1
       - STREAM_MODE=true
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  sink_q2:
+    image: sink_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=INFO
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM=enriched_item_by_period
+      - RESULTS_QUEUE=results_q2
+      - MODULE_NAME=sink_q2
     networks:
       - coffee
     depends_on:
