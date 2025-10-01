@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from shared.entity import ItemId, ItemName, StoreName
@@ -5,6 +6,7 @@ from worker.types import TransactionItemByPeriod, ItemInfo, SemesterTPVByStore, 
 
 
 def merger_fn(merged: Optional[SemesterTPVByStore], payload: bytes) -> SemesterTPVByStore:
+    logging.info(f"Running semester merger fn {payload.decode()}")
     message: SemesterTPVByStore = SemesterTPVByStore.deserialize(payload)
 
     if merged is None:

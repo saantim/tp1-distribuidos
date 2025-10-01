@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -11,6 +12,7 @@ def get_semester(dt: datetime) -> Semester:
     return Semester(f"{year}-{semester}")
 
 def aggregator_fn(aggregated: Optional[SemesterTPVByStore], message: bytes) -> SemesterTPVByStore:
+    logging.info("Running semester aggregator fn")
     tx: Transaction = Transaction.deserialize(message)
     semester: Semester = get_semester(tx.created_at)
 
@@ -20,5 +22,5 @@ def aggregator_fn(aggregated: Optional[SemesterTPVByStore], message: bytes) -> S
         aggregated.semester_tpv_by_store[semester] = {}
     if not aggregated.semester_tpv_by_store[semester].get(tx.store_id):
         aggregated.semester_tpv_by_store[semester][tx.store_id] = StoreInfo(store_name=StoreName(""), amount=0.0)
-    aggregated.semester_tpv_by_store[semester][tx.store_id] += tx.final_amount
+    aggregated.semester_tpv_by_store[semester][tx.store_id].amount += tx.final_amount
     return aggregated

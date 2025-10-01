@@ -46,7 +46,8 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
+      - FROM_TYPE=EXCHANGE
+      - FROM_STRATEGY=FANOUT
       - FROM=filtered_tx_6am_11pm
       - TO_TYPE=QUEUE
       - TO=filtered_amount
@@ -117,7 +118,8 @@ services:
       - MIDDLEWARE_HOST=rabbitmq
       - FROM_TYPE=QUEUE
       - FROM=filtered_tx_2024_2025
-      - TO_TYPE=QUEUE
+      - TO_TYPE=EXCHANGE
+      - TO_STRATEGY=FANOUT
       - TO=filtered_tx_6am_11pm
       - MODULE_NAME=filter_tx_6am_11pm
       - REPLICAS=2
@@ -192,6 +194,80 @@ services:
       - TO_TYPE=QUEUE
       - TO=merged_item_by_period
       - MODULE_NAME=merge_period_results
+      - REPLICAS=1
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
+
+  semester_aggregator:
+    image: aggregator_period
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_TYPE=EXCHANGE
+      - FROM_STRATEGY=FANOUT
+      - FROM=filtered_tx_6am_11pm
+      - TO_TYPE=QUEUE
+      - TO=aggregated_semester_by_store
+      - MODULE_NAME=semester_aggregator
+      - REPLICAS=1
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
+
+  merger_semester_results:
+    image: merger_period
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/mergers/merger_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_TYPE=QUEUE
+      - FROM=aggregated_semester_by_store
+      - TO_TYPE=QUEUE
+      - TO=merged_semester_by_store
+      - MODULE_NAME=merge_semester_results
+      - REPLICAS=1
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
+
+
+  enricher_semester_tx:
+    image: enricher_item
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM_TYPE=QUEUE
+      - FROM=merged_semester_by_store
+      - ENRICHER_TYPE=EXCHANGE
+      - ENRICHER_STRATEGY=FANOUT
+      - ENRICHER=store_source
+      - TO_TYPE=QUEUE
+      - TO=enriched_semester_tx
+      - MODULE_NAME=store_enricher
       - REPLICAS=1
     networks:
       - coffee
