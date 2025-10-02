@@ -150,6 +150,7 @@ class Analyzer:
             queries_complete = set()
             expected_queries = {"Q1", "Q2", "Q3", "Q4"}
 
+            result_start = time.time()
             while len(queries_complete) < len(expected_queries):
                 if self.shutdown_signal.should_shutdown():
                     break
@@ -167,7 +168,11 @@ class Analyzer:
                     try:
                         EOF.deserialize(data)
                         queries_complete.add(query_id)
-                        logging.info(f"query {query_id} complete ({len(queries_complete)}/{len(expected_queries)})")
+                        logging.info(
+                            f"query {query_id} complete"
+                            f" ({len(queries_complete)}/{len(expected_queries)})"
+                            f" in {(time.time() - result_start):.2f}s"
+                        )
                         continue
                     except Exception:
                         pass
