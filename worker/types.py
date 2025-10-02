@@ -1,19 +1,44 @@
 from dataclasses import dataclass
 from typing import NewType
 
-from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, User
+from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, UserId
 
 
 # USER PURCHASE AGGREGATOR
 @dataclass
-class UserPurchasesOnStore(Message):
-    user: User
+class UserPurchasesInfo(Message):
+    user: UserId
+    birthday: str
     purchases: int
+    store_name: StoreName
 
 
 @dataclass
 class UserPurchasesByStore(Message):
-    user_purchases_by_store: dict[int, list[UserPurchasesOnStore]]
+    user_purchases_by_store: dict[StoreId, dict[UserId, UserPurchasesInfo]]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "UserPurchasesByStore":
+        raw = data["user_purchases_by_store"]
+        parsed: dict[StoreId, dict[UserId, UserPurchasesInfo]] = {}
+
+        for store_id_str, users_dict in raw.items():
+            store_id = StoreId(store_id_str)
+            parsed_users = {}
+
+            for user_id_str, user_info_dict in users_dict.items():
+                user_id = UserId(user_id_str)
+                user_info = UserPurchasesInfo(
+                    user=user_id,
+                    birthday=user_info_dict["birthday"],
+                    purchases=user_info_dict["purchases"],
+                    store_name=StoreName(user_info_dict["store_name"]),
+                )
+                parsed_users[user_id] = user_info
+
+            parsed[store_id] = parsed_users
+
+        return cls(user_purchases_by_store=parsed)
 
 
 # TOP 3 USERS AGGREGATOR

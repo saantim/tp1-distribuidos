@@ -14,6 +14,6 @@ def aggregator_fn(aggregated: Optional[TransactionItemByPeriod], message: bytes)
         aggregated.transaction_item_per_period[period] = {}
     if not aggregated.transaction_item_per_period[period].get(item_id):
         aggregated.transaction_item_per_period[period][item_id] = ItemInfo(quantity=0, amount=0, item_name=ItemName(""))
-    aggregated.transaction_item_per_period[period][item_id].quantity += 1
+    aggregated.transaction_item_per_period[period][item_id].quantity += tx_item.quantity
     aggregated.transaction_item_per_period[period][item_id].amount += tx_item.subtotal
     return aggregated

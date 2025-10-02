@@ -48,7 +48,10 @@ def get_source(
     source_strategy: str = os.getenv(env_var_source_strategy)
 
     if source_type == QUEUE_TYPE:
-        return [MessageMiddlewareQueueMQ(host, name) for name in source_names]
+        return [
+            MessageMiddlewareQueueMQ(host, source_name.format(i=os.getenv("REPLICA_INDEX")))
+            for source_name in source_names
+        ]
     elif source_type == EXCHANGE_TYPE:
         if source_strategy == FANOUT_STRATEGY:
             route_key: str = "common"

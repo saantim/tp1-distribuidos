@@ -24,3 +24,6 @@ logs-q2:
 
 logs-q3:
 	docker compose -f docker-compose.yml logs semester_aggregator merger_semester_results enricher_semester_tx sink_q3 -f
+
+logs-q4:
+	docker compose -f docker-compose.yml logs router user_purchase_aggregator_1 user_purchase_aggregator_2 user_purchase_aggregator_3 user_purchase_aggregator_4 user_purchase_aggregator_5 top3_users_aggregator store_enricher_tx user_enricher_tx merger_final_top3 sink_q4 -f

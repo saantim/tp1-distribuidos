@@ -63,7 +63,7 @@ class Aggregator:
                 logging.info("EOF sent to next stage")
         else:
             eof_message.metadata += 1
-            for queue in self._to_queue:
+            for queue in self._from_queue:
                 queue.send(eof_message.serialize())
         self.stop()
 
