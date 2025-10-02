@@ -18,7 +18,7 @@ logging.basicConfig(
 class Filter:
 
     def __init__(
-        self, from_queue: MessageMiddleware, to_queue: MessageMiddleware, filter_fn: Callable[[Any], bool]
+        self, from_queue: list[MessageMiddleware], to_queue: list[MessageMiddleware], filter_fn: Callable[[Any], bool]
     ) -> None:
         self.name = os.getenv("MODULE_NAME")
         self._from_queue = from_queue
@@ -31,16 +31,19 @@ class Filter:
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
         self.received += 1
+        print(body.decode("utf-8"))
         if not self._eof_handler.handle_eof(body):
             if self._filter_fn(body):
                 self.passed += 1
-                self._to_queue.send(body)
+                for queue in self._to_queue:
+                    queue.send(body)
 
         if self.received % 100000 == 0:
             logging.info(f"[{self.name}] checkpoint: " f"received={self.received}, pass={self.passed}")
 
     def start(self) -> None:
-        self._from_queue.start_consuming(self._on_message)
+        for queue in self._from_queue:
+            queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
         pass

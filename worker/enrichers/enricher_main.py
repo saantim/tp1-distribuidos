@@ -20,9 +20,9 @@ class Enricher:
 
     def __init__(
         self,
-        from_queue: MessageMiddleware,
-        enricher_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
+        from_queue: list[MessageMiddleware],
+        enricher_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
         build_enricher_fn: Callable[[Any, Any], Any],
         enricher_fn: Callable[[Any, Any], Any],
     ) -> None:
@@ -37,15 +37,21 @@ class Enricher:
     def _on_message(self, channel, method, properties, body: bytes) -> None:
         if not self._work_eof_handler.handle_eof(body):
             enriched_message = self._enricher_fn(self._enricher, body)
-            self._to_queue.send(enriched_message.serialize())
+            for queue in self._to_queue:
+                queue.send(enriched_message.serialize())
 
     def _enricher_msg(self, channel, method, properties, body: bytes) -> None:
         try:
             EOF.deserialize(body)
             logging.info("Enricher build phase complete, starting work phase")
             logging.info(f"Enricher data loaded: {self._enricher}")
-            self._enricher_queue.stop_consuming()
-            self._from_queue.start_consuming(self._on_message)
+
+            for queue in self._enricher_queue:
+                queue.stop_consuming()
+
+            for queue in self._from_queue:
+                queue.start_consuming(self._on_message)
+
             return
         except Exception:
             pass
@@ -54,7 +60,8 @@ class Enricher:
 
     def start(self) -> None:
         logging.info("Starting enricher build phase")
-        self._enricher_queue.start_consuming(self._enricher_msg)
+        for queue in self._enricher_queue:
+            queue.start_consuming(self._enricher_msg)
 
     def stop(self) -> None:
         pass

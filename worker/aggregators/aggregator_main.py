@@ -19,7 +19,10 @@ logging.basicConfig(
 class Aggregator:
 
     def __init__(
-        self, from_queue: MessageMiddleware, to_queue: MessageMiddleware, aggregator_fn: Callable[[Any, Packet], Any]
+        self,
+        from_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
+        aggregator_fn: Callable[[Any, Packet], Any],
     ) -> None:
         self._from_queue = from_queue
         self._to_queue = to_queue
@@ -31,14 +34,16 @@ class Aggregator:
 
         def send_results():
             if self._aggregated:
-                self._to_queue.send(self._aggregated.serialize())
+                for queue in self._to_queue:
+                    queue.send(self._aggregated.serialize())
 
         if not self._eof_handler.handle_eof(body, on_eof_callback=send_results):
             self._aggregated = self._aggregator_fn(self._aggregated, body)
 
     def start(self) -> None:
         logging.info("Starting aggregator worker...")
-        self._from_queue.start_consuming(self._on_message)
+        for queue in self._from_queue:
+            queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
         logging.info("Stopping aggregator worker...")
@@ -51,10 +56,10 @@ def main():
     aggregator_module_name: str = os.getenv("MODULE_NAME")
 
     aggregator_module: ModuleType = importlib.import_module(aggregator_module_name)
-    from_queue = utils.get_input_queue()
-    to_queue = utils.get_output_queue()
+    from_queues = utils.get_input_queue()
+    to_queues = utils.get_output_queue()
 
-    aggregator_worker = Aggregator(from_queue, to_queue, aggregator_module.aggregator_fn)
+    aggregator_worker = Aggregator(from_queues, to_queues, aggregator_module.aggregator_fn)
     aggregator_worker.start()
 
 

@@ -4,7 +4,6 @@ import os
 from types import ModuleType
 from typing import Any, Callable
 
-from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
 from worker import utils
 
@@ -20,23 +19,29 @@ class Merger:
 
     def __init__(
         self,
-        from_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
+        from_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
         merger_fn: Callable[[Any, Any], Any],
     ) -> None:
-        self._from_queue: MessageMiddleware = from_queue
-        self._to_queue: MessageMiddleware = to_queue
+        self._from_queue: list[MessageMiddleware] = from_queue
+        self._to_queue: list[MessageMiddleware] = to_queue
         self._merger_fn: Callable[[Any, Any], Any] = merger_fn
         self._merged: Any = None
         self.eof_handler = utils.get_eof_handler(from_queue, to_queue)
 
     def _on_message(self, channel, method, properties, body) -> None:
-        if not self._handle_eof(body):
+
+        def _flush():
+            for queue in self._to_queue:
+                queue.send(self._merged.serialize())
+
+        if not self.eof_handler.handle_eof(body, on_eof_callback=_flush):
             self._merged = self._merger_fn(self._merged, body)
 
     def start(self) -> None:
         logging.info("Starting merger worker")
-        self._from_queue.start_consuming(self._on_message)
+        for queue in self._from_queue:
+            queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
         logging.info("Stopping merger worker")
@@ -45,22 +50,6 @@ class Merger:
         # self._to_queue.send(EOF(0).serialize())
         # self._to_queue.close()
         pass
-
-    def _handle_eof(self, body: bytes) -> bool:
-        try:
-            EOF.deserialize(body)
-        except Exception as e:
-            _ = e
-            return False
-
-        logging.info("EOF received, stopping worker...")
-        self._from_queue.stop_consuming()
-        self._to_queue.send(self._merged.serialize())
-        self._to_queue.send(EOF(0).serialize())
-        logging.info("EOF sent to next stage")
-        self.stop()
-
-        return True
 
 
 def main():

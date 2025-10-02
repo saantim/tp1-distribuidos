@@ -38,6 +38,9 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         pika.exceptions.AMQPConnectionError: If connection cannot be established after retries.
     """
 
+    def __str__(self):
+        return self._queue_name
+
     def __init__(self, host: str, queue_name: str, max_retries: int = 10) -> None:
         super().__init__(host, queue_name)
         self._host: str = host

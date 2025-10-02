@@ -1,19 +1,21 @@
 from dataclasses import dataclass
 from typing import NewType
 
-from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, User
+from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, UserId
 
 
 # USER PURCHASE AGGREGATOR
 @dataclass
-class UserPurchasesOnStore(Message):
-    user: User
+class UserPurchasesInfo(Message):
+    user: UserId
+    birthday: str
     purchases: int
+    store_name: StoreName
 
 
 @dataclass
 class UserPurchasesByStore(Message):
-    user_purchases_by_store: dict[int, list[UserPurchasesOnStore]]
+    user_purchases_by_store: dict[StoreId, dict[UserId, UserPurchasesInfo]]
 
 
 # TOP 3 USERS AGGREGATOR

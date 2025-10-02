@@ -5,8 +5,8 @@ from types import ModuleType
 from typing import Any, Callable
 
 from shared.entity import EOF
-from shared.middleware.interface import MessageMiddlewareQueue
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.middleware.interface import MessageMiddleware
+from worker import utils
 
 
 logging.basicConfig(
@@ -25,8 +25,8 @@ class Sink:
 
     def __init__(
         self,
-        from_queue: MessageMiddlewareQueue,
-        results_queue: MessageMiddlewareQueue,
+        from_queue: list[MessageMiddleware],
+        results_queue: list[MessageMiddleware],
         format_fn: Callable[[Any], bytes],
         stream_mode: bool = False,
     ) -> None:
@@ -43,7 +43,8 @@ class Sink:
                 try:
                     formatted = self._format_fn([body])
                     if formatted:
-                        self._results_queue.send(formatted)
+                        for queue in self._results_queue:
+                            queue.send(formatted)
                 except Exception as e:
                     logging.error(f"Error formatting/sending result: {e}")
             else:
@@ -57,19 +58,23 @@ class Sink:
 
         self._eof_count += 1
         logging.info(f"EOF received for sink: {self._results_queue}!")
-        self._from_queue.stop_consuming()
+
+        for queue in self._from_queue:
+            queue.stop_consuming()
 
         if not self._stream_mode and self._results_collected:
             try:
                 logging.info(f"Formatting {len(self._results_collected)} collected results")
                 formatted_results = self._format_fn(self._results_collected)
                 if formatted_results:
-                    self._results_queue.send(formatted_results)
+                    for queue in self._results_queue:
+                        queue.send(formatted_results)
                     logging.info(f"Sent batch results ({len(formatted_results)} bytes)")
             except Exception as e:
                 logging.error(f"Error formatting/sending batch results: {e}")
 
-        self._results_queue.send(EOF(0).serialize())
+        for queue in self._results_queue:
+            queue.send(EOF(0).serialize())
         logging.info("EOF sent to results queue")
 
         self._eof_count = 0
@@ -81,7 +86,8 @@ class Sink:
     def start(self) -> None:
         mode = "streaming" if self._stream_mode else "batch"
         logging.info(f"Starting sink worker in {mode} mode")
-        self._from_queue.start_consuming(self._on_message)
+        for from_queue in self._from_queue:
+            from_queue.start_consuming(self._on_message)
 
     @staticmethod
     def stop() -> None:
@@ -89,22 +95,17 @@ class Sink:
 
 
 def main():
-    host = os.getenv("MIDDLEWARE_HOST")
-    from_queue_name = os.getenv("FROM")
-    results_queue_name = os.getenv("RESULTS_QUEUE")
+    from_queue = utils.get_input_queue()
+    results_queue = utils.get_output_queue()
     sink_module_name = os.getenv("MODULE_NAME")
     stream_mode = os.getenv("STREAM_MODE", "false").lower() == "true"
 
     logging.info("Sink configuration:")
-    logging.info(f"  FROM_QUEUE: {from_queue_name}")
-    logging.info(f"  RESULTS_QUEUE: {results_queue_name}")
     logging.info(f"  MODULE_NAME: {sink_module_name}")
     logging.info(f"  STREAM_MODE: {stream_mode}")
 
     logging.getLogger("pika").setLevel(logging.WARNING)
 
-    from_queue = MessageMiddlewareQueueMQ(host, from_queue_name)
-    results_queue = MessageMiddlewareQueueMQ(host, results_queue_name)
     sink_module: ModuleType = importlib.import_module(sink_module_name)
 
     sink_worker = Sink(from_queue, results_queue, sink_module.format_fn, stream_mode)

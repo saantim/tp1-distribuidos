@@ -27,15 +27,15 @@ FANOUT_STRATEGY = "FANOUT"
 SHARDING_STRATEGY = "SHARDING"
 
 
-def get_input_queue() -> MessageMiddleware | ValueError:
+def get_input_queue() -> list[MessageMiddleware] | ValueError:
     return get_source(env_var_source_type=FROM_TYPE, env_var_source_name=FROM, env_var_source_strategy=FROM_STRATEGY)
 
 
-def get_output_queue() -> MessageMiddleware | ValueError:
+def get_output_queue() -> list[MessageMiddleware] | ValueError:
     return get_source(env_var_source_type=TO_TYPE, env_var_source_name=TO, env_var_source_strategy=TO_STRATEGY)
 
 
-def get_enricher_queue() -> MessageMiddleware | ValueError:
+def get_enricher_queue() -> list[MessageMiddleware] | ValueError:
     return get_source(
         env_var_source_type=ENRICHER_TYPE, env_var_source_name=ENRICHER, env_var_source_strategy=ENRICHER_STRATEGY
     )
@@ -43,14 +43,14 @@ def get_enricher_queue() -> MessageMiddleware | ValueError:
 
 def get_source(
     env_var_source_type: str, env_var_source_name: str, env_var_source_strategy: str
-) -> MessageMiddleware | ValueError:
+) -> list[MessageMiddleware] | ValueError:
     host: str = os.getenv(MIDDLEWARE_HOST)
     source_type: str = os.getenv(env_var_source_type)
-    source_name: str = os.getenv(env_var_source_name)
+    source_names: list[str] = os.getenv(env_var_source_name).split(",")
     source_strategy: str = os.getenv(env_var_source_strategy)
 
     if source_type == QUEUE_TYPE:
-        return MessageMiddlewareQueueMQ(host, source_name)
+        return [MessageMiddlewareQueueMQ(host, name) for name in source_names]
     elif source_type == EXCHANGE_TYPE:
         if source_strategy == FANOUT_STRATEGY:
             route_key: str = "common"
@@ -58,7 +58,10 @@ def get_source(
             raise NotImplementedError
         else:
             raise ValueError(f"STRATEGY must be {FANOUT_STRATEGY} or {SHARDING_STRATEGY}")
-        return MessageMiddlewareExchangeRMQ(host=host, exchange_name=source_name, route_keys=[route_key])
+        return [
+            MessageMiddlewareExchangeRMQ(host=host, exchange_name=source_name, route_keys=[route_key])
+            for source_name in source_names
+        ]
 
     raise ValueError(f"TYPE must be {QUEUE_TYPE} or {EXCHANGE_TYPE}")
 
@@ -73,15 +76,13 @@ class EOFHandler:
 
     def __init__(
         self,
-        from_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
+        from_queue: list[MessageMiddleware],
+        to_queues: list[MessageMiddleware],
         replicas: int,
-        consumes_from_exchange: bool,
     ):
         self._from_queue = from_queue
-        self._to_queue = to_queue
+        self._to_queues = to_queues
         self._replicas = replicas
-        self._consumes_from_exchange = consumes_from_exchange
 
     def handle_eof(self, body: bytes, on_eof_callback=None) -> bool:
         """
@@ -101,35 +102,34 @@ class EOFHandler:
             return False
 
         logging.info("EOF received, stopping worker...")
-        self._from_queue.stop_consuming()
+        for queue in self._from_queue:
+            queue.stop_consuming()
 
         if on_eof_callback:
             on_eof_callback()
 
-        if self._consumes_from_exchange:
-            self._to_queue.send(EOF(0).serialize())
-            logging.info("EOF forwarded downstream (exchange consumer)")
-            return True
-
         if eof_message.metadata + 1 == self._replicas:
-            self._to_queue.send(EOF(0).serialize())
-            logging.info("EOF sent to next stage (final replica)")
+            for queue in self._to_queues:
+                queue.send(EOF(0).serialize())
+                logging.info(f"EOF sent to next stage in queue {queue} (final replica)")
         else:
             eof_message.metadata += 1
-            self._from_queue.send(eof_message.serialize())
+            for queue in self._from_queue:
+                queue.send(eof_message.serialize())
             logging.info(f"EOF forwarded to replica {eof_message.metadata}/{self._replicas}")
 
         return True
 
 
-def get_eof_handler(from_queue: MessageMiddleware, to_queue: MessageMiddleware) -> EOFHandler:
+def get_eof_handler(from_queue: list[MessageMiddleware], to_queues: list[MessageMiddleware]) -> EOFHandler:
     """
     Create an EOFHandler configured from environment variables.
 
     Reads REPLICAS and FROM_TYPE to determine EOF propagation mode.
     """
     replicas = int(os.getenv("REPLICAS", "1"))
-    from_type = os.getenv(FROM_TYPE, QUEUE_TYPE).upper()
-    consumes_from_exchange = from_type == EXCHANGE_TYPE
-
-    return EOFHandler(from_queue, to_queue, replicas, consumes_from_exchange)
+    logging.info(
+        f"Creating EOFHandler with {len(from_queue)} input queues, {len(to_queues)} output queues,"
+        f" replicas={replicas}"
+    )
+    return EOFHandler(from_queue, to_queues, replicas)
