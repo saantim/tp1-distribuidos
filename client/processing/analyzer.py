@@ -76,10 +76,10 @@ class Analyzer:
             start_time = time.time()
             self._start_processing_threads()
             self._wait_for_threads()
-            end_time = time.time()
+            file_send_end = time.time()
 
-            total_time = end_time - start_time
-            logging.info(f"action: file_send | status: complete | total_time: {total_time:.2f}s")
+            total_send_time = file_send_end - start_time
+            logging.info(f"action: file_send | status: complete | total_time: {total_send_time:.2f}s")
 
             self.send_queue.put(None)
             sender_thread.join()
@@ -87,12 +87,11 @@ class Analyzer:
 
             self._send_session_end()
 
-            start_time = time.time()
             self._wait_for_results()
-            end_time = time.time()
+            result_wait_time = time.time()
 
-            total_time = end_time - start_time
-            logging.info(f"action: results_wait | status: complete | total_time: {total_time:.2f}s")
+            total_result_time = result_wait_time - start_time
+            logging.info(f"action: results_wait | status: complete | total_time: {total_result_time:.2f}s")
             logging.info("action: analysis_complete | result: success")
 
         except Exception as e:
@@ -171,7 +170,7 @@ class Analyzer:
                         logging.info(
                             f"query {query_id} complete"
                             f" ({len(queries_complete)}/{len(expected_queries)})"
-                            f" in {(time.time() - result_start):.2f}s"
+                            f" received {(time.time() - result_start):.2f}s after waiting."
                         )
                         continue
                     except Exception:
