@@ -74,6 +74,7 @@ def main():
         f"port: {port} | listen_backlog: {listen_backlog} | "
         f"logging_level: {logging_level} | rabbit_host: {rabbit}"
     )
+    logging.getLogger("pika").setLevel(logging.WARNING)
 
     try:
         shutdown_signal = ShutdownSignal()

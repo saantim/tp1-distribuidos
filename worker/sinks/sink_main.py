@@ -91,7 +91,7 @@ class Sink:
 def main():
     host = os.getenv("MIDDLEWARE_HOST")
     from_queue_name = os.getenv("FROM")
-    results_queue_name = os.getenv("RESULTS_QUEUE")
+    results_queue_name = os.getenv("TO")
     sink_module_name = os.getenv("MODULE_NAME")
     stream_mode = os.getenv("STREAM_MODE", "false").lower() == "true"
 

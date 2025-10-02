@@ -8,6 +8,7 @@ from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
 from worker import utils
 
+
 logging.basicConfig(
     level=logging.INFO,
     format="MERGER - %(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -19,12 +20,12 @@ class Merger:
 
     def __init__(
         self,
-        from_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
+        from_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
         merger_fn: Callable[[Any, Any], Any],
     ) -> None:
-        self._from_queue: MessageMiddleware = from_queue
-        self._to_queue: MessageMiddleware = to_queue
+        self._from_queue: list[MessageMiddleware] = from_queue
+        self._to_queue: list[MessageMiddleware] = to_queue
         self._merger_fn: Callable[[Any, Any], Any] = merger_fn
         self._merged: Any = None
 
@@ -34,7 +35,8 @@ class Merger:
 
     def start(self) -> None:
         logging.info("Starting merger worker")
-        self._from_queue.start_consuming(self._on_message)
+        for queue in self._from_queue:
+            queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
         logging.info("Stopping merger worker")
@@ -52,10 +54,14 @@ class Merger:
             return False
 
         logging.info("EOF received, stopping worker...")
-        self._from_queue.stop_consuming()
-        self._to_queue.send(self._merged.serialize())
-        self._to_queue.send(EOF(0).serialize())
-        logging.info("EOF sent to next stage")
+        for queue in self._from_queue:
+            queue.stop_consuming()
+
+        for queue in self._to_queue:
+            queue.send(self._merged.serialize())
+            queue.send(EOF(0).serialize())
+
+        logging.info("EOF and flushed sent to next stage")
         self.stop()
 
         return True
@@ -66,8 +72,8 @@ def main():
 
     merger_module_name: str = os.getenv("MODULE_NAME")
 
-    from_queue = utils.get_input_queue()
-    to_queue = utils.get_output_queue()
+    from_queue: list[MessageMiddleware] = utils.get_input_queue()
+    to_queue: list[MessageMiddleware] = utils.get_output_queue()
 
     merger_module: ModuleType = importlib.import_module(merger_module_name)
     merger_worker = Merger(from_queue, to_queue, merger_module.merger_fn)
