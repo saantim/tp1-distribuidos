@@ -64,6 +64,8 @@ class Demux:
             header = Header.deserialize(header_bytes)
             packet = Packet.deserialize(header, payload_bytes)
 
+            logging.info(f"Received: HEADER:{header} - PACKET:{packet}")
+
             if not isinstance(packet, BatchPacket):
                 logging.error(f"expected BatchPacket, got {type(packet)}")
                 return
@@ -82,13 +84,17 @@ class Demux:
                     return
 
                 entity = entity_class.from_dict(row)
-                target_publisher.send(entity.serialize())
+                message = entity.serialize()
+                logging.info(f"Message {message} sent")
+                target_publisher.send(message)
                 self._message_count += 1
             demux_end = time.time()
 
             if batch_packet.eof:
-                target_publisher.send(EOF(0).serialize())
-                logging.info(f"EOF sent for packet_type {type(batch_packet)}")
+                logging.info(f"about to send EOF from DEMUX! {type(batch_packet)}")
+                eof_message = EOF(0).serialize()
+                target_publisher.send(eof_message)
+                logging.info(f"EOF sent {eof_message} for packet_type {type(batch_packet)}")
 
             self._batch_count += 1
             logging.info(

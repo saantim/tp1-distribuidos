@@ -35,6 +35,7 @@ class Filter:
         self.passed = 0
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
+        logging.info(f"Message received: {body.decode()}")
         self.received += 1
         if not self._handle_eof(body):
             if self._filter_fn(body):
@@ -48,6 +49,7 @@ class Filter:
     def _handle_eof(self, body: bytes) -> bool:
         try:
             eof_message: EOF = EOF.deserialize(body)
+            logging.info(f"successful parsing of {eof_message}")
         except Exception as e:
             _ = e
             return False
