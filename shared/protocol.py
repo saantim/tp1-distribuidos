@@ -5,7 +5,6 @@ binary serialization using ByteWriter and Reader utils.
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import IntEnum
-from typing import Any, Dict, List
 
 from .utils import ByteReader, ByteWriter
 
@@ -18,6 +17,7 @@ class PacketType(IntEnum):
     TRANSACTIONS_BATCH = 4
     TRANSACTION_ITEMS_BATCH = 5
     MENU_ITEMS_BATCH = 6
+    RESULT = 19
     ACK = 20
     ERROR = 21
 
@@ -78,6 +78,7 @@ class Packet(ABC):
             PacketType.TRANSACTIONS_BATCH: TransactionsBatch,
             PacketType.TRANSACTION_ITEMS_BATCH: TransactionItemsBatch,
             PacketType.MENU_ITEMS_BATCH: MenuItemsBatch,
+            PacketType.RESULT: ResultPacket,
             PacketType.ACK: AckPacket,
             PacketType.ERROR: ErrorPacket,
         }
@@ -125,6 +126,34 @@ class AckPacket(Packet):
         return cls()
 
 
+class ResultPacket(Packet):
+    def __init__(self, query_id: str, data: bytes):
+        """
+        Result packet that can stream data for a specific query.
+        """
+
+        self.query_id = query_id
+        self.data = data
+
+    def get_message_type(self) -> int:
+        return PacketType.RESULT
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_string(self.query_id)
+        writer.write_uint32(len(self.data))
+        writer.write_bytes(self.data)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "ResultPacket":
+        reader = ByteReader(data)
+        query_id = reader.read_string()
+        data_length = reader.read_uint32()
+        result_data = reader.read_bytes(data_length)
+        return cls(query_id, result_data)
+
+
 class ErrorPacket(Packet):
     def __init__(self, error_code: int, message: str):
         self.error_code = error_code
@@ -147,7 +176,13 @@ class ErrorPacket(Packet):
         return cls(error_code, message)
 
 
-class StoreBatch(Packet):
+class BatchPacket(Packet, ABC):
+    def __init__(self, csv_rows: list, eof: bool = False):
+        self.csv_rows = csv_rows
+        self.eof = eof
+
+
+class StoreBatch(BatchPacket):
 
     # Estimated size:
     # Fixed: store_id(1) + postal_code(4) + lat(8) + lon(8) = 21
@@ -158,10 +193,6 @@ class StoreBatch(Packet):
     #   - state: ~18 chars avg + 1 = 19
     UNIT_SIZE = 21 + 26 + 21 + 16 + 19  # = 103
 
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
-
     def get_message_type(self) -> int:
         return PacketType.STORE_BATCH
 
@@ -171,20 +202,20 @@ class StoreBatch(Packet):
         writer.write_uint8(1 if self.eof else 0)
 
         for row in self.csv_rows:
-            store_id = _safe_int(row.get("store_id"), 0)
-            postal_code = _safe_int(row.get("postal_code"), 0)
-            latitude = _safe_float(row.get("latitude"), 0.0)
-            longitude = _safe_float(row.get("longitude"), 0.0)
+            store_id = _safe_int(row.get("store_id"))
+            postal_code = _safe_int(row.get("postal_code"))
+            latitude = _safe_float(row.get("latitude"))
+            longitude = _safe_float(row.get("longitude"))
 
             writer.write_uint8(store_id if 0 <= store_id <= 255 else 0)
             writer.write_uint32(postal_code)
             writer.write_float64(latitude)
             writer.write_float64(longitude)
 
-            writer.write_string(_safe_str(row.get("store_name"), "Unknown Store"))
-            writer.write_string(_safe_str(row.get("street"), "Unknown Street"))
-            writer.write_string(_safe_str(row.get("city"), "Unknown City"))
-            writer.write_string(_safe_str(row.get("state"), "Unknown State"))
+            writer.write_string(_safe_str(row.get("store_name")))
+            writer.write_string(_safe_str(row.get("street")))
+            writer.write_string(_safe_str(row.get("city")))
+            writer.write_string(_safe_str(row.get("state")))
 
         return writer.get_bytes()
 
@@ -197,11 +228,19 @@ class StoreBatch(Packet):
         stores = []
         for _ in range(row_count):
             store_id = reader.read_uint8()
+
+            if store_id == 0:
+                store_id = None
+
             postal_code = reader.read_uint32()
             latitude = reader.read_float64()
             longitude = reader.read_float64()
 
             store_name = reader.read_string()
+
+            if not store_name:
+                store_name = None
+
             street = reader.read_string()
             city = reader.read_string()
             state = reader.read_string()
@@ -222,17 +261,13 @@ class StoreBatch(Packet):
         return cls(stores, eof)
 
 
-class UsersBatch(Packet):
+class UsersBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: user_id(4) + birthdate(8) + registered_at(8) = 20
     # Variable strings with 1-byte length prefix:
     #   - gender: ~6 chars avg + 1 = 7
     UNIT_SIZE = 20 + 7  # = 27
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.USERS_BATCH
@@ -244,10 +279,10 @@ class UsersBatch(Packet):
         writer.write_uint8(1 if self.eof else 0)
 
         for row in self.csv_rows:
-            user_id = _safe_int(row.get("user_id"), 0)
-            gender = _safe_str(row.get("gender"), "unknown")
-            birthdate_ts = _parse_date_timestamp(row.get("birthdate", ""))
-            registered_ts = _parse_datetime_timestamp(row.get("registered_at", ""))
+            user_id = _safe_int(row.get("user_id"))
+            gender = _safe_str(row.get("gender"))
+            birthdate_ts = _parse_date_timestamp(row.get("birthdate"))
+            registered_ts = _parse_datetime_timestamp(row.get("registered_at"))
 
             writer.write_uint32(user_id)
             writer.write_int64(birthdate_ts)
@@ -265,7 +300,15 @@ class UsersBatch(Packet):
         users = []
         for _ in range(row_count):
             user_id = reader.read_uint32()
+
+            if user_id == 0:
+                user_id = None
+
             birthdate_ts = reader.read_int64()
+
+            if birthdate_ts == 0:
+                birthdate_ts = None
+
             registered_ts = reader.read_uint64()
             gender = reader.read_string()
 
@@ -273,25 +316,21 @@ class UsersBatch(Packet):
                 {
                     "user_id": user_id,
                     "gender": gender,
-                    "birthdate": datetime.fromtimestamp(birthdate_ts),
-                    "registered_at": datetime.fromtimestamp(registered_ts),
+                    "birthdate": None if birthdate_ts is None else datetime.fromtimestamp(birthdate_ts),
+                    "registered_at": None if registered_ts is None else datetime.fromtimestamp(registered_ts),
                 }
             )
 
         return cls(users, eof)
 
 
-class TransactionsBatch(Packet):
+class TransactionsBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: store_id(1) + payment_id(4) + voucher_id(4) + user_id(4) + amounts(24) + created_at(8) = 45
     # Variable strings with 1-byte length prefix:
     #   - transaction_id: ~36 chars UUID + 1 = 37
     UNIT_SIZE = 45 + 37  # = 82
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.TRANSACTIONS_BATCH
@@ -302,15 +341,15 @@ class TransactionsBatch(Packet):
         writer.write_uint8(1 if self.eof else 0)
 
         for row in self.csv_rows:
-            store_id = _safe_int(row.get("store_id"), 0)
-            payment_method_id = _safe_int(row.get("payment_method_id"), 0)
-            voucher_id = _safe_int(row.get("voucher_id"), 0)
-            user_id = _safe_int(row.get("user_id"), 0)
-            original_amount = _safe_float(row.get("original_amount"), 0.0)
-            discount_applied = _safe_float(row.get("discount_applied"), 0.0)
-            final_amount = _safe_float(row.get("final_amount"), 0.0)
-            created_ts = _parse_datetime_timestamp(row.get("created_at", ""))
-            transaction_id = _safe_str(row.get("transaction_id"), "unknown-transaction")
+            store_id = _safe_int(row.get("store_id"))
+            payment_method_id = _safe_int(row.get("payment_method_id"))
+            voucher_id = _safe_int(row.get("voucher_id"))
+            user_id = _safe_int(row.get("user_id"))
+            original_amount = _safe_float(row.get("original_amount"))
+            discount_applied = _safe_float(row.get("discount_applied"))
+            final_amount = _safe_float(row.get("final_amount"))
+            created_ts = _parse_datetime_timestamp(row.get("created_at"))
+            transaction_id = _safe_str(row.get("transaction_id"))
 
             writer.write_uint8(store_id if 0 <= store_id <= 255 else 0)
             writer.write_uint32(payment_method_id)
@@ -333,14 +372,24 @@ class TransactionsBatch(Packet):
         transactions = []
         for _ in range(row_count):
             store_id = reader.read_uint8()
+            if store_id == 0:
+                store_id = None
+
             payment_method_id = reader.read_uint32()
             voucher_id = reader.read_uint32()
+
             user_id = reader.read_uint32()
+            if user_id == 0:
+                user_id = None
+
             original_amount = reader.read_float64()
             discount_applied = reader.read_float64()
             final_amount = reader.read_float64()
             created_ts = reader.read_int64()
+
             transaction_id = reader.read_string()
+            if not transaction_id:
+                transaction_id = None
 
             transactions.append(
                 {
@@ -359,17 +408,13 @@ class TransactionsBatch(Packet):
         return cls(transactions, eof)
 
 
-class TransactionItemsBatch(Packet):
+class TransactionItemsBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: item_id(1) + quantity(4) + unit_price(8) + subtotal(8) + created_at(8) = 29
     # Variable strings with 1-byte length prefix:
     #   - transaction_id: ~36 chars UUID + 1 = 37
     UNIT_SIZE = 29 + 37  # = 66
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.TRANSACTION_ITEMS_BATCH
@@ -380,12 +425,12 @@ class TransactionItemsBatch(Packet):
         writer.write_uint8(1 if self.eof else 0)
 
         for row in self.csv_rows:
-            item_id = _safe_int(row.get("item_id"), 0)
-            quantity = _safe_int(row.get("quantity"), 0)
-            unit_price = _safe_float(row.get("unit_price"), 0.0)
-            subtotal = _safe_float(row.get("subtotal"), 0.0)
-            created_ts = _parse_datetime_timestamp(row.get("created_at", ""))
-            transaction_id = _safe_str(row.get("transaction_id"), "unknown-transaction")
+            item_id = _safe_int(row.get("item_id"))
+            quantity = _safe_int(row.get("quantity"))
+            unit_price = _safe_float(row.get("unit_price"))
+            subtotal = _safe_float(row.get("subtotal"))
+            created_ts = _parse_datetime_timestamp(row.get("created_at"))
+            transaction_id = _safe_str(row.get("transaction_id"))
 
             writer.write_uint8(item_id if 0 <= item_id <= 255 else 0)
             writer.write_uint32(quantity)
@@ -425,7 +470,7 @@ class TransactionItemsBatch(Packet):
         return cls(items, eof)
 
 
-class MenuItemsBatch(Packet):
+class MenuItemsBatch(BatchPacket):
 
     # Estimated size calculation:
     # Fixed: item_id(1) + price(8) + is_seasonal(1) + available_from(8) + available_to(8) = 26
@@ -433,10 +478,6 @@ class MenuItemsBatch(Packet):
     #   - item_name: ~12 chars avg + 1 = 13
     #   - category: ~8 chars avg + 1 = 9
     UNIT_SIZE = 26 + 13 + 9  # = 48
-
-    def __init__(self, csv_rows: List[Dict[str, Any]], eof: bool = False):
-        self.csv_rows = csv_rows
-        self.eof = eof
 
     def get_message_type(self) -> int:
         return PacketType.MENU_ITEMS_BATCH
@@ -447,13 +488,13 @@ class MenuItemsBatch(Packet):
         writer.write_uint8(1 if self.eof else 0)
 
         for row in self.csv_rows:
-            item_id = _safe_int(row.get("item_id"), 0)
-            item_name = _safe_str(row.get("item_name"), "Unknown Item")
-            category = _safe_str(row.get("category"), "unknown")
-            price = _safe_float(row.get("price"), 0.0)
-            is_seasonal = _safe_bool(row.get("is_seasonal"), False)
-            available_from_ts = _parse_datetime_timestamp(row.get("available_from", ""))
-            available_to_ts = _parse_datetime_timestamp(row.get("available_to", ""))
+            item_id = _safe_int(row.get("item_id"))
+            item_name = _safe_str(row.get("item_name"))
+            category = _safe_str(row.get("category"))
+            price = _safe_float(row.get("price"))
+            is_seasonal = _safe_bool(row.get("is_seasonal"))
+            available_from_ts = _parse_datetime_timestamp(row.get("available_from"))
+            available_to_ts = _parse_datetime_timestamp(row.get("available_to"))
 
             writer.write_uint8(item_id if 0 <= item_id <= 255 else 0)
             writer.write_float64(price)
@@ -497,15 +538,13 @@ class MenuItemsBatch(Packet):
 
 
 def _safe_str(value, default: str = "") -> str:
-    if value is None or value == "":
+    if value is None:
         return default
     return str(value)
 
 
 def _safe_int(value, default: int = 0) -> int:
     if value is None or value == "":
-        return default
-    if isinstance(value, str) and not value.strip():
         return default
     try:
         return int(float(value))
@@ -515,8 +554,6 @@ def _safe_int(value, default: int = 0) -> int:
 
 def _safe_float(value, default: float = 0.0) -> float:
     if value is None or value == "":
-        return default
-    if isinstance(value, str) and not value.strip():
         return default
     try:
         return float(value)
@@ -542,13 +579,11 @@ def _parse_date_timestamp(date_str) -> int:
     if isinstance(date_str, datetime):
         return int(date_str.timestamp())
 
-    if not str(date_str).strip():
-        return 0  # EPOCH
     try:
         dt = datetime.strptime(str(date_str).strip(), "%Y-%m-%d")
         return int(dt.timestamp())
     except ValueError:
-        return 0
+        return 0  # EPOCH
 
 
 def _parse_datetime_timestamp(datetime_str) -> int:
@@ -559,10 +594,8 @@ def _parse_datetime_timestamp(datetime_str) -> int:
     if isinstance(datetime_str, datetime):
         return int(datetime_str.timestamp())
 
-    if not str(datetime_str).strip():
-        return 0  # EPOCH
     try:
         dt = datetime.strptime(str(datetime_str).strip(), "%Y-%m-%d %H:%M:%S")
         return int(dt.timestamp())
     except ValueError:
-        return 0
+        return 0  # EPOCH

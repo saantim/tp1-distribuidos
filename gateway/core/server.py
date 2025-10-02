@@ -7,10 +7,10 @@ import logging
 import socket
 from typing import Optional
 
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.shutdown import ShutdownSignal
 
 from .handler import ClientHandler
-from .router import PacketRouter
 
 
 class Server:
@@ -19,17 +19,26 @@ class Server:
     routes incoming packets to appropriate middleware queues.
     """
 
-    def __init__(self, port: int, listen_backlog: int, router: PacketRouter, shutdown_signal: ShutdownSignal):
+    def __init__(
+        self,
+        port: int,
+        listen_backlog: int,
+        middleware_host: str,
+        demux_queue: str,
+        shutdown_signal: ShutdownSignal,
+    ):
         """
         create server instance.
 
         args:
             port: tcp port to listen on
             router: packet router for middleware publishing
+            middleware_host: RabbitMQ host for result queue
             shutdown_signal: shutdown signal handler
         """
         self.port = port
-        self.router = router
+        self.middleware_host = middleware_host
+        self.demux_queue = demux_queue
         self.shutdown_signal = shutdown_signal
         self.backlog = listen_backlog
         self.server_socket: Optional[socket.socket] = None
@@ -63,7 +72,9 @@ class Server:
 
                 logging.info(f"action: client_connect | client: {client_address}")
 
-                handler = ClientHandler(client_socket, self.router, self.shutdown_signal)
+                demux_publisher = MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queue)
+
+                handler = ClientHandler(client_socket, demux_publisher, self.middleware_host, self.shutdown_signal)
                 handler.handle_session()
 
                 logging.info(f"action: client_disconnect | client: {client_address}")

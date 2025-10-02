@@ -3,12 +3,15 @@ main coffee shop analysis engine that coordinates batch sending and network comm
 manages threads for csv processing and handles tcp communication with gateway.
 """
 
+import json
 import logging
+import queue
 import socket
 import threading
 import time
 from typing import Any, Callable, Dict, List
 
+from shared.entity import EOF
 from shared.network import Network
 from shared.protocol import FileSendEnd, FileSendStart, Packet, PacketType
 from shared.shutdown import ShutdownSignal
@@ -37,7 +40,8 @@ class FolderConfig:
 class Analyzer:
     """
     main analysis engine that processes csv folders and sends data to server.
-    coordinates multiple threads for parallel csv processing.
+    coordinates multiple threads for parallel csv processing and result listening.
+    uses dedicated sender thread to decouple processing from network I/O.
     """
 
     def __init__(self, config: AnalyzerConfig, folders: List[FolderConfig], shutdown_signal: ShutdownSignal):
@@ -53,18 +57,21 @@ class Analyzer:
         self.folders = folders
         self.shutdown_signal = shutdown_signal
 
-        self.network_lock = threading.Lock()
+        self.send_queue = queue.Queue(maxsize=100)
         self.threads = []
         self.network = None
 
     def run(self):
         """
         run the complete analysis process.
-        connects to gateway, starts processing threads, and handles communication.
+        connects to gateway, starts processing threads, handles communication, and waits for results.
         """
         try:
             self._connect_to_gateway()
             self._send_session_start()
+
+            sender_thread = threading.Thread(target=self._network_sender_loop, name="network-sender")
+            sender_thread.start()
 
             start_time = time.time()
             self._start_processing_threads()
@@ -74,7 +81,18 @@ class Analyzer:
             total_time = end_time - start_time
             logging.info(f"action: file_send | status: complete | total_time: {total_time:.2f}s")
 
+            self.send_queue.put(None)
+            sender_thread.join()
+            logging.info("action: sender_thread | status: complete")
+
             self._send_session_end()
+
+            start_time = time.time()
+            self._wait_for_results()
+            end_time = time.time()
+
+            total_time = end_time - start_time
+            logging.info(f"action: results_wait | status: complete | total_time: {total_time:.2f}s")
             logging.info("action: analysis_complete | result: success")
 
         except Exception as e:
@@ -89,6 +107,105 @@ class Analyzer:
         sock.connect((self.config.gateway_host, self.config.gateway_port))
         self.network = Network(sock, self.shutdown_signal)
 
+    def _network_sender_loop(self):
+        """
+        dedicated thread for network sending.
+        """
+        packets_sent = 0
+
+        try:
+            while not self.shutdown_signal.should_shutdown():
+                try:
+                    packet = self.send_queue.get(timeout=1.0)
+
+                    if packet is None:  # shutdown signal
+                        logging.info(f"action: sender_shutdown | packets_sent: {packets_sent}")
+                        break
+
+                    self.network.send_packet(packet)
+                    packets_sent += 1
+
+                    if packets_sent % 100 == 0:
+                        queue_size = self.send_queue.qsize()
+                        logging.debug(f"sender progress: {packets_sent} packets | queue_size: {queue_size}")
+
+                    self.send_queue.task_done()
+
+                except queue.Empty:
+                    continue
+
+        except Exception as e:
+            logging.error(f"sender thread error: {e}")
+            self.shutdown_signal.trigger_shutdown()
+
+    def _wait_for_results(self):
+        """
+        Wait for result packets on the same TCP connection after session end.
+        Receives multiple ResultPackets (streamed), one EOF per query signals completion.
+        """
+        try:
+            logging.info("action: waiting_for_results | status: started")
+
+            results_by_query = {}
+            queries_complete = set()
+            expected_queries = {"Q1", "Q2", "Q3", "Q4"}
+
+            while len(queries_complete) < len(expected_queries):
+                if self.shutdown_signal.should_shutdown():
+                    break
+
+                packet = self.network.recv_packet()
+
+                if packet is None:
+                    logging.warning("action: wait_for_results | result: connection_closed")
+                    break
+
+                if packet.get_message_type() == PacketType.RESULT:
+                    query_id = packet.query_id
+                    data = packet.data
+
+                    try:
+                        EOF.deserialize(data)
+                        queries_complete.add(query_id)
+                        logging.info(f"query {query_id} complete ({len(queries_complete)}/{len(expected_queries)})")
+                        continue
+                    except Exception:
+                        pass
+
+                    if query_id not in results_by_query:
+                        results_by_query[query_id] = []
+                    results_by_query[query_id].append(data)
+
+                elif packet.get_message_type() == PacketType.ERROR:
+                    logging.error(f"action: receive_results | result: server_error | error: {packet.message}")
+                    break
+                else:
+                    logging.warning(
+                        f"action: wait_for_results | result: unexpected_packet |" f" type: {packet.get_message_type()}"
+                    )
+
+            self._display_results(results_by_query)
+
+        except Exception as e:
+            logging.error(f"action: wait_for_results | result: fail | error: {e}")
+
+    @staticmethod
+    def _display_results(results_by_query: dict):
+        """Display collected results from all queries."""
+        for query_id in sorted(results_by_query.keys()):
+            logging.info(f"\n========== {query_id} Results ==========")
+            results = results_by_query[query_id]
+
+            if query_id == "Q1":
+                logging.info(f"Total Q1 filtered transactions: {len(results)}")
+            else:
+                for result_bytes in results:
+                    try:
+                        result = json.loads(result_bytes.decode("utf-8"))
+                        logging.info(json.dumps(result, indent=2))
+                    except Exception as e:
+                        logging.error(f"Failed to parse result: {e}")
+
     def _start_processing_threads(self):
         """start worker threads for each folder."""
         for folder_config in self.folders:
@@ -99,7 +216,7 @@ class Analyzer:
     def _process_folder(self, folder_config: FolderConfig):
         """
         worker thread function that processes a single folder.
-        sends packets directly to network with lock synchronization.
+        queues packets to send queue instead of sending directly.
         """
         folder_start_time = time.time()
 
@@ -116,14 +233,13 @@ class Analyzer:
                 if self.shutdown_signal.should_shutdown():
                     break
 
-                with self.network_lock:
-                    self.network.send_packet(packet)
+                self.send_queue.put(packet)
 
             if not self.shutdown_signal.should_shutdown():
                 folder_end_time = time.time()
                 folder_duration = folder_end_time - folder_start_time
                 logging.info(
-                    f"action: folder_send | status: complete |"
+                    f"action: folder_process | status: complete |"
                     f" folder: {folder_config.path} | duration: {folder_duration:.2f}s"
                 )
 
@@ -161,5 +277,6 @@ class Analyzer:
     def _cleanup(self):
         """cleanup resources and wait for threads."""
         self._wait_for_threads()
+
         if self.network:
             self.network.close()
