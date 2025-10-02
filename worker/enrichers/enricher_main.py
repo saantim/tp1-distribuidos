@@ -36,17 +36,24 @@ class Enricher:
         self._replicas: int = replicas
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
-        if not self._handle_eof(body):
-            enriched_message = self._enricher_fn(self._enricher, body)
-            for queue in self._to_queue:
-                queue.send(enriched_message.serialize())
+        try:
+            if not self._handle_eof(body, channel, method):
+                enriched_message = self._enricher_fn(self._enricher, body)
+                for queue in self._to_queue:
+                    queue.send(enriched_message.serialize())
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            logging.error(f"Error processing message: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-    def _handle_eof(self, body: bytes) -> bool:
+    def _handle_eof(self, body: bytes, channel, method) -> bool:
         try:
             eof_message: EOF = EOF.deserialize(body)
         except Exception as e:
             _ = e
             return False
+
+        channel.basic_ack(delivery_tag=method.delivery_tag)
 
         logging.info("EOF received, stopping enricher worker...")
         for queue in self._from_queue:
@@ -65,18 +72,24 @@ class Enricher:
 
     def _enricher_msg(self, channel, method, properties, body: bytes) -> None:
         try:
-            EOF.deserialize(body)
-            logging.info("EOF received, stopping enricher + start consuming from queue")
-            logging.info(f"EnricherFinalized: {self._enricher}")
-            for e_queue in self._enricher_queue:
-                e_queue.stop_consuming()
-            for f_queue in self._from_queue:
-                f_queue.start_consuming(self._on_message)
-            return
+            try:
+                EOF.deserialize(body)
+                logging.info("EOF received, stopping enricher + start consuming from queue")
+                logging.info(f"EnricherFinalized: {self._enricher}")
+                for e_queue in self._enricher_queue:
+                    e_queue.stop_consuming()
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+                for f_queue in self._from_queue:
+                    f_queue.start_consuming(self._on_message)
+                return
+            except Exception as e:
+                _ = e
+                pass
+            self._enricher = self._build_enricher_fn(self._enricher, body)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
-            _ = e
-            pass
-        self._enricher = self._build_enricher_fn(self._enricher, body)
+            logging.error(f"Error in enricher_msg: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def start(self) -> None:
         logging.info("Starting Enricher!")

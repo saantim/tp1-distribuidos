@@ -56,6 +56,7 @@ class ResultCollector:
         def on_message(channel, method, properties, body):
             if self.shutdown_signal.should_shutdown():
                 queue.stop_consuming()
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 return
 
             try:
@@ -69,6 +70,7 @@ class ResultCollector:
                     self.eof_received[query_id] = True
 
                 queue.stop_consuming()
+                channel.basic_ack(delivery_tag=method.delivery_tag)
                 return
             except Exception:
                 pass
@@ -77,9 +79,11 @@ class ResultCollector:
                 result_packet = ResultPacket(query_id, body)
                 with self.lock:
                     self.network.send_packet(result_packet)
+                channel.basic_ack(delivery_tag=method.delivery_tag)
             except NetworkError as e:
                 logging.error(f"Failed to send result for {query_id}: {e}")
                 queue.stop_consuming()
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
         try:
             self.ready_to_send.wait()
@@ -87,6 +91,7 @@ class ResultCollector:
             queue.start_consuming(on_message)
         except Exception as e:
             logging.error(f"Error in result listener for {query_id}: {e}")
+
         finally:
             try:
                 queue.close()

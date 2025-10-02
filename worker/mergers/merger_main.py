@@ -30,8 +30,13 @@ class Merger:
         self._merged: Any = None
 
     def _on_message(self, channel, method, properties, body) -> None:
-        if not self._handle_eof(body):
-            self._merged = self._merger_fn(self._merged, body)
+        try:
+            if not self._handle_eof(body):
+                self._merged = self._merger_fn(self._merged, body)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            logging.error(f"Error processing message: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def start(self) -> None:
         logging.info("Starting merger worker")

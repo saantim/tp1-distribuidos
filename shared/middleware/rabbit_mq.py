@@ -45,7 +45,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
                 host=self._host,
                 port=5672,
                 credentials=pika.PlainCredentials(username="admin", password="admin"),
-                heartbeat=600,
+                heartbeat=6000,
             )
         )
         self._channel = self._connection.channel()
@@ -80,7 +80,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
             self._consumer_tag = self._channel.basic_consume(
                 queue=self._queue_name,
                 on_message_callback=on_message_callback,
-                auto_ack=True,
+                auto_ack=False,
             )
             self._channel.start_consuming()
         except AMQPConnectionError as e:
@@ -206,7 +206,10 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
         self._consumer_tags: list[str] = []
         self._connection = pika.BlockingConnection(
             pika.ConnectionParameters(
-                host=self._host, port=5672, credentials=pika.PlainCredentials(username="admin", password="admin")
+                host=self._host,
+                port=5672,
+                credentials=pika.PlainCredentials(username="admin", password="admin"),
+                heartbeat=6000,
             )
         )
         self._channel = self._connection.channel()
@@ -248,7 +251,7 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
                 self._channel.queue_bind(exchange=self._exchange_name, queue=queue_name, routing_key=route_key)
                 self._consumer_tags.append(
                     self._channel.basic_consume(
-                        queue=queue_name, on_message_callback=on_message_callback, auto_ack=True
+                        queue=queue_name, on_message_callback=on_message_callback, auto_ack=False
                     )
                 )
             self._channel.start_consuming()

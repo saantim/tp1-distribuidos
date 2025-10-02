@@ -6,7 +6,6 @@ import os
 
 from core.server import Server
 
-from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.shutdown import ShutdownSignal
 
 
@@ -23,10 +22,15 @@ def initialize_config():
         config_params["port"] = int(os.getenv("PORT", config["DEFAULT"]["PORT"]))
         config_params["listen_backlog"] = int(os.getenv("LISTEN_BACKLOG", config["DEFAULT"]["LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
-
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
 
-        config_params["demux_queue"] = os.getenv("DEMUX_QUEUE", config["QUEUES"]["DEMUX_QUEUE"])
+        config_params["demux_stores"] = os.getenv("DEMUX_STORES", config["DEMUX_QUEUES"]["STORES"])
+        config_params["demux_users"] = os.getenv("DEMUX_USERS", config["DEMUX_QUEUES"]["USERS"])
+        config_params["demux_transactions"] = os.getenv("DEMUX_TRANSACTIONS", config["DEMUX_QUEUES"]["TRANSACTIONS"])
+        config_params["demux_transaction_items"] = os.getenv(
+            "DEMUX_TRANSACTION_ITEMS", config["DEMUX_QUEUES"]["TRANSACTION_ITEMS"]
+        )
+        config_params["demux_menu_items"] = os.getenv("DEMUX_MENU_ITEMS", config["DEMUX_QUEUES"]["MENU_ITEMS"])
 
     except KeyError as e:
         raise KeyError("Key was not found. Error: {}. Aborting gateway".format(e))
@@ -34,15 +38,6 @@ def initialize_config():
         raise ValueError("Key could not be parsed. Error: {}. Aborting gateway".format(e))
 
     return config_params
-
-
-def create_listener(config_params):
-    """create result listener with middleware consumer."""
-    middleware_host = config_params["middleware_host"]
-    results_queue = config_params["results_queue"]
-
-    consumer = MessageMiddlewareQueueMQ(middleware_host, results_queue)
-    return consumer
 
 
 def initialize_log(logging_level):
@@ -64,21 +59,28 @@ def main():
     port = config_params["port"]
     listen_backlog = config_params["listen_backlog"]
     logging_level = config_params["logging_level"]
-    rabbit = config_params["middleware_host"]
-    demux_queue = config_params["demux_queue"]
+    middleware_host = config_params["middleware_host"]
+
+    demux_queues = {
+        "stores": config_params["demux_stores"],
+        "users": config_params["demux_users"],
+        "transactions": config_params["demux_transactions"],
+        "transaction_items": config_params["demux_transaction_items"],
+        "menu_items": config_params["demux_menu_items"],
+    }
 
     initialize_log(logging_level)
+    logging.getLogger("pika").setLevel(logging.WARNING)
 
     logging.debug(
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
-        f"logging_level: {logging_level} | rabbit_host: {rabbit}"
+        f"logging_level: {logging_level} | middleware_host: {middleware_host}"
     )
-    logging.getLogger("pika").setLevel(logging.WARNING)
 
     try:
         shutdown_signal = ShutdownSignal()
-        server = Server(port, listen_backlog, rabbit, demux_queue, shutdown_signal)
+        server = Server(port, listen_backlog, middleware_host, demux_queues, shutdown_signal)
 
         logging.info(f"action: start_gateway | port: {port}")
         server.run()

@@ -1,61 +1,46 @@
 import logging
 import os
 import time
-from enum import IntEnum
-from typing import cast, Dict, Tuple, Type
+from typing import cast, Type
 
 from shared.entity import EOF, MenuItem, Message, Store, Transaction, TransactionItem, User
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareQueue
-from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
-from shared.protocol import BatchPacket, Header, Packet, PacketType
+from shared.middleware.interface import MessageMiddleware
+from shared.protocol import BatchPacket, Header, Packet
 from shared.shutdown import ShutdownSignal
-
-
-class PublisherType(IntEnum):
-    QUEUE = (1,)
-    EXCHANGE = (2,)
-
-
-ENTITY_MAP: Dict[int, Type[Message]] = {
-    PacketType.STORE_BATCH: Store,
-    PacketType.USERS_BATCH: User,
-    PacketType.TRANSACTIONS_BATCH: Transaction,
-    PacketType.TRANSACTION_ITEMS_BATCH: TransactionItem,
-    PacketType.MENU_ITEMS_BATCH: MenuItem,
-}
-
-PUBLISHER_MAP: Dict[int, Tuple[str, PublisherType]] = {
-    PacketType.STORE_BATCH: ("stores_source", PublisherType.EXCHANGE),
-    PacketType.USERS_BATCH: ("users_source", PublisherType.QUEUE),
-    PacketType.TRANSACTIONS_BATCH: ("transactions_source", PublisherType.QUEUE),
-    PacketType.TRANSACTION_ITEMS_BATCH: ("transaction_items_source", PublisherType.QUEUE),
-    PacketType.MENU_ITEMS_BATCH: ("menu_items_source", PublisherType.EXCHANGE),
-}
+from worker import utils
 
 
 class Demux:
-
     def __init__(
         self,
-        from_queue: MessageMiddlewareQueue,
-        publishers: Dict[PacketType, MessageMiddleware],
+        from_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
+        entity_class: Type[Message],
+        replicas: int,
         shutdown_signal: ShutdownSignal,
     ) -> None:
         self._from_queue = from_queue
-        self.publishers = publishers
+        self._to_queue = to_queue
+        self._entity_class = entity_class
+        self._replicas = replicas
         self._shutdown_signal = shutdown_signal
-        self._to_queues: Dict[int, MessageMiddlewareQueue] = {}
         self._batch_count = 0
         self._message_count = 0
 
     def _on_message(self, channel, method, properties, body) -> None:
         if self._shutdown_signal.should_shutdown():
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             self.stop()
+            return
+
+        if self._handle_eof(body):
+            channel.basic_ack(delivery_tag=method.delivery_tag)
             return
 
         try:
             if len(body) < Header.SIZE:
                 logging.error(f"message too short: {len(body)} bytes")
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 return
 
             header_bytes = body[: Header.SIZE]
@@ -64,94 +49,102 @@ class Demux:
             header = Header.deserialize(header_bytes)
             packet = Packet.deserialize(header, payload_bytes)
 
-            logging.info(f"Received: HEADER:{header} - PACKET:{packet}")
-
             if not isinstance(packet, BatchPacket):
                 logging.error(f"expected BatchPacket, got {type(packet)}")
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 return
 
             batch_packet = cast(BatchPacket, packet)
-            packet_type = batch_packet.get_message_type()
-
-            entity_class = ENTITY_MAP[packet_type]
-            target_publisher = self.publishers.get(PacketType(packet_type))
 
             demux_start = time.time()
             for row in batch_packet.csv_rows:
-                if self._shutdown_signal.should_shutdown():
-                    logging.info("shutdown requested, stopping mid-batch")
-                    self.stop()
-                    return
-
-                entity = entity_class.from_dict(row)
-                message = entity.serialize()
-                logging.info(f"Message {message} sent")
-                target_publisher.send(message)
+                entity = self._entity_class.from_dict(row)
+                serialized = entity.serialize()
+                for queue in self._to_queue:
+                    queue.send(serialized)
                 self._message_count += 1
             demux_end = time.time()
-
-            if batch_packet.eof:
-                logging.info(f"about to send EOF from DEMUX! {type(batch_packet)}")
-                eof_message = EOF(0).serialize()
-                target_publisher.send(eof_message)
-                logging.info(f"EOF sent {eof_message} for packet_type {type(batch_packet)}")
 
             self._batch_count += 1
             logging.info(
                 f"batch #{self._batch_count} of type {type(batch_packet)} took {demux_end - demux_start:.2f} seconds"
             )
 
+            if batch_packet.eof:
+                logging.info(f"Batch EOF received for {self._entity_class.__name__} sending EOF(0) to back of queue.")
+                for queue in self._from_queue:
+                    queue.send(EOF(0).serialize())
+
             if self._batch_count % 100 == 0:
                 logging.info(f"checkpoint: processed {self._batch_count} batches, {self._message_count} messages")
 
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+
         except Exception as e:
             logging.error(f"error processing batch: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
+    def _handle_eof(self, body: bytes) -> bool:
+
+        try:
+            eof_msg: EOF = EOF.deserialize(body)
+            logging.info(f"successful parsing of {eof_msg}")
+        except Exception as e:
+            _ = e
+            return False
+
+        logging.info(f"EOF received {eof_msg}, stopping demux worker...")
+        for queue in self._from_queue:
+            queue.stop_consuming()
+        if eof_msg.metadata + 1 == self._replicas:
+            logging.info("EOF sent to next stage")
+            for queue in self._to_queue:
+                queue.send(EOF(0).serialize())
+        else:
+            eof_msg.metadata += 1
+            for queue in self._from_queue:
+                queue.send(eof_msg.serialize())
+
+        self.stop()
+        return True
 
     def start(self) -> None:
-        logging.info("demux worker starting")
+        logging.info(f"demux worker starting for {self._entity_class.__name__} " f"(replicas={self._replicas})")
         try:
-            self._from_queue.start_consuming(self._on_message)
+            for queue in self._from_queue:
+                queue.start_consuming(self._on_message)
+            logging.info(f"demux worker finished: {self._batch_count} batches, " f"{self._message_count} messages")
         except Exception as e:
             logging.error(f"consumer error: {e}")
-        finally:
-            self.stop()
 
     def stop(self) -> None:
-        logging.info("stopping demux worker")
-        try:
-            self._from_queue.stop_consuming()
-        except Exception as e:
-            logging.error(f"consumer close error: {e}")
-
-        for queue in self._to_queues.values():
-            try:
-                queue.close()
-            except Exception as e:
-                logging.error(f"error closing queue: {e}")
-
-        logging.info(f"demux worker stopped: {self._batch_count} batches, {self._message_count} messages")
+        pass
 
 
 def main():
-    host: str = os.getenv("MIDDLEWARE_HOST")
-    from_queue_name: str = os.getenv("FROM", "demux_batches")
+    from_queues: list = utils.get_input_queue()
+    to_queues: list = utils.get_output_queue()
+    entity_type: str = os.getenv("ENTITY_TYPE")
+    replicas: int = int(os.getenv("REPLICAS", "1"))
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-    shutdown_signal = ShutdownSignal()  # todo. capaz conviene agregar un callback custom para los workers.
-    from_queue: MessageMiddlewareQueueMQ = MessageMiddlewareQueueMQ(host, from_queue_name)
-
     logging.getLogger("pika").setLevel(logging.WARNING)
 
-    publishers: Dict[PacketType, MessageMiddleware] = {}
-    for packet_type, (name, publisher_type) in PUBLISHER_MAP.items():
-        ptype = PacketType(packet_type)
-        if publisher_type == PublisherType.QUEUE:
-            publishers[ptype] = MessageMiddlewareQueueMQ(host, name)
-        elif publisher_type == PublisherType.EXCHANGE:
-            publishers[ptype] = MessageMiddlewareExchangeRMQ(host, name, ["common"])
+    shutdown_signal = ShutdownSignal()
 
-    demux_worker = Demux(from_queue, publishers, shutdown_signal)
+    # TODO: ADAPTAR A modo serialize_fn como los workers de los chicos.
+    entity_map = {
+        "Store": Store,
+        "User": User,
+        "Transaction": Transaction,
+        "TransactionItem": TransactionItem,
+        "MenuItem": MenuItem,
+    }
+    entity_class = entity_map.get(entity_type)
+    if not entity_class:
+        raise ValueError(f"Unknown ENTITY_TYPE: {entity_type}")
+
+    demux_worker = Demux(from_queues, to_queues, entity_class, replicas, shutdown_signal)
     demux_worker.start()
 
 

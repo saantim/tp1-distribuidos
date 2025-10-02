@@ -8,6 +8,7 @@ import socket
 from typing import Optional
 
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
+from shared.protocol import PacketType
 from shared.shutdown import ShutdownSignal
 
 from .handler import ClientHandler
@@ -24,21 +25,12 @@ class Server:
         port: int,
         listen_backlog: int,
         middleware_host: str,
-        demux_queue: str,
+        demux_queues: dict,
         shutdown_signal: ShutdownSignal,
     ):
-        """
-        create server instance.
-
-        args:
-            port: tcp port to listen on
-            router: packet router for middleware publishing
-            middleware_host: RabbitMQ host for result queue
-            shutdown_signal: shutdown signal handler
-        """
         self.port = port
         self.middleware_host = middleware_host
-        self.demux_queue = demux_queue
+        self.demux_queues = demux_queues
         self.shutdown_signal = shutdown_signal
         self.backlog = listen_backlog
         self.server_socket: Optional[socket.socket] = None
@@ -67,14 +59,26 @@ class Server:
         """accept and handle client connections."""
         while not self.shutdown_signal.should_shutdown():
             try:
-                self.server_socket.settimeout(1.0)  # esto para responsive shutdown.
+                self.server_socket.settimeout(1.0)
                 client_socket, client_address = self.server_socket.accept()
 
                 logging.info(f"action: client_connect | client: {client_address}")
 
-                demux_publisher = MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queue)
+                publishers = {
+                    PacketType.STORE_BATCH: MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queues["stores"]),
+                    PacketType.USERS_BATCH: MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queues["users"]),
+                    PacketType.TRANSACTIONS_BATCH: MessageMiddlewareQueueMQ(
+                        self.middleware_host, self.demux_queues["transactions"]
+                    ),
+                    PacketType.TRANSACTION_ITEMS_BATCH: MessageMiddlewareQueueMQ(
+                        self.middleware_host, self.demux_queues["transaction_items"]
+                    ),
+                    PacketType.MENU_ITEMS_BATCH: MessageMiddlewareQueueMQ(
+                        self.middleware_host, self.demux_queues["menu_items"]
+                    ),
+                }
 
-                handler = ClientHandler(client_socket, demux_publisher, self.middleware_host, self.shutdown_signal)
+                handler = ClientHandler(client_socket, publishers, self.middleware_host, self.shutdown_signal)
                 handler.handle_session()
 
                 logging.info(f"action: client_disconnect | client: {client_address}")

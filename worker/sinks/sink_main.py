@@ -38,16 +38,23 @@ class Sink:
         self._eof_count = 0
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
-        if not self._handle_eof(body):
-            if self._stream_mode:
-                try:
-                    formatted = self._format_fn([body])
-                    if formatted:
-                        self._results_queue.send(formatted)
-                except Exception as e:
-                    logging.error(f"Error formatting/sending result: {e}")
-            else:
-                self._results_collected.append(body)
+        try:
+            if not self._handle_eof(body):
+                if self._stream_mode:
+                    try:
+                        formatted = self._format_fn([body])
+                        if formatted:
+                            self._results_queue.send(formatted)
+                    except Exception as e:
+                        logging.error(f"Error formatting/sending result: {e}")
+                        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                        return
+                else:
+                    self._results_collected.append(body)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            logging.error(f"Error processing message: {e}")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _handle_eof(self, body: bytes) -> bool:
         try:

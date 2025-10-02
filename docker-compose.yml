@@ -32,7 +32,9 @@ services:
     depends_on:
       - gateway
 
-  demux:
+  # DEMUX #
+
+  demux_stores:
     image: demux_worker
     build:
       context: .
@@ -42,7 +44,36 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=INFO
       - MIDDLEWARE_HOST=rabbitmq
-      - FROM=demux_queue
+      - FROM=demux_stores
+      - FROM_TYPE=QUEUE
+      - TO=stores_source
+      - TO_TYPE=EXCHANGE
+      - TO_STRATEGY=FANOUT
+      - ENTITY_TYPE=Store
+      - REPLICAS=1
+    networks:
+      - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    scale: 1
+
+  demux_menu_items:
+    image: demux_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/demux/demux_main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=INFO
+      - MIDDLEWARE_HOST=rabbitmq
+      - FROM=demux_menu_items
+      - FROM_TYPE=QUEUE
+      - TO=menu_items_source
+      - TO_TYPE=EXCHANGE
+      - TO_STRATEGY=FANOUT
+      - ENTITY_TYPE=MenuItem
     networks:
       - coffee
     depends_on:
@@ -67,6 +98,9 @@ services:
       - TO_TYPE=QUEUE
       - TO=filtered_tx_2024_2025_q1,filtered_tx_2024_2025_q4
       - MODULE_NAME=filter_tx_2024_2025
+      - ENTITY_TYPE=Transaction
+      - BATCH_SIZE=500
+      - NEXT_STEP_ALLOWS_BATCH=true,true
       - REPLICAS=1
     networks:
       - coffee
@@ -90,6 +124,9 @@ services:
       - TO_TYPE=QUEUE
       - TO=filtered_tx_6am_11pm_q1,filtered_tx_6am_11pm_q3
       - MODULE_NAME=filter_tx_6am_11pm
+      - ENTITY_TYPE=Transaction
+      - BATCH_SIZE=500
+      - NEXT_STEP_ALLOWS_BATCH=true,true
       - REPLICAS=1
     networks:
       - coffee
@@ -113,6 +150,9 @@ services:
       - TO_TYPE=QUEUE
       - TO=filtered_amount
       - MODULE_NAME=filter_amount
+      - ENTITY_TYPE=Transaction
+      - BATCH_SIZE=100  # Smaller batch since this goes to sink
+      - NEXT_STEP_ALLOWS_BATCH=false
       - REPLICAS=1
     networks:
       - coffee
@@ -161,6 +201,9 @@ services:
       - TO_TYPE=QUEUE
       - TO=filtered_item_amount
       - MODULE_NAME=filter_tx_item_2024_2025
+      - ENTITY_TYPE=TransactionItem
+      - BATCH_SIZE=500
+      - NEXT_STEP_ALLOWS_BATCH=true
       - REPLICAS=1
     networks:
       - coffee
@@ -184,6 +227,7 @@ services:
       - TO_TYPE=QUEUE
       - TO=aggregated_item_by_period
       - MODULE_NAME=period_aggregator
+      - ENTITY_TYPE=TransactionItem
       - REPLICAS=1
     networks:
       - coffee
@@ -279,6 +323,7 @@ services:
       - TO_TYPE=QUEUE
       - TO=aggregated_semester_by_store
       - MODULE_NAME=semester_aggregator
+      - ENTITY_TYPE=Transaction
       - REPLICAS=1
     networks:
       - coffee
@@ -374,15 +419,16 @@ services:
       - FROM_TYPE=QUEUE
       #- TO=tx_filtered_{i}
       - TO_TYPE=QUEUE
-      - TO_SUFFIX_NUM=5
+      - TO_SUFFIX_NUM=1
       - MODULE_NAME=router_transactions_q4
-      - REPLICAS=3
+      - ENTITY_TYPE=Transaction
+      - REPLICAS=1
     networks:
       - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-    scale: 3
+    scale: 1
 
   user_purchase_aggregator_1:
     image: aggregator_worker
@@ -400,6 +446,8 @@ services:
       - TO=user_purchases_aggregated
       - MODULE_NAME=user_purchase_aggregator
       - REPLICA_INDEX=1
+      - ENTITY_TYPE=Transaction
+      - TRUNCATE=1
       - REPLICAS=1
     networks:
       - coffee
@@ -407,97 +455,6 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  user_purchase_aggregator_2:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=tx_filtered_{i}
-      - TO_TYPE=QUEUE
-      - TO=user_purchases_aggregated
-      - MODULE_NAME=user_purchase_aggregator
-      - REPLICA_INDEX=2
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  user_purchase_aggregator_3:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=tx_filtered_{i}
-      - TO_TYPE=QUEUE
-      - TO=user_purchases_aggregated
-      - MODULE_NAME=user_purchase_aggregator
-      - REPLICA_INDEX=3
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  user_purchase_aggregator_4:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=tx_filtered_{i}
-      - TO_TYPE=QUEUE
-      - TO=user_purchases_aggregated
-      - MODULE_NAME=user_purchase_aggregator
-      - REPLICA_INDEX=4
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  user_purchase_aggregator_5:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=tx_filtered_{i}
-      - TO_TYPE=QUEUE
-      - TO=user_purchases_aggregated
-      - MODULE_NAME=user_purchase_aggregator
-      - REPLICA_INDEX=5
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
 
   top3_users_aggregator:
     image: aggregator_worker

@@ -1,4 +1,3 @@
-import logging
 from typing import Optional
 
 from shared.entity import Store, StoreName
@@ -24,5 +23,4 @@ def enricher_fn(enricher: dict[int, StoreName], payload: bytes) -> UserPurchases
                     user=user_id, purchases=user_purchase_info.purchases, store_name=store_name, birthday=""
                 )
                 enriched.user_purchases_by_store[store_id][user_id] = new
-                logging.info(f"enriched from {store_id} to {store_name}")
     return enriched

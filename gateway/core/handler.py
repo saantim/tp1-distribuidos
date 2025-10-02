@@ -5,10 +5,13 @@ handles FileSendStart -> batches -> FileSendEnd protocol -> results streaming.
 
 import logging
 import threading
+import time
+from typing import cast
 
+from shared.entity import EOF
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
-from shared.protocol import AckPacket, ErrorPacket, PacketType
+from shared.protocol import AckPacket, BatchPacket, ErrorPacket, PacketType
 from shared.shutdown import ShutdownSignal
 
 from .results import ResultCollector
@@ -23,12 +26,12 @@ class ClientHandler:
     def __init__(
         self,
         client_socket,
-        publisher: MessageMiddlewareQueueMQ,
+        publishers: dict[int, MessageMiddlewareQueueMQ],
         middleware_host: str,
         shutdown_signal: ShutdownSignal,
     ):
         self.network = Network(client_socket, shutdown_signal)
-        self.publisher = publisher
+        self.publishers = publishers
         self.middleware_host = middleware_host
         self.shutdown_signal = shutdown_signal
 
@@ -48,8 +51,12 @@ class ClientHandler:
             result_collector.add_query("Q4", "results_q4")
             results_thread = threading.Thread(target=result_collector.start_listening, name="results-collector")
             results_thread.start()
+
+            batch_start = time.time()
             self._process_data_batches()
             result_collector.signal_ready()
+            batch_end = time.time()
+            logging.info(f"action: batch_forward | took: {(batch_end - batch_start):.2f} seconds")
 
             results_thread.join()
             logging.info("Session complete, all results sent to client")
@@ -95,9 +102,12 @@ class ClientHandler:
                 break
 
             if self._is_batch_packet(packet_type):
+                batch_packet = cast(BatchPacket, packet)
                 try:
-                    self.publisher.send(packet.serialize())
-                    batch_count += 1
+                    publisher = self.publishers.get(packet_type)
+                    if publisher:
+                        publisher.send(batch_packet.serialize() if not batch_packet.eof else EOF(0).serialize())
+                        batch_count += 1
                 except Exception as e:
                     logging.error(f"action: route_packet | result: fail | error: {e}")
                     self._send_error_packet(500, "routing error")
@@ -106,12 +116,6 @@ class ClientHandler:
                 logging.warning(f"action: process_batches | result: unexpected_packet | type: {packet_type}")
                 self._send_error_packet(400, f"unexpected packet type: {packet_type}")
                 break
-
-    def _wait_for_session_end(self):
-        packet = self.network.recv_packet()
-        if packet and packet.get_message_type() == PacketType.FILE_SEND_END:
-            logging.info("action: session_end | result: success")
-            self._send_ack_packet()
 
     @staticmethod
     def _is_batch_packet(packet_type: int) -> bool:
