@@ -21,16 +21,16 @@ class Aggregator:
 
     def __init__(
         self,
-        from_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
+        from_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
         aggregator_fn: Callable[[Any, Packet], Any],
         replicas: int,
     ) -> None:
-        self._from_queue = from_queue
-        self._to_queue = to_queue
-        self._aggregator_fn = aggregator_fn
+        self._from_queue: list[MessageMiddleware] = from_queue
+        self._to_queue: list[MessageMiddleware] = to_queue
+        self._aggregator_fn: Callable[[Any, Packet], Any] = aggregator_fn
         self._aggregated: Any = None
-        self._replicas = replicas
+        self._replicas: int = replicas
 
     def _on_message(self, channel, method, properties, body) -> None:
         if not self._handle_eof(body):
@@ -38,7 +38,8 @@ class Aggregator:
 
     def start(self) -> None:
         logging.info("Starting aggregator worker...")
-        self._from_queue.start_consuming(self._on_message)
+        for queue in self._from_queue:
+            queue.start_consuming(self._on_message)
 
     def stop(self) -> None:
         logging.info("Stopping aggregator worker...")
@@ -53,15 +54,17 @@ class Aggregator:
             return False
 
         logging.info("EOF received, stopping worker...")
-        self._from_queue.stop_consuming()
+        for queue in self._from_queue:
+            queue.stop_consuming()
         if eof_message.metadata + 1 == self._replicas:
-
-            self._to_queue.send(self._aggregated.serialize())
-            self._to_queue.send(EOF(0).serialize())
-            logging.info("EOF sent to next stage")
+            for queue in self._to_queue:
+                queue.send(self._aggregated.serialize())
+                queue.send(EOF(0).serialize())
+                logging.info("EOF sent to next stage")
         else:
             eof_message.metadata += 1
-            self._from_queue.send(eof_message.serialize())
+            for queue in self._from_queue:
+                queue.send(eof_message.serialize())
         self.stop()
 
         return True
@@ -71,12 +74,12 @@ def main():
     logging.getLogger("pika").setLevel(logging.WARNING)
     aggregator_module_name: str = os.getenv("MODULE_NAME")
     stage_replicas: int = int(os.getenv("REPLICAS"))
+
     aggregator_module: ModuleType = importlib.import_module(aggregator_module_name)
+    from_queues: list[MessageMiddleware] = utils.get_input_queue()
+    to_queues: list[MessageMiddleware] = utils.get_output_queue()
 
-    from_queue = utils.get_input_queue()
-    to_queue = utils.get_output_queue()
-
-    aggregator_worker = Aggregator(from_queue, to_queue, aggregator_module.aggregator_fn, stage_replicas)
+    aggregator_worker = Aggregator(from_queues, to_queues, aggregator_module.aggregator_fn, stage_replicas)
     aggregator_worker.start()
 
 

@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
+from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from worker import utils
 
 
@@ -16,34 +17,35 @@ logging.basicConfig(
 )
 
 
-class Filter:
+class Router:
 
     def __init__(
         self,
         from_queue: list[MessageMiddleware],
-        to_queue: list[MessageMiddleware],
-        filter_fn: Callable[[Any], bool],
+        router_fn: Callable[[Any], str],
         replicas: int,
     ) -> None:
         self.name: str = os.getenv("MODULE_NAME")
         self._replicas: int = replicas
         self._from_queue: list[MessageMiddleware] = from_queue
-        self._to_queue: list[MessageMiddleware] = to_queue
-        self._filter_fn: Callable[[Any], bool] = filter_fn
-
+        self._to_queue: dict[str, MessageMiddleware] = {}
+        self._router_fn: Callable[[Any], str] = router_fn
         self.received = 0
-        self.passed = 0
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
         self.received += 1
+
         if not self._handle_eof(body):
-            if self._filter_fn(body):
-                self.passed += 1
-                for queue in self._to_queue:
-                    queue.send(body)
+            queue_name: str = self._router_fn(body)
+            if queue_name not in self._to_queue:
+                self._to_queue[queue_name] = MessageMiddlewareQueueMQ(
+                    host=os.getenv(utils.MIDDLEWARE_HOST), queue_name=queue_name
+                )
+            output_queue = self._to_queue[queue_name]
+            output_queue.send(body)
 
         if self.received % 100000 == 0:
-            logging.info(f"[{self.name}] checkpoint: " f"received={self.received}, pass={self.passed}")
+            logging.info(f"[{self.name}] checkpoint: " f"routed={self.received}")
 
     def _handle_eof(self, body: bytes) -> bool:
         try:
@@ -56,8 +58,9 @@ class Filter:
         for queue in self._from_queue:
             queue.stop_consuming()
         if eof_message.metadata + 1 == self._replicas:
-            logging.info("EOF sent to next stage")
-            for queue in self._to_queue:
+            logging.info("EOF will be sent to next stage")
+            for n, queue in self._to_queue.items():
+                logging.info(f"sent EOF to queue {n}")
                 queue.send(EOF(0).serialize())
         else:
             eof_message.metadata += 1
@@ -74,20 +77,18 @@ class Filter:
     def stop(self) -> None:
         pass
         # todo: remove queues
-        # self._from_queue.close()
 
 
 def main():
     logging.getLogger("pika").setLevel(logging.WARNING)
-    filter_module_name: str = os.getenv("MODULE_NAME")
+    router_module_name: str = os.getenv("MODULE_NAME")
     replicas: int = int(os.getenv("REPLICAS", 1))
 
     from_queue: list[MessageMiddleware] = utils.get_input_queue()
-    to_queue: list[MessageMiddleware] = utils.get_output_queue()
-    filter_module: ModuleType = importlib.import_module(filter_module_name)
+    router_module: ModuleType = importlib.import_module(router_module_name)
 
-    filter_worker = Filter(from_queue, to_queue, filter_module.filter_fn, replicas)
-    filter_worker.start()
+    router_worker = Router(from_queue, router_module.router_fn, replicas)
+    router_worker.start()
 
 
 if __name__ == "__main__":

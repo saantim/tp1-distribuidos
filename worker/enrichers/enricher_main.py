@@ -6,8 +6,8 @@ from typing import Any, Callable
 
 from shared.entity import EOF
 from shared.middleware.interface import MessageMiddleware
-from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 from worker import utils
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,25 +20,26 @@ class Enricher:
 
     def __init__(
         self,
-        from_queue: MessageMiddleware,
-        enricher_queue: MessageMiddleware,
-        to_queue: MessageMiddleware,
+        from_queue: list[MessageMiddleware],
+        enricher_queue: list[MessageMiddleware],
+        to_queue: list[MessageMiddleware],
         build_enricher_fn: Callable[[Any, Any], Any],
         enricher_fn: Callable[[Any, Any], Any],
         replicas: int,
     ) -> None:
-        self._from_queue = from_queue
-        self._to_queue = to_queue
-        self._enricher_queue = enricher_queue
-        self._build_enricher_fn = build_enricher_fn
-        self._enricher_fn = enricher_fn
+        self._from_queue: list[MessageMiddleware] = from_queue
+        self._to_queue: list[MessageMiddleware] = to_queue
+        self._enricher_queue: list[MessageMiddleware] = enricher_queue
+        self._build_enricher_fn: Callable[[Any, Any], Any] = build_enricher_fn
+        self._enricher_fn: Callable[[Any, Any], Any] = enricher_fn
         self._enricher = None
-        self._replicas = replicas
+        self._replicas: int = replicas
 
     def _on_message(self, channel, method, properties, body: bytes) -> None:
         if not self._handle_eof(body):
             enriched_message = self._enricher_fn(self._enricher, body)
-            self._to_queue.send(enriched_message.serialize())
+            for queue in self._to_queue:
+                queue.send(enriched_message.serialize())
 
     def _handle_eof(self, body: bytes) -> bool:
         try:
@@ -48,13 +49,16 @@ class Enricher:
             return False
 
         logging.info("EOF received, stopping enricher worker...")
-        self._from_queue.stop_consuming()
+        for queue in self._from_queue:
+            queue.stop_consuming()
         if eof_message.metadata + 1 == self._replicas:
-            self._to_queue.send(EOF(0).serialize())
+            for queue in self._to_queue:
+                queue.send(EOF(0).serialize())
             logging.info("EOF sent to next stage")
         else:
             eof_message.metadata += 1
-            self._from_queue.send(eof_message.serialize())
+            for queue in self._from_queue:
+                queue.send(eof_message.serialize())
         self.stop()
 
         return True
@@ -63,17 +67,22 @@ class Enricher:
         try:
             EOF.deserialize(body)
             logging.info("EOF received, stopping enricher + start consuming from queue")
-            self._from_queue.start_consuming(self._on_message)
-            self._enricher_queue.close()
+            logging.info(f"EnricherFinalized: {self._enricher}")
+            for e_queue in self._enricher_queue:
+                e_queue.stop_consuming()
+            for f_queue in self._from_queue:
+                f_queue.start_consuming(self._on_message)
             return
-        except Exception:
+        except Exception as e:
+            _ = e
             pass
         self._enricher = self._build_enricher_fn(self._enricher, body)
 
     def start(self) -> None:
         logging.info("Starting Enricher!")
-        logging.info("started consuming enricher queue")
-        self._enricher_queue.start_consuming(self._enricher_msg)
+        logging.info(f"started consuming enricher queue: {self._enricher_queue}")
+        for queue in self._enricher_queue:
+            queue.start_consuming(self._enricher_msg)
 
     def stop(self) -> None:
         # self._from_queue.stop_consuming()
@@ -88,9 +97,8 @@ def main():
     stage_replicas: int = int(os.getenv("REPLICAS"))
     enricher_module: ModuleType = importlib.import_module(enricher_module_name)
 
-
-    from_queue = utils.get_input_queue()
-    to_queue = utils.get_output_queue()
+    from_queue: list[MessageMiddleware] = utils.get_input_queue()
+    to_queue: list[MessageMiddleware] = utils.get_output_queue()
     enricher_queue = utils.get_enricher_queue()
 
     enricher_worker = Enricher(

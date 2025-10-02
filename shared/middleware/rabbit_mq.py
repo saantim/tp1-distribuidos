@@ -42,7 +42,10 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         self._consumer_tag: Optional[str] = None
         self._connection = pika.BlockingConnection(
             pika.ConnectionParameters(
-                host=self._host, port=5672, credentials=pika.PlainCredentials(username="admin", password="admin"), heartbeat=120
+                host=self._host,
+                port=5672,
+                credentials=pika.PlainCredentials(username="admin", password="admin"),
+                heartbeat=600,
             )
         )
         self._channel = self._connection.channel()
@@ -244,7 +247,9 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
                 queue_name = result.method.queue
                 self._channel.queue_bind(exchange=self._exchange_name, queue=queue_name, routing_key=route_key)
                 self._consumer_tags.append(
-                    self._channel.basic_consume(queue=queue_name, on_message_callback=on_message_callback)
+                    self._channel.basic_consume(
+                        queue=queue_name, on_message_callback=on_message_callback, auto_ack=True
+                    )
                 )
             self._channel.start_consuming()
         except Exception as e:

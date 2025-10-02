@@ -107,6 +107,7 @@ def main():
         shutdown_signal = ShutdownSignal()
 
         logging.info(f"action: start_analysis | folders: {len(folders)} | gateway: {gateway_host}:{gateway_port}")
+        logging.getLogger("pika").setLevel(logging.WARNING)
 
         analyzer = Analyzer(analyzer_config, folders, shutdown_signal)
         analyzer.run()

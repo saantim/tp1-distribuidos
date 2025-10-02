@@ -25,12 +25,17 @@ class ResultCollector:
         self.result_queues = {}
         self.eof_received = {}
         self.lock = threading.Lock()
+        self.ready_to_send = threading.Event()
 
     def add_query(self, query_id: str, queue_name: str):
         """Register a query result queue to listen to."""
         self.result_queues[query_id] = MessageMiddlewareQueueMQ(self.middleware_host, queue_name)
         self.eof_received[query_id] = False
         logging.info(f"Registered result queue for {query_id}: {queue_name}")
+
+    def signal_ready(self):
+        """Signal that client is ready to receive results."""
+        self.ready_to_send.set()
 
     def start_listening(self):
         """Start listening to all result queues in separate threads."""
@@ -54,7 +59,6 @@ class ResultCollector:
                 return
 
             try:
-                # Check if EOF
                 EOF.deserialize(body)
                 logging.info(f"Query {query_id} complete, sending EOF to client")
 
@@ -71,13 +75,14 @@ class ResultCollector:
 
             try:
                 result_packet = ResultPacket(query_id, body)
-                self.network.send_packet(result_packet)
-                logging.debug(f"Streamed result for {query_id} ({len(body)} bytes)")
+                with self.lock:
+                    self.network.send_packet(result_packet)
             except NetworkError as e:
                 logging.error(f"Failed to send result for {query_id}: {e}")
                 queue.stop_consuming()
 
         try:
+            self.ready_to_send.wait()
             logging.info(f"Starting to listen for {query_id} results")
             queue.start_consuming(on_message)
         except Exception as e:

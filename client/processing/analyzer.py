@@ -87,7 +87,12 @@ class Analyzer:
 
             self._send_session_end()
 
+            start_time = time.time()
             self._wait_for_results()
+            end_time = time.time()
+
+            total_time = end_time - start_time
+            logging.info(f"action: results_wait | status: complete | total_time: {total_time:.2f}s")
             logging.info("action: analysis_complete | result: success")
 
         except Exception as e:
@@ -143,7 +148,7 @@ class Analyzer:
 
             results_by_query = {}
             queries_complete = set()
-            expected_queries = {"Q1"}
+            expected_queries = {"Q1", "Q2", "Q3", "Q4"}
 
             while len(queries_complete) < len(expected_queries):
                 if self.shutdown_signal.should_shutdown():
@@ -193,21 +198,6 @@ class Analyzer:
 
             if query_id == "Q1":
                 logging.info(f"Total Q1 filtered transactions: {len(results)}")
-                logging.info("\nFirst 10:")
-                for result_bytes in results[:10]:
-                    try:
-                        result = json.loads(result_bytes.decode("utf-8"))
-                        logging.info(f"  {result}")
-                    except Exception as e:
-                        logging.error(f"Failed to parse result: {e}")
-
-                logging.info("\nLast 10:")
-                for result_bytes in results[-10:]:
-                    try:
-                        result = json.loads(result_bytes.decode("utf-8"))
-                        logging.info(f"  {result}")
-                    except Exception as e:
-                        logging.error(f"Failed to parse result: {e}")
             else:
                 for result_bytes in results:
                     try:

@@ -1,9 +1,8 @@
-import logging
 from datetime import datetime
 from typing import Optional
 
-from shared.entity import Transaction, StoreName
-from worker.types import SemesterTPVByStore, Semester, StoreInfo
+from shared.entity import StoreName, Transaction
+from worker.types import Semester, SemesterTPVByStore, StoreInfo
 
 
 def get_semester(dt: datetime) -> Semester:
@@ -11,8 +10,8 @@ def get_semester(dt: datetime) -> Semester:
     semester = 1 if dt.month <= 6 else 2
     return Semester(f"{year}-{semester}")
 
+
 def aggregator_fn(aggregated: Optional[SemesterTPVByStore], message: bytes) -> SemesterTPVByStore:
-    logging.info("Running semester aggregator fn")
     tx: Transaction = Transaction.deserialize(message)
     semester: Semester = get_semester(tx.created_at)
 

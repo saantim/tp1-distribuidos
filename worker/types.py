@@ -1,20 +1,44 @@
 from dataclasses import dataclass
 from typing import NewType
 
-from shared.entity import Message, User, ItemId, ItemName, StoreId, StoreName
+from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, UserId
 
 
 # USER PURCHASE AGGREGATOR
 @dataclass
-class UserPurchasesOnStore(Message):
-    user: User
+class UserPurchasesInfo(Message):
+    user: UserId
+    birthday: str
     purchases: int
+    store_name: StoreName
 
 
 @dataclass
 class UserPurchasesByStore(Message):
+    user_purchases_by_store: dict[StoreId, dict[UserId, UserPurchasesInfo]]
 
-    user_purchases_by_store: dict[int, list[UserPurchasesOnStore]]
+    @classmethod
+    def from_dict(cls, data: dict) -> "UserPurchasesByStore":
+        raw = data["user_purchases_by_store"]
+        parsed: dict[StoreId, dict[UserId, UserPurchasesInfo]] = {}
+
+        for store_id_str, users_dict in raw.items():
+            store_id = StoreId(store_id_str)
+            parsed_users = {}
+
+            for user_id_str, user_info_dict in users_dict.items():
+                user_id = UserId(user_id_str)
+                user_info = UserPurchasesInfo(
+                    user=user_id,
+                    birthday=user_info_dict["birthday"],
+                    purchases=user_info_dict["purchases"],
+                    store_name=StoreName(user_info_dict["store_name"]),
+                )
+                parsed_users[user_id] = user_info
+
+            parsed[store_id] = parsed_users
+
+        return cls(user_purchases_by_store=parsed)
 
 
 # TOP 3 USERS AGGREGATOR
@@ -22,8 +46,9 @@ class UserPurchasesByStore(Message):
 class Top3UsersPurchasesOnStore(Message):
     top_3: UserPurchasesByStore
 
-TransactionAmount = NewType('TransactionAmount', int)
-Period = NewType('Period', str)
+
+TransactionAmount = NewType("TransactionAmount", int)
+Period = NewType("Period", str)
 
 
 # PERIOD AGGREGATOR (Q2)
@@ -32,6 +57,7 @@ class ItemInfo(Message):
     amount: float
     quantity: int
     item_name: ItemName
+
 
 @dataclass
 class TransactionItemByPeriod(Message):
@@ -46,10 +72,13 @@ class TransactionItemByPeriod(Message):
             parsed_items = {}
             for item_id_str, item_info_dict in items_dict.items():
                 item_id = ItemId(item_id_str)
-                item_info = ItemInfo(item_info_dict["amount"], item_info_dict["quantity"], ItemName(item_info_dict["item_name"]))
+                item_info = ItemInfo(
+                    item_info_dict["amount"], item_info_dict["quantity"], ItemName(item_info_dict["item_name"])
+                )
                 parsed_items[item_id] = item_info
             parsed[period] = parsed_items
         return cls(transaction_item_per_period=parsed)
+
 
 # SEMESTER AGGREGATOR (Q3)
 @dataclass
@@ -58,7 +87,9 @@ class StoreInfo(Message):
     amount: float
 
 
-Semester = NewType('Semester', str)
+Semester = NewType("Semester", str)
+
+
 @dataclass
 class SemesterTPVByStore(Message):
     semester_tpv_by_store: dict[Semester, dict[StoreId, StoreInfo]]
