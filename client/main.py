@@ -6,18 +6,17 @@ import os
 from pathlib import Path
 
 from processing.analyzer import Analyzer, AnalyzerConfig, FolderConfig
-from processing.batch import BatchConfig
 
-from shared.protocol import MenuItemsBatch, StoreBatch, TransactionItemsBatch, TransactionsBatch, UsersBatch
+from shared.protocol import EntityType
 from shared.shutdown import ShutdownSignal
 
 
-PACKET_CREATORS = {
-    "stores": (lambda rows, eof: StoreBatch(rows, eof), StoreBatch.UNIT_SIZE),
-    "users": (lambda rows, eof: UsersBatch(rows, eof), UsersBatch.UNIT_SIZE),
-    "transactions": (lambda rows, eof: TransactionsBatch(rows, eof), TransactionsBatch.UNIT_SIZE),
-    "transaction_items": (lambda rows, eof: TransactionItemsBatch(rows, eof), TransactionItemsBatch.UNIT_SIZE),
-    "menu_items": (lambda rows, eof: MenuItemsBatch(rows, eof), MenuItemsBatch.UNIT_SIZE),
+ENTITY_FOLDERS = {
+    "stores": EntityType.STORE,
+    "users": EntityType.USER,
+    "transactions": EntityType.TRANSACTION,
+    "transaction_items": EntityType.TRANSACTION_ITEM,
+    "menu_items": EntityType.MENU_ITEM,
 }
 
 
@@ -33,14 +32,25 @@ def initialize_config():
     try:
         config_params["gateway_host"] = os.getenv("GATEWAY_HOST", config["DEFAULT"]["GATEWAY_HOST"])
         config_params["gateway_port"] = int(os.getenv("GATEWAY_PORT", config["DEFAULT"]["GATEWAY_PORT"]))
-        config_params["max_bytes"] = int(os.getenv("MAX_BYTES", config["BATCH"]["MAX_BYTES"]))
-        config_params["max_rows"] = int(os.getenv("MAX_ROWS", config["BATCH"]["MAX_ROWS"]))
+
+        config_params["stores_batch_size"] = int(os.getenv("STORES_BATCH_SIZE", config["BATCH"]["STORES_BATCH_SIZE"]))
+        config_params["users_batch_size"] = int(os.getenv("USERS_BATCH_SIZE", config["BATCH"]["USERS_BATCH_SIZE"]))
+        config_params["transactions_batch_size"] = int(
+            os.getenv("TRANSACTIONS_BATCH_SIZE", config["BATCH"]["TRANSACTIONS_BATCH_SIZE"])
+        )
+        config_params["transaction_items_batch_size"] = int(
+            os.getenv("TRANSACTION_ITEMS_BATCH_SIZE", config["BATCH"]["TRANSACTION_ITEMS_BATCH_SIZE"])
+        )
+        config_params["menu_items_batch_size"] = int(
+            os.getenv("MENU_ITEMS_BATCH_SIZE", config["BATCH"]["MENU_ITEMS_BATCH_SIZE"])
+        )
+
         config_params["data_dir"] = os.getenv("DATA_DIR", config["DATA"]["DATA_DIR"])
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["LOGGING"]["LOGGING_LEVEL"])
     except KeyError as e:
-        raise KeyError("Key was not found. Error: {}. Aborting client".format(e))
+        raise KeyError(f"Key was not found. Error: {e}. Aborting client")
     except ValueError as e:
-        raise ValueError("Key could not be parsed. Error: {}. Aborting client".format(e))
+        raise ValueError(f"Key could not be parsed. Error: {e}. Aborting client")
 
     return config_params
 
@@ -50,13 +60,26 @@ def load_folders(config_params) -> list[FolderConfig]:
     folders = []
     data_dir = Path(config_params["data_dir"])
 
-    for folder_name, (packet_creator, packet_size) in PACKET_CREATORS.items():
+    batch_sizes = {
+        EntityType.STORE: config_params["stores_batch_size"],
+        EntityType.USER: config_params["users_batch_size"],
+        EntityType.TRANSACTION: config_params["transactions_batch_size"],
+        EntityType.TRANSACTION_ITEM: config_params["transaction_items_batch_size"],
+        EntityType.MENU_ITEM: config_params["menu_items_batch_size"],
+    }
+
+    for folder_name, entity_type in ENTITY_FOLDERS.items():
         folder_path = data_dir / folder_name
         if folder_path.exists() and folder_path.is_dir():
-            folder_config = FolderConfig(str(folder_path), packet_creator, packet_size)
+            batch_size = batch_sizes[entity_type]
+            folder_config = FolderConfig(str(folder_path), entity_type, batch_size)
             folders.append(folder_config)
+            logging.debug(
+                f"action: load_folder | folder: {folder_name} |"
+                f" entity: {entity_type.name} | batch_size: {batch_size}"
+            )
         else:
-            raise Exception("Folder {} does not exist".format(folder_path))
+            raise Exception(f"Folder {folder_path} does not exist")
 
     return folders
 
@@ -77,27 +100,16 @@ def main():
         print(f"Configuration error: {e}")
         return
 
-    gateway_host = config_params["gateway_host"]
-    gateway_port = config_params["gateway_port"]
-    max_bytes = config_params["max_bytes"]
-    max_rows = config_params["max_rows"]
-    data_dir = config_params["data_dir"]
-    logging_level = config_params["logging_level"]
-
-    initialize_log(logging_level)
+    initialize_log(config_params["logging_level"])
 
     logging.debug(
         f"action: config | result: success | "
-        f"gateway_host: {gateway_host} | "
-        f"gateway_port: {gateway_port} | "
-        f"max_bytes: {max_bytes} | max_rows: {max_rows} | "
-        f"data_dir: {data_dir} |  "
-        f"logging_level: {logging_level}"
+        f"gateway: {config_params['gateway_host']}:{config_params['gateway_port']} | "
+        f"data_dir: {config_params['data_dir']}"
     )
 
     try:
-        batch_config = BatchConfig(max_bytes, max_rows if max_rows > 0 else None)
-        analyzer_config = AnalyzerConfig(gateway_host, gateway_port, batch_config)
+        analyzer_config = AnalyzerConfig(config_params["gateway_host"], config_params["gateway_port"])
 
         folders = load_folders(config_params)
         if not folders:
@@ -106,7 +118,10 @@ def main():
 
         shutdown_signal = ShutdownSignal()
 
-        logging.info(f"action: start_analysis | folders: {len(folders)} | gateway: {gateway_host}:{gateway_port}")
+        logging.info(
+            f"action: start_analysis | folders: {len(folders)} |"
+            f" gateway: {config_params['gateway_host']}:{config_params['gateway_port']}"
+        )
         logging.getLogger("pika").setLevel(logging.WARNING)
 
         analyzer = Analyzer(analyzer_config, folders, shutdown_signal)

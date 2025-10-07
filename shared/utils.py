@@ -128,7 +128,3 @@ class ByteReader:
         length = self.read_uint8()
         string_bytes = self.read_bytes(length)
         return string_bytes.decode("utf-8")
-
-    def remaining_bytes(self) -> int:
-        """Get number of bytes remaining."""
-        return self.length - self.offset
