@@ -35,7 +35,10 @@ class WorkerBuilder:
             self.params["depends_on"] = [service]
 
     def set_environment(self, environment: Dict[str, str]):
-        self.params["environment"] = environment
+        if "environment" in self.params:
+            self.params["environment"].update(environment)
+        else:
+            self.params["environment"] = environment
 
     def set_replicas(self, replicas: int):
         if "environment" not in self.params:
