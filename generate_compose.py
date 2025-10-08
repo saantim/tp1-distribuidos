@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+"""
+Script para generar dinámicamente el archivo docker-compose.yml
+"""
+import json
+import os
+from typing import Any, Dict
+
+import yaml
+
+from docker_compose_builder import DockerComposeBuilder
+
+
+def save_docker_compose(docker_compose: Dict[str, Any], output_file: str = "docker-compose.yml") -> None:
+    with open(output_file, "w") as f:
+        yaml.dump(docker_compose, f, default_flow_style=False, sort_keys=False, width=1000)
+    print(f"Archivo {output_file} generado exitosamente!")
+
+
+def load_config(config_file="compose_config.json"):
+    with open(config_file, "r") as f:
+        return json.load(f)
+
+
+def build_q1(_builder: DockerComposeBuilder, _config: Dict[str, Any]) -> DockerComposeBuilder:
+    for idx in range(_config["replicas"]["filter_tx_2024_2025"]):
+        _builder.add_filter(
+            name=f"filter_tx_2024_2025_{idx}",
+            filter_id=i,
+            from_queue="transactions_source",
+            to_queues=["filtered_tx_2024_2025_q1", "filtered_tx_2024_2025_q4"],
+            module_name="filter_tx_2024_2025",
+            replicas=config["replicas"]["filter_tx_2024_2025"],
+        )
+    for idx in range(_config["replicas"]["filter_tx_6am_11pm"]):
+        _builder.add_filter(
+            filter_id=i,
+            name=f"filter_tx_6am_11pm_{idx}",
+            from_queue="filtered_tx_2024_2025_q1",
+            to_queues=["filtered_tx_6am_11pm_q1", "filtered_tx_6am_11pm_q3"],
+            module_name="filter_tx_6am_11pm",
+            replicas=config["replicas"]["filter_tx_6am_11pm"],
+        )
+    for idx in range(_config["replicas"]["filter_amount"]):
+        _builder.add_filter(
+            filter_id=i,
+            name=f"filter_amount_{idx}",
+            from_queue="filtered_tx_6am_11pm_q1",
+            to_queues=["filtered_amount"],
+            module_name="filter_amount",
+            replicas=config["replicas"]["filter_amount"],
+        )
+    for idx in range(_config["replicas"]["sink_q1"]):
+        _builder.add_sink(
+            sink_id=i,
+            name=f"sink_q1_{idx}",
+            from_queue="filtered_amount",
+            to_queue="results_q1",
+            module_name="sink_q1",
+            replicas=config["replicas"]["sink_q1"],
+        )
+
+    return _builder
+
+
+def build_q2(_builder: DockerComposeBuilder, _config: Dict[str, Any]) -> DockerComposeBuilder:
+    for idx in range(_config["replicas"]["filter_tx_item_2024_2025"]):
+        _builder.add_filter(
+            filter_id=idx,
+            name=f"filter_tx_item_2024_2025_{idx}",
+            from_queue="transaction_items_source",
+            to_queues=["filtered_item_amount"],
+            module_name="filter_tx_item_2024_2025",
+            replicas=config["replicas"]["filter_tx_item_2024_2025"],
+        )
+    for idx in range(_config["replicas"]["aggregator_period"]):
+        _builder.add_aggregator(
+            aggregator_id=idx,
+            name=f"aggregator_period_{idx}",
+            from_queue="filtered_item_amount",
+            to_queue="aggregated_item_by_period",
+            module_name="period_aggregator",
+            replicas=config["replicas"]["aggregator_period"],
+        )
+    for idx in range(_config["replicas"]["merger_period"]):
+        _builder.add_merger(
+            merger_id=idx,
+            name=f"merger_period_{idx}",
+            from_queue="aggregated_item_by_period",
+            to_queue="merged_item_by_period",
+            module_name="merge_period_results",
+            replicas=config["replicas"]["merger_period"],
+        )
+    for idx in range(_config["replicas"]["enricher_item"]):
+        _builder.add_enricher(
+            enricher_id=idx,
+            name=f"enricher_item_{idx}",
+            from_queue="merged_item_by_period",
+            to="enriched_item_by_level",
+            to_type="QUEUE",
+            enricher="menu_items_source",
+            enricher_strategy="FANOUT",
+            enricher_routing_key=["common"],
+            module_name="item_enricher",
+            replicas=config["replicas"]["enricher_item"],
+        )
+    for idx in range(_config["replicas"]["sink_q2"]):
+        _builder.add_sink(
+            sink_id=idx,
+            name=f"sink_q2_{idx}",
+            from_queue="enriched_item_by_level",
+            to_queue="results_q2",
+            module_name="sink_q2",
+            replicas=config["replicas"]["sink_q2"],
+        )
+    return _builder
+
+
+def build_q3(_builder: DockerComposeBuilder, _config: Dict[str, Any]) -> DockerComposeBuilder:
+
+    for idx in range(_config["replicas"]["semester_aggregator"]):
+        _builder.add_aggregator(
+            aggregator_id=idx,
+            name=f"semester_aggregator_{idx}",
+            from_queue="filtered_tx_6am_11pm_q3",
+            to_queue="aggregated_semester_by_store",
+            module_name="semester_aggregator",
+            replicas=config["replicas"]["semester_aggregator"],
+        )
+    for idx in range(_config["replicas"]["merger_semester_results"]):
+        _builder.add_merger(
+            merger_id=idx,
+            name=f"merger_semester_results_{idx}",
+            from_queue="aggregated_semester_by_store",
+            to_queue="merged_semester_by_store",
+            module_name="merge_semester_results",
+            replicas=config["replicas"]["merger_semester_results"],
+        )
+    for idx in range(_config["replicas"]["enricher_semester_tx"]):
+        _builder.add_enricher(
+            enricher_id=idx,
+            name=f"enricher_semester_tx_{idx}",
+            from_queue="merged_semester_by_store",
+            to="enriched_semester_tx",
+            to_type="QUEUE",
+            enricher="store_source",
+            enricher_strategy="FANOUT",
+            enricher_routing_key=["common"],
+            module_name="store_enricher",
+            replicas=config["replicas"]["enricher_semester_tx"],
+        )
+    for idx in range(_config["replicas"]["sink_q3"]):
+        _builder.add_sink(
+            sink_id=idx,
+            name=f"sink_q3_{idx}",
+            from_queue="enriched_semester_tx",
+            to_queue="results_q3",
+            module_name="sink_q3",
+            replicas=config["replicas"]["sink_q3"],
+        )
+
+    return _builder
+
+
+def build_q4(_builder: DockerComposeBuilder, _config: Dict[str, Any]) -> DockerComposeBuilder:
+    for idx in range(_config["replicas"]["router"]):
+        _builder.add_router(
+            router_id=idx,
+            name=f"router_{idx}",
+            from_queue="filtered_tx_2024_2025_q4",
+            to_queue="tx_filtered",  # TODO!: REVISAR
+            module_name="router_transactions_q4",
+            replicas=config["replicas"]["router"],
+        )
+    for idx in range(_config["replicas"]["user_purchase_aggregator"]):
+        _builder.add_aggregator(
+            aggregator_id=idx,
+            name=f"aggregator_user_purchase_{idx}",
+            from_queue="tx_filtered",
+            to_queue="user_purchase_aggregated",
+            module_name="user_purchase_aggregator",
+            replicas=config["replicas"]["user_purchase_aggregator"],
+        )
+    for idx in range(_config["replicas"]["top3_users_aggregator"]):
+        _builder.add_aggregator(
+            aggregator_id=idx,
+            name=f"top3_users_aggregator_{idx}",
+            from_queue="user_purchase_aggregated",
+            to_queue="top3_users_aggregated",
+            module_name="top_3_users_aggregator",
+            replicas=config["replicas"]["top3_users_aggregator"],
+        )
+    for idx in range(_config["replicas"]["store_enricher_tx"]):
+        _builder.add_enricher(
+            enricher_id=idx,
+            name=f"store_enricher_tx_{idx}",
+            from_queue="top3_users_aggregated",
+            to="top3_users_store_enriched",
+            to_type="EXCHANGE",
+            to_strategy="FANOUT",
+            to_routing_key=["common"],
+            enricher="stores_source",
+            enricher_strategy="FANOUT",
+            enricher_routing_key=["common"],
+            module_name="store_enricher_q4",
+            replicas=config["replicas"]["store_enricher_tx"],
+        )
+    for idx in range(_config["replicas"]["user_enricher_tx"]):
+        _builder.add_enricher(
+            enricher_id=idx,
+            name=f"user_enricher_tx_{idx}",
+            from_queue="top3_users_store_enriched",
+            to="enriched_store_user_top3",
+            to_type="QUEUE",
+            enricher="top3_users_store_enriched",
+            enricher_strategy="FANOUT",
+            enricher_routing_key=["common"],
+            module_name="user_enricher",
+            replicas=config["replicas"]["user_enricher_tx"],
+        )
+    for idx in range(_config["replicas"]["merger_final_top3"]):
+        _builder.add_merger(
+            merger_id=idx,
+            name=f"merger_final_top3_{idx}",
+            from_queue="enriched_store_user_top3",
+            to_queue="enriched_final_top3",
+            module_name="merger_final_top3_purchases",
+            replicas=config["replicas"]["merger_final_top3"],
+        )
+    for idx in range(_config["replicas"]["sink_q4"]):
+        _builder.add_sink(
+            sink_id=idx,
+            name=f"sink_q4_{idx}",
+            from_queue="enriched_final_top3",
+            to_queue="results_q4",
+            module_name="sink_q4",
+            replicas=config["replicas"]["sink_q4"],
+        )
+
+    return _builder
+
+
+if __name__ == "__main__":
+    config = load_config()
+    builder = DockerComposeBuilder()
+
+    builder.add_gateway()
+    builder.add_client(bool(config["dataset"]["full"]))
+    builder.add_rabbitmq()
+
+    for i in range(config["replicas"]["demux_store"]):
+        builder.add_demux(
+            demux_id=i,
+            name=f"demux_store_{i}",
+            from_queue="demux_stores",
+            to_queue="stores_source",
+            replicas=config["replicas"]["demux_store"],
+        )
+
+    for i in range(config["replicas"]["demux_menu_items"]):
+        builder.add_demux(
+            demux_id=i,
+            name=f"demux_menu_items_{i}",
+            from_queue="demux_menu_items",
+            to_queue="menu_items_source",
+            replicas=config["replicas"]["demux_menu_items"],
+        )
+
+    builder = build_q1(builder, config)
+    builder = build_q2(builder, config)
+    builder = build_q3(builder, config)
+    builder = build_q4(builder, config)
+
+    builder.save("docker-compose-TESTING.yml")  # TODO: Modify name
+    os.chmod("generate_compose.py", 0o755)

@@ -2,6 +2,10 @@ SHELL := /bin/bash
 
 default: docker-compose-up
 
+generate-compose:
+	python3 generate_compose.py
+.PHONY: generate-compose
+
 docker-compose-up:
 	docker compose -f docker-compose.yml up -d --build --force-recreate
 .PHONY: docker-compose-up
