@@ -31,11 +31,12 @@ class ResultCollector:
         """Register a query result queue to listen to."""
         self.result_queues[query_id] = MessageMiddlewareQueueMQ(self.middleware_host, queue_name)
         self.eof_received[query_id] = False
-        logging.info(f"Registered result queue for {query_id}: {queue_name}")
+        logging.debug(f"action: register_result_queue | query: {query_id} | queue: {queue_name}")
 
     def signal_ready(self):
         """Signal that client is ready to receive results."""
         self.ready_to_send.set()
+        logging.info("action: ready_for_results")
 
     def start_listening(self):
         """Start listening to all result queues in separate threads."""
@@ -48,7 +49,7 @@ class ResultCollector:
         for thread in threads:
             thread.join()
 
-        logging.info("All query results collected and sent to client")
+        logging.info("action: all_results_sent")
 
     def _listen_to_queue(self, query_id: str, queue: MessageMiddlewareQueueMQ):
         """Listen to a specific query's result queue and stream to client."""
@@ -59,9 +60,8 @@ class ResultCollector:
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 return
 
-            try:
-                EOF.deserialize(body)
-                logging.info(f"Query {query_id} complete, sending EOF to client")
+            if self._is_eof(body):
+                logging.info(f"action: query_complete | query: {query_id}")
 
                 eof_packet = ResultPacket(query_id, body)
                 self.network.send_packet(eof_packet)
@@ -72,28 +72,39 @@ class ResultCollector:
                 queue.stop_consuming()
                 channel.basic_ack(delivery_tag=method.delivery_tag)
                 return
-            except Exception:
-                pass
 
             try:
                 result_packet = ResultPacket(query_id, body)
                 with self.lock:
                     self.network.send_packet(result_packet)
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-            except NetworkError as e:
-                logging.error(f"Failed to send result for {query_id}: {e}")
+            except NetworkError as error:
+                logging.error(f"action: send_result | query: {query_id} | error: {error}")
                 queue.stop_consuming()
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
         try:
             self.ready_to_send.wait()
-            logging.info(f"Starting to listen for {query_id} results")
+            logging.info(f"action: listen_results | query: {query_id}")
             queue.start_consuming(on_message)
         except Exception as e:
-            logging.error(f"Error in result listener for {query_id}: {e}")
-
+            logging.error(f"action: result_listener_error | query: {query_id} | error: {e}")
         finally:
             try:
                 queue.close()
             except Exception:
                 pass
+
+    @staticmethod
+    def _is_eof(data: bytes) -> bool:
+        """
+        Check if data represents EOF marker.
+
+        TODO: refactor this when redesigning EOF handling.
+        Current implementation uses exception-based detection.
+        """
+        try:
+            EOF.deserialize(data)
+            return True
+        except Exception:
+            return False

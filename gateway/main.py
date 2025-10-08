@@ -24,18 +24,16 @@ def initialize_config():
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
 
-        config_params["demux_stores"] = os.getenv("DEMUX_STORES", config["DEMUX_QUEUES"]["STORES"])
-        config_params["demux_users"] = os.getenv("DEMUX_USERS", config["DEMUX_QUEUES"]["USERS"])
-        config_params["demux_transactions"] = os.getenv("DEMUX_TRANSACTIONS", config["DEMUX_QUEUES"]["TRANSACTIONS"])
-        config_params["demux_transaction_items"] = os.getenv(
-            "DEMUX_TRANSACTION_ITEMS", config["DEMUX_QUEUES"]["TRANSACTION_ITEMS"]
-        )
-        config_params["demux_menu_items"] = os.getenv("DEMUX_MENU_ITEMS", config["DEMUX_QUEUES"]["MENU_ITEMS"])
+        config_params["stores"] = os.getenv("STORES_QUEUE", config["QUEUES"]["STORES"])
+        config_params["users"] = os.getenv("USERS_QUEUE", config["QUEUES"]["USERS"])
+        config_params["transactions"] = os.getenv("TRANSACTIONS_QUEUE", config["QUEUES"]["TRANSACTIONS"])
+        config_params["transaction_items"] = os.getenv("TRANSACTION_ITEMS_QUEUE", config["QUEUES"]["TRANSACTION_ITEMS"])
+        config_params["menu_items"] = os.getenv("MENU_ITEMS_QUEUE", config["QUEUES"]["MENU_ITEMS"])
 
     except KeyError as e:
-        raise KeyError("Key was not found. Error: {}. Aborting gateway".format(e))
+        raise KeyError(f"Key was not found. Error: {e}. Aborting gateway")
     except ValueError as e:
-        raise ValueError("Key could not be parsed. Error: {}. Aborting gateway".format(e))
+        raise ValueError(f"Key could not be parsed. Error: {e}. Aborting gateway")
 
     return config_params
 
@@ -61,12 +59,12 @@ def main():
     logging_level = config_params["logging_level"]
     middleware_host = config_params["middleware_host"]
 
-    demux_queues = {
-        "stores": config_params["demux_stores"],
-        "users": config_params["demux_users"],
-        "transactions": config_params["demux_transactions"],
-        "transaction_items": config_params["demux_transaction_items"],
-        "menu_items": config_params["demux_menu_items"],
+    batch_queues = {
+        "STORE": config_params["raw_stores"],
+        "USER": config_params["raw_users"],
+        "TRANSACTION": config_params["raw_transactions"],
+        "TRANSACTION_ITEM": config_params["raw_transaction_items"],
+        "MENU_ITEM": config_params["raw_menu_items"],
     }
 
     initialize_log(logging_level)
@@ -80,7 +78,7 @@ def main():
 
     try:
         shutdown_signal = ShutdownSignal()
-        server = Server(port, listen_backlog, middleware_host, demux_queues, shutdown_signal)
+        server = Server(port, listen_backlog, middleware_host, batch_queues, shutdown_signal)
 
         logging.info(f"action: start_gateway | port: {port}")
         server.run()
