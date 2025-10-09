@@ -8,7 +8,7 @@ import socket
 from typing import Optional
 
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
-from shared.protocol import PacketType
+from shared.protocol import EntityType
 from shared.shutdown import ShutdownSignal
 
 from .handler import ClientHandler
@@ -17,7 +17,7 @@ from .handler import ClientHandler
 class Server:
     """
     tcp server that accepts client connections and handles data processing sessions.
-    routes incoming packets to appropriate middleware queues.
+    routes incoming raw batch packets to appropriate middleware queues.
     """
 
     def __init__(
@@ -25,12 +25,12 @@ class Server:
         port: int,
         listen_backlog: int,
         middleware_host: str,
-        demux_queues: dict,
+        batch_queues: dict,
         shutdown_signal: ShutdownSignal,
     ):
         self.port = port
         self.middleware_host = middleware_host
-        self.demux_queues = demux_queues
+        self.batch_queues = batch_queues
         self.shutdown_signal = shutdown_signal
         self.backlog = listen_backlog
         self.server_socket: Optional[socket.socket] = None
@@ -65,16 +65,16 @@ class Server:
                 logging.info(f"action: client_connect | client: {client_address}")
 
                 publishers = {
-                    PacketType.STORE_BATCH: MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queues["stores"]),
-                    PacketType.USERS_BATCH: MessageMiddlewareQueueMQ(self.middleware_host, self.demux_queues["users"]),
-                    PacketType.TRANSACTIONS_BATCH: MessageMiddlewareQueueMQ(
-                        self.middleware_host, self.demux_queues["transactions"]
+                    EntityType.STORE: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["STORE"]),
+                    EntityType.USER: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["USER"]),
+                    EntityType.TRANSACTION: MessageMiddlewareQueueMQ(
+                        self.middleware_host, self.batch_queues["TRANSACTION"]
                     ),
-                    PacketType.TRANSACTION_ITEMS_BATCH: MessageMiddlewareQueueMQ(
-                        self.middleware_host, self.demux_queues["transaction_items"]
+                    EntityType.TRANSACTION_ITEM: MessageMiddlewareQueueMQ(
+                        self.middleware_host, self.batch_queues["TRANSACTION_ITEM"]
                     ),
-                    PacketType.MENU_ITEMS_BATCH: MessageMiddlewareQueueMQ(
-                        self.middleware_host, self.demux_queues["menu_items"]
+                    EntityType.MENU_ITEM: MessageMiddlewareQueueMQ(
+                        self.middleware_host, self.batch_queues["MENU_ITEM"]
                     ),
                 }
 
