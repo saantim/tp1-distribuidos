@@ -6,7 +6,7 @@ generate-compose:
 	python3 generate_compose.py
 .PHONY: generate-compose
 
-docker-compose-up:
+docker-compose-up: generate-compose
 	docker compose -f docker-compose.yml up -d --build --force-recreate
 .PHONY: docker-compose-up
 
@@ -19,15 +19,22 @@ docker-compose-logs:
 	docker compose -f docker-compose.yml logs -f
 .PHONY: docker-compose-logs
 
-
 logs-q1:
-	docker compose -f docker-compose.yml logs filter_tx_2024_2025 filter_tx_6am_11pm filter_amount sink_q1 -f
+	@docker compose -f docker-compose.yml ps --services | grep -E '^(filter_tx_2024_2025_|filter_tx_6am_11pm_|filter_amount_|sink_q1_)' | xargs docker compose -f docker-compose.yml logs -f
+.PHONY: logs-q1
 
 logs-q2:
-	docker compose -f docker-compose.yml logs filter_tx_item_2024_2025 aggregator_period merger_period enricher_item sink_q2 -f
+	@docker compose -f docker-compose.yml ps --services | grep -E '^(filter_tx_item_2024_2025_|aggregator_period_|merger_period_|enricher_item_|sink_q2_)' | xargs docker compose -f docker-compose.yml logs -f
+.PHONY: logs-q2
 
 logs-q3:
-	docker compose -f docker-compose.yml logs semester_aggregator merger_semester_results enricher_semester_tx sink_q3 -f
+	@docker compose -f docker-compose.yml ps --services | grep -E '^(semester_aggregator_|merger_semester_results_|enricher_semester_tx_|sink_q3_)' | xargs docker compose -f docker-compose.yml logs -f
+.PHONY: logs-q3
 
 logs-q4:
-	docker compose -f docker-compose.yml logs router user_purchase_aggregator_1  top3_users_aggregator store_enricher_tx user_enricher_tx merger_final_top3 sink_q4 -f
+	@docker compose -f docker-compose.yml ps --services | grep -E '^(router_|aggregator_user_purchase_|top3_users_aggregator_|store_enricher_tx_|user_enricher_tx_|merger_final_top3_|sink_q4_)' | xargs docker compose -f docker-compose.yml logs -f
+.PHONY: logs-q4
+
+logs-client:
+	docker compose -f docker-compose.yml logs client gateway -f
+.PHONY: logs-client

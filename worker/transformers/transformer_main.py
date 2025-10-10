@@ -2,7 +2,7 @@ import importlib
 import logging
 import os
 
-from shared.middleware.interface import MessageMiddlewareExchange
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from worker.utils import build_middlewares_list
 
 
@@ -27,7 +27,7 @@ def main():
         stage_name=module,
         source=build_middlewares_list(sources)[0],
         output=build_middlewares_list(destinations),
-        intra_exchange=MessageMiddlewareExchange(host="rabbitmq", exchange_name=module, route_keys=["common"]),
+        intra_exchange=MessageMiddlewareExchangeRMQ(host="rabbitmq", exchange_name=module, route_keys=["common"]),
     )
 
     transformer.start()

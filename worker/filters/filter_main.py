@@ -3,7 +3,7 @@ import importlib
 import os
 from types import ModuleType
 
-from shared.middleware.interface import MessageMiddlewareExchange
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from worker.utils import build_middlewares_list
 
 
@@ -24,7 +24,7 @@ def main():
         stage_name=module_name,
         source=build_middlewares_list(sources)[0],
         output=build_middlewares_list(destinations),
-        intra_exchange=MessageMiddlewareExchange(host="rabbitmq", exchange_name=module_name, route_keys=["common"]),
+        intra_exchange=MessageMiddlewareExchangeRMQ(host="rabbitmq", exchange_name=module_name, route_keys=["common"]),
     )
 
     worker_filter.start()

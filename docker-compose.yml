@@ -1,632 +1,214 @@
 name: coffee-shop-analyzer
-
 services:
-
   gateway:
-    container_name: coffee-gateway
+    container_name: gateway
     build:
       context: .
       dockerfile: ./gateway/Dockerfile
     entrypoint: python main.py
-    environment:
-      - PYTHONUNBUFFERED=1
     networks:
-      - coffee
+    - coffee
     depends_on:
       rabbitmq:
         condition: service_healthy
-
   client:
-    container_name: coffee-client
+    container_name: client
     build:
       context: .
       dockerfile: ./client/Dockerfile
     entrypoint: python main.py
+    networks:
+    - coffee
+    depends_on:
+    - gateway
     environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
+      LOGGING_LEVEL: DEBUG
     volumes:
-      - ./.data:/client/.data
-    networks:
-      - coffee
-    depends_on:
-      - gateway
-
-  # DEMUX #
-
-  demux_stores:
-    image: demux_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/demux/demux_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=demux_stores
-      - FROM_TYPE=QUEUE
-      - TO=stores_source
-      - TO_TYPE=EXCHANGE
-      - TO_STRATEGY=FANOUT
-      - ENTITY_TYPE=Store
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  demux_menu_items:
-    image: demux_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/demux/demux_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=demux_menu_items
-      - FROM_TYPE=QUEUE
-      - TO=menu_items_source
-      - TO_TYPE=EXCHANGE
-      - TO_STRATEGY=FANOUT
-      - ENTITY_TYPE=MenuItem
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  # === QUERY 1: Year, Hour, Amount Filtered Transactions ===
-
-  filter_tx_2024_2025:
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=transactions_source
-      - TO_TYPE=QUEUE
-      - TO=filtered_tx_2024_2025_q1,filtered_tx_2024_2025_q4
-      - MODULE_NAME=filter_tx_2024_2025
-      - ENTITY_TYPE=Transaction
-      - BATCH_SIZE=500
-      - NEXT_STEP_ALLOWS_BATCH=true,true
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  filter_tx_6am_11pm:
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=filtered_tx_2024_2025_q1
-      - TO_TYPE=QUEUE
-      - TO=filtered_tx_6am_11pm_q1,filtered_tx_6am_11pm_q3
-      - MODULE_NAME=filter_tx_6am_11pm
-      - ENTITY_TYPE=Transaction
-      - BATCH_SIZE=500
-      - NEXT_STEP_ALLOWS_BATCH=true,true
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  filter_amount:
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=filtered_tx_6am_11pm_q1
-      - TO_TYPE=QUEUE
-      - TO=filtered_amount
-      - MODULE_NAME=filter_amount
-      - ENTITY_TYPE=Transaction
-      - BATCH_SIZE=100  # Smaller batch since this goes to sink
-      - NEXT_STEP_ALLOWS_BATCH=false
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  sink_q1:
-    image: sink_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=filtered_amount
-      - FROM_TYPE=QUEUE
-      - TO=results_q1
-      - TO_TYPE=QUEUE
-      - MODULE_NAME=sink_q1
-      - STREAM_MODE=true
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-
-  # === QUERY 2: Top Products by Period ===
-
-  filter_tx_item_2024_2025:
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=transaction_items_source
-      - TO_TYPE=QUEUE
-      - TO=filtered_item_amount
-      - MODULE_NAME=filter_tx_item_2024_2025
-      - ENTITY_TYPE=TransactionItem
-      - BATCH_SIZE=500
-      - NEXT_STEP_ALLOWS_BATCH=true
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  aggregator_period:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=filtered_item_amount
-      - TO_TYPE=QUEUE
-      - TO=aggregated_item_by_period
-      - MODULE_NAME=period_aggregator
-      - ENTITY_TYPE=TransactionItem
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  merger_period:
-    image: merger_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/mergers/merger_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=aggregated_item_by_period
-      - TO_TYPE=QUEUE
-      - TO=merged_item_by_period
-      - MODULE_NAME=merge_period_results
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  enricher_item:
-    image: enricher_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=merged_item_by_period
-      - ENRICHER_TYPE=EXCHANGE
-      - ENRICHER_STRATEGY=FANOUT
-      - ENRICHER=menu_items_source
-      - TO_TYPE=QUEUE
-      - TO=enriched_item_by_period
-      - MODULE_NAME=item_enricher
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  sink_q2:
-    image: sink_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=enriched_item_by_period
-      - FROM_TYPE=QUEUE
-      - TO=results_q2
-      - TO_TYPE=QUEUE
-      - MODULE_NAME=sink_q2
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  # === QUERY 3: Semester TPV by Store ===
-
-  semester_aggregator:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=filtered_tx_6am_11pm_q3
-      - TO_TYPE=QUEUE
-      - TO=aggregated_semester_by_store
-      - MODULE_NAME=semester_aggregator
-      - ENTITY_TYPE=Transaction
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  merger_semester_results:
-    image: merger_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/mergers/merger_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=aggregated_semester_by_store
-      - TO_TYPE=QUEUE
-      - TO=merged_semester_by_store
-      - MODULE_NAME=merge_semester_results
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  enricher_semester_tx:
-    image: enricher_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=merged_semester_by_store
-      - ENRICHER_TYPE=EXCHANGE
-      - ENRICHER_STRATEGY=FANOUT
-      - ENRICHER=stores_source
-      - TO_TYPE=QUEUE
-      - TO=enriched_semester_tx
-      - MODULE_NAME=store_enricher
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  sink_q3:
-    image: sink_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=enriched_semester_tx
-      - FROM_TYPE=QUEUE
-      - TO=results_q3
-      - TO_TYPE=QUEUE
-      - MODULE_NAME=sink_q3
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-
-  # === QUERY 4: TOP 3 With Birthday by Store ===
-
-  router:
-    image: router_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/router/router_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=filtered_tx_2024_2025_q4
-      - FROM_TYPE=QUEUE
-      #- TO=tx_filtered_{i}
-      - TO_TYPE=QUEUE
-      - TO_SUFFIX_NUM=1
-      - MODULE_NAME=router_transactions_q4
-      - ENTITY_TYPE=Transaction
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  user_purchase_aggregator_1:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=tx_filtered_{i}
-      - TO_TYPE=QUEUE
-      - TO=user_purchases_aggregated
-      - MODULE_NAME=user_purchase_aggregator
-      - REPLICA_INDEX=1
-      - ENTITY_TYPE=Transaction
-      - TRUNCATE=1
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-
-  top3_users_aggregator:
-    image: aggregator_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=user_purchases_aggregated
-      - TO_TYPE=QUEUE
-      - TO=top3_users_aggregated
-      - MODULE_NAME=top_3_users_aggregator
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-#    merger_partial_top3:
-#      image: merger_worker
-#      build:
-#        context: .
-#        dockerfile: ./worker/Dockerfile
-#      entrypoint: python /worker/mergers/merger_main.py
-#      environment:
-#        - PYTHONUNBUFFERED=1
-#        - LOGGING_LEVEL=DEBUG
-#        - MIDDLEWARE_HOST=rabbitmq
-#        - FROM_TYPE=QUEUE
-#        - FROM=
-#        - TO_TYPE=QUEUE
-#        - TO=partial_top3
-#        - MODULE_NAME=merge_partial_top3_purchases
-#        - REPLICAS=1
-#      networks:
-#        - coffee
-#      depends_on:
-#        rabbitmq:
-#          condition: service_healthy
-#      scale: 1
-
-  store_enricher_tx:
-    image: enricher_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=top3_users_aggregated
-      - ENRICHER_TYPE=EXCHANGE
-      - ENRICHER_STRATEGY=FANOUT
-      - ENRICHER=stores_source
-      - TO_TYPE=EXCHANGE
-      - TO_STRATEGY=FANOUT
-      - TO=top3_users_store_enriched
-      - MODULE_NAME=store_enricher_q4
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  user_enricher_tx:
-    image: enricher_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=users_source
-      - ENRICHER_TYPE=EXCHANGE
-      - ENRICHER_STRATEGY=FANOUT
-      - ENRICHER=top3_users_store_enriched
-      - TO_TYPE=QUEUE
-      - TO=enriched_store_user_top3
-      - MODULE_NAME=user_enricher
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  merger_final_top3:
-    image: merger_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/mergers/merger_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM_TYPE=QUEUE
-      - FROM=enriched_store_user_top3
-      - TO_TYPE=QUEUE
-      - TO=enriched_final_top3
-      - MODULE_NAME=merger_final_top3_purchases
-      - REPLICAS=1
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    scale: 1
-
-  sink_q4:
-    image: sink_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=INFO
-      - MIDDLEWARE_HOST=rabbitmq
-      - FROM=enriched_final_top3
-      - FROM_TYPE=QUEUE
-      - TO=results_q4
-      - TO_TYPE=QUEUE
-      - MODULE_NAME=sink_q4
-    networks:
-      - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  # === Infrastructure ===
-
+    - ./.data/dataset_full:/client/.data
   rabbitmq:
-    container_name: rabbitmq-container
+    container_name: rabbitmq
     image: rabbitmq:4.1.4-management
     volumes:
-      - rabbitmq-volume:/var/lib/rabbitmq
+    - rabbitmq-volume:/var/lib/rabbitmq
     environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=admin
-      - RABBITMQ_NODENAME=rabbit@rabbitmq
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_NODENAME: rabbit@rabbitmq
+    networks:
+    - coffee
+    ports:
+    - 5672:5672
+    - 8080:15672
     healthcheck:
-      test: |
-        rabbitmq-diagnostics -q check_running &&
-        rabbitmq-diagnostics -q check_local_alarms &&
-        rabbitmq-diagnostics -q check_port_connectivity
+      test: rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms && rabbitmq-diagnostics -q check_port_connectivity
       interval: 5s
       timeout: 10s
       retries: 10
       start_period: 40s
-    ports:
-      - "5672:5672"
-      - "8080:15672"
+  transformer_menu_0:
+    container_name: transformer_menu_0
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: menu
+      FROM: '[["QUEUE", "menu_items_source"]]'
+      TO: '[["EXCHANGE", "raw_menu_items_batches", "FANOUT", ["common"]]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
     networks:
-      - coffee
-
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_store_0:
+    container_name: transformer_store_0
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: store
+      FROM: '[["QUEUE", "stores_source"]]'
+      TO: '[["EXCHANGE", "raw_stores_batches", "FANOUT", ["common"]]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_user_0:
+    container_name: transformer_user_0
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: user
+      FROM: '[["QUEUE", "users_source"]]'
+      TO: '[["QUEUE", "raw_users_batches"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_transaction_0:
+    container_name: transformer_transaction_0
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "transactions_source"]]'
+      TO: '[["QUEUE", "raw_transactions_batches"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_tx_items_0:
+    container_name: transformer_tx_items_0
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "transaction_items_source"]]'
+      TO: '[["QUEUE", "raw_transaction_items_batches"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_2024_2025_0:
+    container_name: filter_tx_2024_2025_0
+    image: filter_worker
+    environment:
+      REPLICA_ID: '0'
+      FROM: '[["QUEUE", "transactions_source"]]'
+      TO: '[["QUEUE", "filtered_tx_2024_2025_q1"], ["QUEUE", "filtered_tx_2024_2025_q4"]]'
+      MODULE_NAME: year
+      REPLICAS: '1'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_6am_11pm_0:
+    container_name: filter_tx_6am_11pm_0
+    image: filter_worker
+    environment:
+      REPLICA_ID: '0'
+      FROM: '[["QUEUE", "filtered_tx_2024_2025_q1"]]'
+      TO: '[["QUEUE", "filtered_tx_6am_11pm_q1"], ["QUEUE", "filtered_tx_6am_11pm_q3"]]'
+      MODULE_NAME: hour
+      REPLICAS: '1'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_amount_0:
+    container_name: filter_amount_0
+    image: filter_worker
+    environment:
+      REPLICA_ID: '0'
+      FROM: '[["QUEUE", "filtered_tx_6am_11pm_q1"]]'
+      TO: '[["QUEUE", "filtered_amount"]]'
+      MODULE_NAME: amount
+      REPLICAS: '1'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  sink_q1_0:
+    container_name: sink_q1_0
+    image: sink_worker
+    environment:
+      REPLICA_ID: '0'
+      FROM: '[["QUEUE", "filtered_amount"]]'
+      TO: '[["QUEUE", "results_q1"]]'
+      MODULE_NAME: sink_q1
+      REPLICAS: '1'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 volumes:
-  rabbitmq-volume:
-
+  rabbitmq-volume: null
 networks:
   coffee:
     driver: bridge

@@ -1,7 +1,7 @@
 from typing import Type
 
 from shared.entity import Message, TransactionItem
-from worker.filters.filter_main import FilterBase
+from worker.filters.filter_base import FilterBase
 
 
 class Filter(FilterBase):

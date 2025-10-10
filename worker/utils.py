@@ -2,7 +2,7 @@ import json
 import os
 from typing import List
 
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
+from shared.middleware.interface import MessageMiddleware
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 
 
@@ -37,7 +37,9 @@ def build_middlewares_list(middlewares: str) -> List[MessageMiddleware]:
         if m_type == "QUEUE":
             result.append(MessageMiddlewareQueueMQ(host=host, queue_name=middleware[1]))
         else:
-            result.append(MessageMiddlewareExchange(host=host, exchange_name=middleware[1], route_keys=middleware[4]))
+            result.append(
+                MessageMiddlewareExchangeRMQ(host=host, exchange_name=middleware[1], route_keys=middleware[3])
+            )
     return result
 
 
