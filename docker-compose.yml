@@ -24,7 +24,7 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_min:/client/.data
+    - ./.data/dataset_full:/client/.data
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:4.1.4-management

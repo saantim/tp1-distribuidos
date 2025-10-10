@@ -36,6 +36,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
             )
             self._local.channel = self._local.connection.channel()
             self._local.channel.queue_declare(queue=self._queue_name, durable=False)
+            self._local.channel.basic_qos(prefetch_count=1)
 
     def __str__(self):
         return f"[{self.__class__.__name__}|{self._queue_name}]"

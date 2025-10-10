@@ -25,12 +25,12 @@ class WorkerBase(ABC):
         self._instances: int = instances
         self._index: int = index
         self._leader: bool = index == 0
-        self._session_active = False
         self._eof_collected = set()
         self._source: MessageMiddleware = source
         self._output: list[MessageMiddleware] = output
         self._intra_exchange: MessageMiddlewareExchange = intra_exchange
 
+        self._session_active = False
         self._data_thread = None
         self._control_thread = None
         self._shutdown_event = threading.Event()
@@ -123,6 +123,8 @@ class WorkerBase(ABC):
             return False
 
         logging.info(f"action: receive_EOF | stage: {self._stage_name} | from: {self._source}")
+        self._session_active = False
+        self._end_of_session()
         self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize())
         return True
 
@@ -163,10 +165,7 @@ class WorkerBase(ABC):
         if self._session_active:
             self._end_of_session()
 
-            # Non-leaders mark session as inactive immediately
-            # Leaders keep session active until they flush EOF downstream
-            if not self._leader:
-                self._session_active = False
+            self._session_active = False
 
             # Report our own EOF to the exchange so the leader knows we're done
             # This happens for all workers, ensuring the leader can collect all EOFs
@@ -179,8 +178,7 @@ class WorkerBase(ABC):
     def _flush_eof(self):
         # Only flush ONCE when we have ALL EOFs and session is still active
         # The session_active check ensures we only flush once
-        if len(self._eof_collected) == self._instances and self._session_active:
-            self._session_active = False  # Mark as flushed
+        if len(self._eof_collected) == self._instances:
             for output in self._output:
                 output.send(EOF().serialize())
                 logging.info(f"action: flush_eof | to: {output}")
