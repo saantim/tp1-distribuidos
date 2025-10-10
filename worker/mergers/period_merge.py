@@ -17,13 +17,13 @@ class Merger(MergerBase):
 
         current = cast(TransactionItemByPeriod, self._merged)
 
-        for period, dict_of_period_item_sold in message.transaction_item_per_period.values():
-            for item_info, item_sold in dict_of_period_item_sold.values():
+        for period, dict_of_period_item_sold in message.transaction_item_per_period.items():
+            for item_id, item_info in dict_of_period_item_sold.items():
                 merged_items: dict[ItemId, ItemInfo] = current.transaction_item_per_period.get(period, {})
 
-                item: ItemInfo = merged_items.get(item_info, ItemInfo(0, 0, ItemName("")))
-                item.quantity += item_sold.get(item_info).quantity
-                item.amount += item_sold.get(item_info).amount
+                item: ItemInfo = merged_items.get(item_id, ItemInfo(0, 0, ItemName("")))
+                item.quantity += item_info.quantity
+                item.amount += item_info.amount
 
-                merged_items[item_info] = item
+                merged_items[item_id] = item
                 current.transaction_item_per_period[period] = merged_items

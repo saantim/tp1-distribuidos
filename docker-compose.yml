@@ -341,7 +341,43 @@ services:
       FROM: '[["QUEUE", "transaction_items_source"]]'
       TO: '[["QUEUE", "filtered_item_amount"]]'
       MODULE_NAME: item_year
-      REPLICAS: '1'
+      REPLICAS: '3'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_item_2024_2025_1:
+    container_name: filter_tx_item_2024_2025_1
+    image: filter_worker
+    environment:
+      REPLICA_ID: '1'
+      FROM: '[["QUEUE", "transaction_items_source"]]'
+      TO: '[["QUEUE", "filtered_item_amount"]]'
+      MODULE_NAME: item_year
+      REPLICAS: '3'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_item_2024_2025_2:
+    container_name: filter_tx_item_2024_2025_2
+    image: filter_worker
+    environment:
+      REPLICA_ID: '2'
+      FROM: '[["QUEUE", "transaction_items_source"]]'
+      TO: '[["QUEUE", "filtered_item_amount"]]'
+      MODULE_NAME: item_year
+      REPLICAS: '3'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -357,7 +393,43 @@ services:
     environment:
       REPLICA_ID: '0'
       MODULE_NAME: period_agg
-      REPLICAS: '1'
+      REPLICAS: '3'
+      FROM: '[["QUEUE", "filtered_item_amount"]]'
+      TO: '[["QUEUE", "aggregated_item_by_period"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  aggregator_period_1:
+    container_name: aggregator_period_1
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '1'
+      MODULE_NAME: period_agg
+      REPLICAS: '3'
+      FROM: '[["QUEUE", "filtered_item_amount"]]'
+      TO: '[["QUEUE", "aggregated_item_by_period"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  aggregator_period_2:
+    container_name: aggregator_period_2
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '2'
+      MODULE_NAME: period_agg
+      REPLICAS: '3'
       FROM: '[["QUEUE", "filtered_item_amount"]]'
       TO: '[["QUEUE", "aggregated_item_by_period"]]'
     build:
