@@ -60,11 +60,11 @@ def main():
     middleware_host = config_params["middleware_host"]
 
     batch_queues = {
-        "STORE": config_params["raw_stores"],
-        "USER": config_params["raw_users"],
-        "TRANSACTION": config_params["raw_transactions"],
-        "TRANSACTION_ITEM": config_params["raw_transaction_items"],
-        "MENU_ITEM": config_params["raw_menu_items"],
+        "STORE": config_params["stores"],
+        "USER": config_params["users"],
+        "TRANSACTION": config_params["transactions"],
+        "TRANSACTION_ITEM": config_params["transaction_items"],
+        "MENU_ITEM": config_params["menu_items"],
     }
 
     initialize_log(logging_level)

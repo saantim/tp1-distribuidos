@@ -147,30 +147,10 @@ class DockerComposeBuilder:
         worker.set_networks(["coffee"])
         worker.set_depends_on(service="gateway")
         worker.set_environment({"LOGGING_LEVEL": "DEBUG"})
-        dataset_from = "./.data" + "/dataset_full" if full_dataset else "/dataset_min"
+        dataset_from = "./.data" + ("/dataset_full" if full_dataset else "/dataset_min")
         worker.set_volume(from_vol=dataset_from, to_vol="/client/.data")
 
         self.services["client"] = worker.build()
-        return self
-
-    def add_demux(
-        self, demux_id: int, name: str, from_queue: str, to_queue: str, replicas: int
-    ) -> "DockerComposeBuilder":
-        """Agrega el servicio Demux."""
-        worker = WorkerBuilder(name)
-        worker.set_image("demux_worker")
-        worker.set_build(context=".", dockerfile="./worker/Dockerfile")
-        worker.set_entrypoint(entrypoint="python /worker/demux/demux_main.py")
-        worker.set_environment(
-            {"PYTHONUNBUFFERED": "1", "LOGGING_LEVEL": "INFO", "MIDDLEWARE_HOST": "rabbitmq", "REPLICAS": str(replicas)}
-        )
-        worker.set_networks(["coffee"])
-        worker.set_depends_on(service="rabbitmq", condition="service_healthy")
-        worker.set_id(demux_id)
-        worker.add_from(from_type="QUEUE", from_name=from_queue)
-        worker.add_to(to_type="EXCHANGE", to_name=to_queue, strategy="FANOUT", routing_key=["common"])
-
-        self.services[name] = worker.build()
         return self
 
     def add_filter(
@@ -288,7 +268,7 @@ class DockerComposeBuilder:
         worker.set_ports(["5672:5672", "8080:15672"])
         worker.set_healthcheck(
             test="rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics"
-                 " -q check_local_alarms && rabbitmq-diagnostics -q check_port_connectivity",
+            " -q check_local_alarms && rabbitmq-diagnostics -q check_port_connectivity",
             interval="5s",
             timeout="10s",
             retries=10,
@@ -312,6 +292,36 @@ class DockerComposeBuilder:
         worker.set_module_name(module_name)
         worker.add_from(from_type="QUEUE", from_name=from_queue)
         worker.add_to(to_type="QUEUE", to_name=to_queue)  # TODO!: REVISAR
+
+        self.services[name] = worker.build()
+        return self
+
+    def add_transformer(
+        self,
+        name: str,
+        transformer_id: int,
+        from_queue: str,
+        to: str,
+        module_name: str,
+        replicas: int,
+        to_strategy: str = None,
+        to_routing_keys: List[str] = None,
+    ) -> "DockerComposeBuilder":
+
+        worker = WorkerBuilder(name=name)
+        worker.set_image("transformer_worker")
+        worker.set_id(transformer_id)
+        worker.set_build(context=".", dockerfile="./worker/Dockerfile")
+        worker.set_entrypoint("python /worker/transformers/transformer_main.py")
+        worker.set_networks(["coffee"])
+        worker.set_depends_on("rabbitmq", "service_healthy")
+        worker.set_replicas(replicas)
+        worker.set_module_name(module_name)
+        worker.add_from(from_type="QUEUE", from_name=from_queue)
+        if not to_strategy or not to_routing_keys:
+            worker.add_to(to_type="QUEUE", to_name=to)
+        else:
+            worker.add_to(to_type="EXCHANGE", to_name=to, strategy=to_strategy, routing_key=to_routing_keys)
 
         self.services[name] = worker.build()
         return self

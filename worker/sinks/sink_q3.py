@@ -5,55 +5,62 @@ Collects all results and formats as a table-like JSON structure.
 
 import json
 import logging
+from typing import Type
 
+from shared.entity import Message
+from worker.sinks.sink_base import SinkBase
 from worker.types import SemesterTPVByStore
 
 
-def format_fn(results: list[bytes]) -> bytes:
-    """
-    Format Query 3 results for batch output.
-    Receives all enriched semester TPV data, formats as JSON array.
+class Sink(SinkBase):
 
-    Args:
-        results: List of serialized SemesterTPVByStore objects
+    def get_entity_type(self) -> Type[Message]:
+        return SemesterTPVByStore
 
-    Returns:
-        JSON-encoded array of semester/store/TPV rows
-    """
-    if not results:
-        return b""
+    def format_fn(self, results_collected: list[SemesterTPVByStore]) -> bytes:
+        """
+        Format Query 3 results for batch output.
+        Receives all enriched semester TPV data, formats as JSON array.
 
-    try:
-        formatted_rows = []
+        Args:
+            results_collected: List of serialized SemesterTPVByStore objects
 
-        for result_bytes in results:
-            semester_data: SemesterTPVByStore = SemesterTPVByStore.deserialize(result_bytes)
+        Returns:
+            JSON-encoded array of semester/store/TPV rows
+        """
+        if not results_collected:
+            return b""
 
-            for semester_key, stores_dict in semester_data.semester_tpv_by_store.items():
-                year = semester_key.split("-")[0]
-                half = semester_key.split("-")[1]
-                semester_label = f"{year}-H{half}"
+        try:
+            formatted_rows = []
 
-                for store_id, store_info in stores_dict.items():
-                    formatted_rows.append(
-                        {
-                            "store_id": store_id,
-                            "semester": semester_label,
-                            "store_name": store_info.store_name,
-                            "tpv": float(store_info.amount),
-                        }
-                    )
+            for semester_data in results_collected:
 
-        formatted_rows.sort(key=lambda x: (x["semester"], x["store_name"]))
+                for semester_key, stores_dict in semester_data.semester_tpv_by_store.items():
+                    year = semester_key.split("-")[0]
+                    half = semester_key.split("-")[1]
+                    semester_label = f"{year}-H{half}"
 
-        output = {
-            "query": "Q3",
-            "description": "TPV per semester per store (6AM-11PM transactions)",
-            "results": formatted_rows,
-        }
+                    for store_id, store_info in stores_dict.items():
+                        formatted_rows.append(
+                            {
+                                "store_id": store_id,
+                                "semester": semester_label,
+                                "store_name": store_info.store_name,
+                                "tpv": float(store_info.amount),
+                            }
+                        )
 
-        return json.dumps(output, indent=2).encode("utf-8")
+            formatted_rows.sort(key=lambda x: (x["semester"], x["store_name"]))
 
-    except Exception as e:
-        logging.error(f"Error formatting Q3 results: {e}", exc_info=True)
-        return b""
+            output = {
+                "query": "Q3",
+                "description": "TPV per semester per store (6AM-11PM transactions)",
+                "results": formatted_rows,
+            }
+
+            return json.dumps(output, indent=2).encode("utf-8")
+
+        except Exception as e:
+            logging.error(f"Error formatting Q3 results: {e}", exc_info=True)
+            return b""

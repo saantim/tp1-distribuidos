@@ -18,6 +18,9 @@ def _get_datetime_fields(cls) -> Set[str]:
 @dataclass
 class Message(ABC):
 
+    def __str__(self):
+        return asdict(self)
+
     def serialize(self) -> bytes:
         """Optimized serialization."""
 
@@ -52,10 +55,20 @@ class Message(ABC):
         data = json.loads(payload)
         return cls.from_dict(data)
 
+    @classmethod
+    def is_type(cls, payload: bytes):
+        try:
+            data = json.loads(payload)
+            cls.from_dict(data)
+            return True
+        except Exception as e:
+            _ = e
+            return False
+
 
 @dataclass
 class EOF(Message):
-    metadata: int
+    pass
 
 
 ItemId = NewType("ItemId", int)
@@ -99,11 +112,13 @@ class User(Message):
     birthdate: Birthdate
 
 
+TransactionId = NewType("TransactionId", str)
 FinalAmount = NewType("FinalAmount", float)
 
 
 @dataclass
 class Transaction(Message):
+    id: TransactionId
     store_id: StoreId
     user_id: UserId
     final_amount: FinalAmount

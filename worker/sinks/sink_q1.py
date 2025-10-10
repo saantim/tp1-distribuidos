@@ -5,34 +5,34 @@ Streams results one-at-a-time to avoid memory issues with large result sets.
 
 import json
 import logging
+from typing import Type
 
-from shared.entity import Transaction
+from shared.entity import Message, Transaction
+from worker.sinks.sink_base import SinkBase
 
 
-def format_fn(results: list[bytes]) -> bytes:
-    """
-    Format Query 1 results for streaming.
-    Receives a single transaction at a time (list with one element).
-    """
+class Sink(SinkBase):
+    def get_entity_type(self) -> Type[Message]:
+        return Transaction
 
-    if not results:
-        return b""
+    def format_fn(self, results_collected: list[Transaction]) -> bytes:
+        """
+        Format Query 1 results for streaming.
+        Receives a list of transactions.
+        """
 
-    try:
-        transaction = Transaction.deserialize(results[0])
+        if not results_collected:
+            return b""
 
-        result = {
-            "transaction_id": transaction.transaction_id,
-            "final_amount": float(transaction.final_amount),
-            "created_at": (
-                transaction.created_at.isoformat()
-                if hasattr(transaction.created_at, "isoformat")
-                else str(transaction.created_at)
-            ),
-        }
-
-        return json.dumps(result).encode("utf-8")
-
-    except Exception as e:
-        logging.error(f"Error formatting Q1 result: {e}")
-        return b""
+        output = []
+        try:
+            for tx in results_collected:
+                result = {
+                    "transaction_id": tx.id,
+                    "final_amount": float(tx.final_amount),
+                }
+                output.append(result)
+            return json.dumps(output).encode("utf-8")
+        except Exception as e:
+            logging.error(f"Error formatting Q1 result: {e}")
+            return b""
