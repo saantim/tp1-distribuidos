@@ -7,6 +7,7 @@ transaction_id,item_id,quantity,unit_price,subtotal,created_at
 We only extract:
 - item_id
 - quantity
+- subtotal
 - created_at
 """
 
@@ -48,6 +49,7 @@ class Transformer(TransformerBase):
         return {
             "item_id": int(parts[1].strip()),
             "quantity": int(parts[2].strip()),
+            "subtotal": float(parts[4].strip()),
             "created_at": created_at,
         }
 
@@ -64,5 +66,6 @@ class Transformer(TransformerBase):
         return TransactionItem(
             item_id=row_dict["item_id"],
             quantity=row_dict["quantity"],
+            subtotal=row_dict["subtotal"],
             created_at=row_dict["created_at"],
         )

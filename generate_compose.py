@@ -70,7 +70,7 @@ def build_q2(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"filter_tx_item_2024_2025_{i}",
             from_queue="transaction_items_source",
             to_queues=["filtered_item_amount"],
-            module_name="filter_tx_item_2024_2025",
+            module_name="item_year",
             replicas=config["replicas"]["filter_tx_item_2024_2025"],
         )
     for i in range(config["replicas"]["aggregator_period"]):
@@ -79,7 +79,7 @@ def build_q2(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"aggregator_period_{i}",
             from_queue="filtered_item_amount",
             to_queue="aggregated_item_by_period",
-            module_name="period_aggregator",
+            module_name="period_agg",
             replicas=config["replicas"]["aggregator_period"],
         )
     for i in range(config["replicas"]["merger_period"]):
@@ -88,7 +88,7 @@ def build_q2(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"merger_period_{i}",
             from_queue="aggregated_item_by_period",
             to_queue="merged_item_by_period",
-            module_name="merge_period_results",
+            module_name="period_merge",
             replicas=config["replicas"]["merger_period"],
         )
     for i in range(config["replicas"]["enricher_item"]):
@@ -123,7 +123,7 @@ def build_q3(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"semester_aggregator_{i}",
             from_queue="filtered_tx_6am_11pm_q3",
             to_queue="aggregated_semester_by_store",
-            module_name="semester_aggregator",
+            module_name="semester_agg",
             replicas=config["replicas"]["semester_aggregator"],
         )
     for i in range(config["replicas"]["merger_semester_results"]):
@@ -132,7 +132,7 @@ def build_q3(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"merger_semester_results_{i}",
             from_queue="aggregated_semester_by_store",
             to_queue="merged_semester_by_store",
-            module_name="merge_semester_results",
+            module_name="semester_merge",
             replicas=config["replicas"]["merger_semester_results"],
         )
     for i in range(config["replicas"]["enricher_semester_tx"]):
@@ -208,7 +208,7 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
         builder.add_enricher(
             enricher_id=i,
             name=f"user_enricher_tx_{i}",
-            from_queue="top3_users_store_enriched",
+            from_queue="users_source",
             to="enriched_store_user_top3",
             to_type="QUEUE",
             enricher="top3_users_store_enriched",
@@ -306,7 +306,7 @@ def main():
     builder = build_transformers(builder, config)
 
     builder = build_q1(builder, config)
-    # builder = build_q2(builder, config)
+    builder = build_q2(builder, config)
     # builder = build_q3(builder, config)
     # builder = build_q4(builder, config)
 

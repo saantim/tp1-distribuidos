@@ -98,5 +98,7 @@ class ResultsCollector:
                 try:
                     result = json.loads(result_bytes.decode("utf-8"))
                     logging.info(json.dumps(result, indent=2))
+                    if query_id == "Q1":
+                        logging.info(f"Q1 Total Transactions: {len(list(result))}")
                 except Exception as e:
                     logging.error(f"Failed to parse result for {query_id}: {e}")

@@ -137,6 +137,7 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
             )
             self._local.channel = self._local.connection.channel()
             self._local.channel.exchange_declare(exchange=self._exchange_name, exchange_type="direct", durable=False)
+            self._local.channel.basic_qos(prefetch_count=1)
 
     def __str__(self):
         return f"[{self.__class__.__name__}|{self._exchange_name}]"
