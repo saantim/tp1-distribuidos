@@ -51,6 +51,9 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         self._channel = self._connection.channel()
         self._channel.queue_declare(queue=self._queue_name, durable=False)
 
+    def __str__(self):
+        return f"{self.__class__.__name__} | {self._queue_name}"
+
     def start_consuming(self, on_message_callback) -> None:
         """
         Start the blocking consume loop on the configured queue.
@@ -214,6 +217,9 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
         )
         self._channel = self._connection.channel()
         self._channel.exchange_declare(exchange=self._exchange_name, exchange_type="direct", durable=False)
+
+    def __str__(self):
+        return f"{self.__class__.__name__} | {self._exchange_name}"
 
     def start_consuming(self, on_message_callback) -> None:
         """

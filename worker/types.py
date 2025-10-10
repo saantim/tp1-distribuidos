@@ -110,3 +110,9 @@ class SemesterTPVByStore(Message):
                 parsed_stores[store_id] = store_info
             parsed[semester] = parsed_stores
         return cls(semester_tpv_by_store=parsed)
+
+
+@dataclass
+class EOFIntraExchange(Message):
+    worker_id: str
+    session_id: str = "default"

@@ -1,6 +1,8 @@
+import json
 import os
+from typing import List
 
-from shared.middleware.interface import MessageMiddleware
+from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 
 
@@ -23,6 +25,20 @@ EXCHANGE_TYPE = "EXCHANGE"
 
 FANOUT_STRATEGY = "FANOUT"
 SHARDING_STRATEGY = "SHARDING"
+
+
+def build_middlewares_list(middlewares: str) -> List[MessageMiddleware]:
+    middlewares_list = json.loads(middlewares)
+    result = []
+    host = "rabbitmq"
+
+    for middleware in middlewares_list:
+        m_type = middleware[0]
+        if m_type == "QUEUE":
+            result.append(MessageMiddlewareQueueMQ(host=host, queue_name=middleware[1]))
+        else:
+            result.append(MessageMiddlewareExchange(host=host, exchange_name=middleware[1], route_keys=middleware[4]))
+    return result
 
 
 def get_input_queue() -> list[MessageMiddleware] | ValueError:

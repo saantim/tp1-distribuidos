@@ -288,7 +288,7 @@ class DockerComposeBuilder:
         worker.set_ports(["5672:5672", "8080:15672"])
         worker.set_healthcheck(
             test="rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics"
-                 " -q check_local_alarms && rabbitmq-diagnostics -q check_port_connectivity",
+            " -q check_local_alarms && rabbitmq-diagnostics -q check_port_connectivity",
             interval="5s",
             timeout="10s",
             retries=10,
@@ -313,6 +313,35 @@ class DockerComposeBuilder:
         worker.add_from(from_type="QUEUE", from_name=from_queue)
         worker.add_to(to_type="QUEUE", to_name=to_queue)  # TODO!: REVISAR
 
+        self.services[name] = worker.build()
+        return self
+
+    def add_transformer(
+        self,
+        name: str,
+        transformer_id: int,
+        from_queue: str,
+        to: str,
+        module_name: str,
+        replicas: int,
+        to_strategy: str = None,
+        to_routing_keys: List[str] = None,
+    ) -> "DockerComposeBuilder":
+
+        worker = WorkerBuilder(name=name)
+        worker.set_image("transformer_worker")
+        worker.set_id(transformer_id)
+        worker.set_build(context=".", dockerfile="./worker/Dockerfile")
+        worker.set_entrypoint("python /worker/transformer/transformer_main.py")
+        worker.set_networks(["coffee"])
+        worker.set_depends_on("rabbitmq", "service_healthy")
+        worker.set_replicas(replicas)
+        worker.set_module_name(module_name)
+        worker.add_from(from_type="QUEUE", from_name=to)
+        if not to_strategy or not to_routing_keys:
+            worker.add_to(to_type="EXCHANGE", to_name=from_queue, strategy=to_strategy, routing_key=to_routing_keys)
+        else:
+            worker.add_to(to_type="QUEUE", to_name=from_queue)
         self.services[name] = worker.build()
         return self
 

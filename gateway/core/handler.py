@@ -45,9 +45,9 @@ class ClientHandler:
 
             result_collector = ResultCollector(self.network, self.middleware_host, self.shutdown_signal)
             result_collector.add_query("Q1", "results_q1")
-            result_collector.add_query("Q2", "results_q2")
-            result_collector.add_query("Q3", "results_q3")
-            result_collector.add_query("Q4", "results_q4")
+            # result_collector.add_query("Q2", "results_q2")
+            # result_collector.add_query("Q3", "results_q3")
+            # result_collector.add_query("Q4", "results_q4")
 
             results_thread = threading.Thread(target=result_collector.start_listening, name="results-collector")
             results_thread.start()
@@ -119,7 +119,7 @@ class ClientHandler:
                         break
 
                     if batch.eof:
-                        publisher.send(EOF(0).serialize())
+                        publisher.send(EOF().serialize())
                         eof_count += 1
                         logging.debug(f"action: route_eof | entity_type: {batch.entity_type.name}")
                     else:

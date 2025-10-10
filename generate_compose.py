@@ -29,7 +29,7 @@ def build_q1(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             filter_id=i,
             from_queue="transactions_source",
             to_queues=["filtered_tx_2024_2025_q1", "filtered_tx_2024_2025_q4"],
-            module_name="filter_tx_2024_2025",
+            module_name="year",
             replicas=config["replicas"]["filter_tx_2024_2025"],
         )
     for i in range(config["replicas"]["filter_tx_6am_11pm"]):
@@ -38,7 +38,7 @@ def build_q1(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"filter_tx_6am_11pm_{i}",
             from_queue="filtered_tx_2024_2025_q1",
             to_queues=["filtered_tx_6am_11pm_q1", "filtered_tx_6am_11pm_q3"],
-            module_name="filter_tx_6am_11pm",
+            module_name="hour",
             replicas=config["replicas"]["filter_tx_6am_11pm"],
         )
     for i in range(config["replicas"]["filter_amount"]):
@@ -47,7 +47,7 @@ def build_q1(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"filter_amount_{i}",
             from_queue="filtered_tx_6am_11pm_q1",
             to_queues=["filtered_amount"],
-            module_name="filter_amount",
+            module_name="amount",
             replicas=config["replicas"]["filter_amount"],
         )
     for i in range(config["replicas"]["sink_q1"]):
@@ -117,7 +117,6 @@ def build_q2(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
 
 
 def build_q3(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerComposeBuilder:
-
     for i in range(config["replicas"]["semester_aggregator"]):
         builder.add_aggregator(
             aggregator_id=i,
@@ -240,33 +239,77 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
     return builder
 
 
+def build_transformers(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerComposeBuilder:
+    for i in range(config["replicas"]["transformer_menu"]):
+        builder.add_transformer(
+            transformer_id=i,
+            name=f"transformer_menu_{i}",
+            from_queue="raw_menu_items_batches",
+            to="menu_items_source",
+            to_strategy="FANOUT",
+            to_routing_keys=["common"],
+            replicas=config["replicas"]["transformer_menu"],
+            module_name="menu",
+        )
+
+    for i in range(config["replicas"]["transformer_store"]):
+        builder.add_transformer(
+            transformer_id=i,
+            name=f"transformer_store_{i}",
+            from_queue="raw_stores_batches",
+            to="stores_source",
+            to_strategy="FANOUT",
+            to_routing_keys=["common"],
+            replicas=config["replicas"]["transformer_store"],
+            module_name="store",
+        )
+
+    for i in range(config["replicas"]["transformer_user"]):
+        builder.add_transformer(
+            transformer_id=i,
+            name=f"transformer_user_{i}",
+            from_queue="raw_users_batches",
+            to="users_source",
+            replicas=config["replicas"]["transformer_user"],
+            module_name="user",
+        )
+
+    for i in range(config["replicas"]["transformer_transaction"]):
+        builder.add_transformer(
+            transformer_id=i,
+            name=f"transformer_transaction_{i}",
+            from_queue="raw_transactions_batches",
+            to="transactions_source",
+            replicas=config["replicas"]["transformer_transaction"],
+            module_name="transaction",
+        )
+
+    for i in range(config["replicas"]["transformer_transaction_item"]):
+        builder.add_transformer(
+            transformer_id=i,
+            name=f"transformer_tx_items_{i}",
+            from_queue="raw_transaction_items_batches",
+            to="transaction_items_source",
+            replicas=config["replicas"]["transformer_transaction_item"],
+            module_name="transaction_item",
+        )
+
+    return builder
+
+
 def main():
     config = load_config()
     builder = DockerComposeBuilder()
     builder.add_gateway()
     builder.add_client(bool(config["dataset"]["full"]))
     builder.add_rabbitmq()
-    for i in range(config["replicas"]["demux_store"]):
-        builder.add_demux(
-            demux_id=i,
-            name=f"demux_store_{i}",
-            from_queue="demux_stores",
-            to_queue="stores_source",
-            replicas=config["replicas"]["demux_store"],
-        )
-    for i in range(config["replicas"]["demux_menu_items"]):
-        builder.add_demux(
-            demux_id=i,
-            name=f"demux_menu_items_{i}",
-            from_queue="demux_menu_items",
-            to_queue="menu_items_source",
-            replicas=config["replicas"]["demux_menu_items"],
-        )
+    builder = build_transformers(builder, config)
+
     builder = build_q1(builder, config)
-    builder = build_q2(builder, config)
-    builder = build_q3(builder, config)
-    builder = build_q4(builder, config)
-    builder.set_volume()
+    # builder = build_q2(builder, config)
+    # builder = build_q3(builder, config)
+    # builder = build_q4(builder, config)
+
     builder.save("docker-compose.yml")
     os.chmod("generate_compose.py", 0o755)
 

@@ -12,14 +12,23 @@ class ShutdownSignal:
     for checking if shutdown has been requested.
     """
 
-    def __init__(self):
+    def __init__(self, custom_callback=None):
         self._shutdown_requested = False
-        self._setup_signal_handlers()
+        if custom_callback:
+            self._setup_custom_signal_handlers(custom_callback)
+        else:
+            self._setup_signal_handlers()
 
     def _setup_signal_handlers(self):
         """register signal handlers for SIGTERM and SIGINT."""
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
+
+    @staticmethod
+    def _setup_custom_signal_handlers(callback):
+        """register custom signal handlers for SIGTERM and SIGINT."""
+        signal.signal(signal.SIGTERM, callback)
+        signal.signal(signal.SIGINT, callback)
 
     def _signal_handler(self, signum: int, frame):
         """internal signal handler that sets the shutdown flag."""
