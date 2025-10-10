@@ -153,26 +153,6 @@ class DockerComposeBuilder:
         self.services["client"] = worker.build()
         return self
 
-    def add_demux(
-        self, demux_id: int, name: str, from_queue: str, to_queue: str, replicas: int
-    ) -> "DockerComposeBuilder":
-        """Agrega el servicio Demux."""
-        worker = WorkerBuilder(name)
-        worker.set_image("demux_worker")
-        worker.set_build(context=".", dockerfile="./worker/Dockerfile")
-        worker.set_entrypoint(entrypoint="python /worker/demux/demux_main.py")
-        worker.set_environment(
-            {"PYTHONUNBUFFERED": "1", "LOGGING_LEVEL": "INFO", "MIDDLEWARE_HOST": "rabbitmq", "REPLICAS": str(replicas)}
-        )
-        worker.set_networks(["coffee"])
-        worker.set_depends_on(service="rabbitmq", condition="service_healthy")
-        worker.set_id(demux_id)
-        worker.add_from(from_type="QUEUE", from_name=from_queue)
-        worker.add_to(to_type="EXCHANGE", to_name=to_queue, strategy="FANOUT", routing_key=["common"])
-
-        self.services[name] = worker.build()
-        return self
-
     def add_filter(
         self, name: str, filter_id: int, from_queue: str, replicas: int, to_queues: List[str], module_name: str = None
     ) -> "DockerComposeBuilder":

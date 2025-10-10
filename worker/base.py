@@ -25,12 +25,12 @@ class WorkerBase(ABC):
         self._instances: int = instances
         self._index: int = index
         self._leader: bool = index == 0
-        self._session_active = False
         self._eof_collected = set()
         self._source: MessageMiddleware = source
         self._output: list[MessageMiddleware] = output
         self._intra_exchange: MessageMiddlewareExchange = intra_exchange
 
+        self._session_active = False
         self._data_thread = None
         self._control_thread = None
         self._shutdown_event = threading.Event()
@@ -49,7 +49,7 @@ class WorkerBase(ABC):
             target=self._source.start_consuming,
             args=[self._on_message_upstream],
             name=f"{self._stage_name}_{self._index}_data_thread",
-            daemon=True,
+            daemon=False,
         )
 
         self._data_thread.start()
@@ -58,7 +58,7 @@ class WorkerBase(ABC):
             target=self._intra_exchange.start_consuming,
             args=[self._on_message_intra_exchange],
             name=f"{self._stage_name}_{self._index}_control_thread",
-            daemon=True,
+            daemon=False,
         )
 
         self._control_thread.start()
@@ -69,31 +69,53 @@ class WorkerBase(ABC):
             f" control_thread: {self._control_thread.name}"
         )
 
+        # Wait for shutdown signal
         self._shutdown_event.wait()
 
+        # Perform cleanup
+        self._cleanup()
+
+        logging.info(f"action: exiting | stage: {self._stage_name}")
+
     def stop(self):
-        logging.info(f"action: stop_worker_threads | stage: {self._stage_name}")
+        """Signal shutdown."""
+        logging.info(f"action: stop_requested | stage: {self._stage_name}")
         self._shutdown_event.set()
 
+    def _cleanup(self):
+        """Cleanup method that stops consuming and waits for threads."""
+        logging.info(f"action: cleanup_start | stage: {self._stage_name}")
+
+        # Stop consuming - sets the _should_stop flag
         try:
             self._source.stop_consuming()
-        except Exception as e:
-            logging.exception(e)
-
-        try:
             self._intra_exchange.stop_consuming()
         except Exception as e:
-            logging.exception(e)
+            logging.debug(f"Error stopping consumers: {e}")
 
+        # Wait for threads - they should exit within ~2 seconds after stop flag is set
         if self._data_thread and self._data_thread.is_alive():
             self._data_thread.join(timeout=5.0)
+            if self._data_thread.is_alive():
+                logging.warning(f"action: data_thread_timeout | stage: {self._stage_name}")
 
         if self._control_thread and self._control_thread.is_alive():
             self._control_thread.join(timeout=5.0)
+            if self._control_thread.is_alive():
+                logging.warning(f"action: control_thread_timeout | stage: {self._stage_name}")
 
-        logging.info(f"action: stop_worker_threads | stage: {self._stage_name} | status: OK")
+        # Close connections
+        try:
+            self._source.close()
+            self._intra_exchange.close()
+        except Exception as e:
+            logging.debug(f"Error closing connections: {e}")
+
+        logging.info(f"action: cleanup_complete | stage: {self._stage_name}")
 
     def _shutdown(self, _signum: int, _frame):
+        """Signal handler for SIGTERM/SIGINT"""
+        logging.info(f"action: signal_received | stage: {self._stage_name} | signal: {_signum}")
         self.stop()
 
     def _handle_eof(self, message: bytes) -> bool:
@@ -101,6 +123,8 @@ class WorkerBase(ABC):
             return False
 
         logging.info(f"action: receive_EOF | stage: {self._stage_name} | from: {self._source}")
+        self._session_active = False
+        self._end_of_session()
         self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize())
         return True
 
@@ -112,7 +136,6 @@ class WorkerBase(ABC):
             channel.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        # todo: por ahora somos optimistas, en un futuro si algo rompe durante procesamiento, debemos rollbackear.
         try:
             for message in unpack_entity_batch(body, self.get_entity_type()):
                 self._on_entity_upstream(channel, method, properties, message)
@@ -129,17 +152,33 @@ class WorkerBase(ABC):
         eof_message: EOFIntraExchange = EOFIntraExchange.deserialize(body)
         worker_id = eof_message.worker_id
 
+        logging.info(f"action: got_intra_msg | from_worker: {worker_id} | stage: {self._stage_name}")
+
+        # Leader collects all EOF messages
         if self._leader:
             self._eof_collected.add(worker_id)
 
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+        # All workers end their session when they receive the FIRST EOF message
+        # This ensures all workers flush their buffers, regardless of who received upstream EOF
         if self._session_active:
             self._end_of_session()
+
             self._session_active = False
 
-        self._flush_eof()
+            # Report our own EOF to the exchange so the leader knows we're done
+            # This happens for all workers, ensuring the leader can collect all EOFs
+            self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize())
+
+        # Only leader flushes EOF downstream after collecting ALL worker EOFs
+        if self._leader:
+            self._flush_eof()
 
     def _flush_eof(self):
-        if self._leader and len(self._eof_collected) == self._instances:
+        # Only flush ONCE when we have ALL EOFs and session is still active
+        # The session_active check ensures we only flush once
+        if len(self._eof_collected) == self._instances:
             for output in self._output:
                 output.send(EOF().serialize())
                 logging.info(f"action: flush_eof | to: {output}")

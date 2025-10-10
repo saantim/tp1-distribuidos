@@ -94,12 +94,9 @@ class ResultsCollector:
             logging.info(f"\n========== {query_id} Results ==========")
             results = self.results_by_query[query_id]
 
-            if query_id == "Q1":
-                logging.info(f"Total Q1 filtered transactions: {len(results)}")
-            else:
-                for result_bytes in results:
-                    try:
-                        result = json.loads(result_bytes.decode("utf-8"))
-                        logging.info(json.dumps(result, indent=2))
-                    except Exception as e:
-                        logging.error(f"Failed to parse result: {e}")
+            for result_bytes in results:
+                try:
+                    result = json.loads(result_bytes.decode("utf-8"))
+                    logging.info(json.dumps(result, indent=2))
+                except Exception as e:
+                    logging.error(f"Failed to parse result for {query_id}: {e}")

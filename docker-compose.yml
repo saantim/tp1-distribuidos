@@ -24,7 +24,7 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_min:/client/.data
+    - ./.data/dataset_full:/client/.data
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:4.1.4-management
@@ -104,7 +104,43 @@ services:
     image: transformer_worker
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '1'
+      REPLICAS: '3'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_transaction_1:
+    container_name: transformer_transaction_1
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_transaction_2:
+    container_name: transformer_transaction_2
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
       MODULE_NAME: transaction
       FROM: '[["QUEUE", "raw_transactions_batches"]]'
       TO: '[["QUEUE", "transactions_source"]]'
@@ -143,7 +179,43 @@ services:
       FROM: '[["QUEUE", "transactions_source"]]'
       TO: '[["QUEUE", "filtered_tx_2024_2025_q1"], ["QUEUE", "filtered_tx_2024_2025_q4"]]'
       MODULE_NAME: year
-      REPLICAS: '1'
+      REPLICAS: '3'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_2024_2025_1:
+    container_name: filter_tx_2024_2025_1
+    image: filter_worker
+    environment:
+      REPLICA_ID: '1'
+      FROM: '[["QUEUE", "transactions_source"]]'
+      TO: '[["QUEUE", "filtered_tx_2024_2025_q1"], ["QUEUE", "filtered_tx_2024_2025_q4"]]'
+      MODULE_NAME: year
+      REPLICAS: '3'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_2024_2025_2:
+    container_name: filter_tx_2024_2025_2
+    image: filter_worker
+    environment:
+      REPLICA_ID: '2'
+      FROM: '[["QUEUE", "transactions_source"]]'
+      TO: '[["QUEUE", "filtered_tx_2024_2025_q1"], ["QUEUE", "filtered_tx_2024_2025_q4"]]'
+      MODULE_NAME: year
+      REPLICAS: '3'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -161,7 +233,43 @@ services:
       FROM: '[["QUEUE", "filtered_tx_2024_2025_q1"]]'
       TO: '[["QUEUE", "filtered_tx_6am_11pm_q1"], ["QUEUE", "filtered_tx_6am_11pm_q3"]]'
       MODULE_NAME: hour
-      REPLICAS: '1'
+      REPLICAS: '3'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_6am_11pm_1:
+    container_name: filter_tx_6am_11pm_1
+    image: filter_worker
+    environment:
+      REPLICA_ID: '1'
+      FROM: '[["QUEUE", "filtered_tx_2024_2025_q1"]]'
+      TO: '[["QUEUE", "filtered_tx_6am_11pm_q1"], ["QUEUE", "filtered_tx_6am_11pm_q3"]]'
+      MODULE_NAME: hour
+      REPLICAS: '3'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_tx_6am_11pm_2:
+    container_name: filter_tx_6am_11pm_2
+    image: filter_worker
+    environment:
+      REPLICA_ID: '2'
+      FROM: '[["QUEUE", "filtered_tx_2024_2025_q1"]]'
+      TO: '[["QUEUE", "filtered_tx_6am_11pm_q1"], ["QUEUE", "filtered_tx_6am_11pm_q3"]]'
+      MODULE_NAME: hour
+      REPLICAS: '3'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -179,7 +287,25 @@ services:
       FROM: '[["QUEUE", "filtered_tx_6am_11pm_q1"]]'
       TO: '[["QUEUE", "filtered_amount"]]'
       MODULE_NAME: amount
-      REPLICAS: '1'
+      REPLICAS: '2'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  filter_amount_1:
+    container_name: filter_amount_1
+    image: filter_worker
+    environment:
+      REPLICA_ID: '1'
+      FROM: '[["QUEUE", "filtered_tx_6am_11pm_q1"]]'
+      TO: '[["QUEUE", "filtered_amount"]]'
+      MODULE_NAME: amount
+      REPLICAS: '2'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
