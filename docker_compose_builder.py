@@ -147,7 +147,7 @@ class DockerComposeBuilder:
         worker.set_networks(["coffee"])
         worker.set_depends_on(service="gateway")
         worker.set_environment({"LOGGING_LEVEL": "DEBUG"})
-        dataset_from = "./.data" + "/dataset_full" if full_dataset else "/dataset_min"
+        dataset_from = "./.data" + ("/dataset_full" if full_dataset else "/dataset_min")
         worker.set_volume(from_vol=dataset_from, to_vol="/client/.data")
 
         self.services["client"] = worker.build()
@@ -337,11 +337,11 @@ class DockerComposeBuilder:
         worker.set_depends_on("rabbitmq", "service_healthy")
         worker.set_replicas(replicas)
         worker.set_module_name(module_name)
-        worker.add_from(from_type="QUEUE", from_name=to)
+        worker.add_from(from_type="QUEUE", from_name=from_queue)
         if not to_strategy or not to_routing_keys:
-            worker.add_to(to_type="QUEUE", to_name=from_queue)
+            worker.add_to(to_type="QUEUE", to_name=to)
         else:
-            worker.add_to(to_type="EXCHANGE", to_name=from_queue, strategy=to_strategy, routing_key=to_routing_keys)
+            worker.add_to(to_type="EXCHANGE", to_name=to, strategy=to_strategy, routing_key=to_routing_keys)
 
         self.services[name] = worker.build()
         return self

@@ -24,7 +24,7 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_full:/client/.data
+    - ./.data/dataset_min:/client/.data
   rabbitmq:
     container_name: rabbitmq
     image: rabbitmq:4.1.4-management
@@ -52,8 +52,8 @@ services:
       REPLICA_ID: '0'
       REPLICAS: '1'
       MODULE_NAME: menu
-      FROM: '[["QUEUE", "menu_items_source"]]'
-      TO: '[["EXCHANGE", "raw_menu_items_batches", "FANOUT", ["common"]]]'
+      FROM: '[["QUEUE", "raw_menu_items_batches"]]'
+      TO: '[["EXCHANGE", "menu_items_source", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -70,8 +70,8 @@ services:
       REPLICA_ID: '0'
       REPLICAS: '1'
       MODULE_NAME: store
-      FROM: '[["QUEUE", "stores_source"]]'
-      TO: '[["EXCHANGE", "raw_stores_batches", "FANOUT", ["common"]]]'
+      FROM: '[["QUEUE", "raw_stores_batches"]]'
+      TO: '[["EXCHANGE", "stores_source", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -88,8 +88,8 @@ services:
       REPLICA_ID: '0'
       REPLICAS: '1'
       MODULE_NAME: user
-      FROM: '[["QUEUE", "users_source"]]'
-      TO: '[["QUEUE", "raw_users_batches"]]'
+      FROM: '[["QUEUE", "raw_users_batches"]]'
+      TO: '[["QUEUE", "users_source"]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -106,8 +106,8 @@ services:
       REPLICA_ID: '0'
       REPLICAS: '1'
       MODULE_NAME: transaction
-      FROM: '[["QUEUE", "transactions_source"]]'
-      TO: '[["QUEUE", "raw_transactions_batches"]]'
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -124,8 +124,8 @@ services:
       REPLICA_ID: '0'
       REPLICAS: '1'
       MODULE_NAME: transaction_item
-      FROM: '[["QUEUE", "transaction_items_source"]]'
-      TO: '[["QUEUE", "raw_transaction_items_batches"]]'
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile

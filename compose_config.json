@@ -29,7 +29,7 @@
     "sink_q4": 1
   },
   "dataset": {
-    "full": "true"
+    "full": "false"
   },
   "rabbitmq": {
     "version": "4.1.4-management",

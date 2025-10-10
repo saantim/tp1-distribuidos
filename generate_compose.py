@@ -301,7 +301,7 @@ def main():
     config = load_config()
     builder = DockerComposeBuilder()
     builder.add_gateway()
-    builder.add_client(bool(config["dataset"]["full"]))
+    builder.add_client(config["dataset"]["full"].lower() == "true")
     builder.add_rabbitmq()
     builder = build_transformers(builder, config)
 
