@@ -142,7 +142,7 @@ def build_q3(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             from_queue="merged_semester_by_store",
             to="enriched_semester_tx",
             to_type="QUEUE",
-            enricher="store_source",
+            enricher="stores_source",
             enricher_strategy="FANOUT",
             enricher_routing_key=["common"],
             module_name="store_enricher",
@@ -307,7 +307,7 @@ def main():
 
     builder = build_q1(builder, config)
     builder = build_q2(builder, config)
-    # builder = build_q3(builder, config)
+    builder = build_q3(builder, config)
     # builder = build_q4(builder, config)
 
     builder.save("docker-compose.yml")

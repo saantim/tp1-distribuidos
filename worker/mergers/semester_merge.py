@@ -17,10 +17,12 @@ class Merger(MergerBase):
 
         current = cast(SemesterTPVByStore, self._merged)
 
-        for semester, dict_of_semester_store_tpv in message.semester_tpv_by_store.values():
-            for store_id, amount in dict_of_semester_store_tpv.values():
-                if not current.semester_tpv_by_store.get(semester):
-                    current.semester_tpv_by_store[semester] = {}
+        for semester, dict_of_semester_store_tpv in message.semester_tpv_by_store.items():
+
+            if not current.semester_tpv_by_store.get(semester):
+                current.semester_tpv_by_store[semester] = {}
+
+            for store_id, store_info in dict_of_semester_store_tpv.items():
                 if not current.semester_tpv_by_store[semester].get(store_id):
                     current.semester_tpv_by_store[semester][store_id] = StoreInfo(store_name=StoreName(""), amount=0.0)
-                current.semester_tpv_by_store[semester][store_id].amount += amount
+                current.semester_tpv_by_store[semester][store_id].amount += store_info.amount

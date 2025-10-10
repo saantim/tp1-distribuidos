@@ -67,7 +67,7 @@ class Analyzer:
             sender.stop()
             session.end()
 
-            results = ResultsCollector(session.network, self.shutdown_signal, expected_queries={"Q1", "Q2"})
+            results = ResultsCollector(session.network, self.shutdown_signal, expected_queries={"Q1", "Q2", "Q3"})
             results.collect()
 
             total_duration = time.time() - start_time

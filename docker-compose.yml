@@ -496,6 +496,79 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+  semester_aggregator_0:
+    container_name: semester_aggregator_0
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '0'
+      MODULE_NAME: semester_agg
+      REPLICAS: '1'
+      FROM: '[["QUEUE", "filtered_tx_6am_11pm_q3"]]'
+      TO: '[["QUEUE", "aggregated_semester_by_store"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  merger_semester_results_0:
+    container_name: merger_semester_results_0
+    image: merger_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      FROM: '[["QUEUE", "aggregated_semester_by_store"]]'
+      TO: '[["QUEUE", "merged_semester_by_store"]]'
+      MODULE_NAME: semester_merge
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/mergers/merger_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  enricher_semester_tx_0:
+    container_name: enricher_semester_tx_0
+    image: enricher_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: store_enricher
+      FROM: '[["QUEUE", "merged_semester_by_store"]]'
+      TO: '[["QUEUE", "enriched_semester_tx"]]'
+      ENRICHER: '[["EXCHANGE", "stores_source", "FANOUT", ["common"]]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  sink_q3_0:
+    container_name: sink_q3_0
+    image: sink_worker
+    environment:
+      REPLICA_ID: '0'
+      FROM: '[["QUEUE", "enriched_semester_tx"]]'
+      TO: '[["QUEUE", "results_q3"]]'
+      MODULE_NAME: sink_q3
+      REPLICAS: '1'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 volumes:
   rabbitmq-volume: null
 networks:
