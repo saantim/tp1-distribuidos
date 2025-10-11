@@ -37,3 +37,24 @@ logs-q3:
 logs-q4:
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transaction_|transformer_store_|transformer_user_|router_|aggregator_user_purchase_|top3_users_aggregator_|store_enricher_tx_|user_enricher_tx_|merger_final_top3_|sink_q4_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q4
+
+gen_min:
+	python3 .kaggle/build_expected.py --dataset min
+.PHONY: gen_min
+
+gen_full:
+	python3 .kaggle/build_expected.py --dataset full
+.PHONY: gen_full
+
+valid_min:
+	python3 .kaggle/validation.py --dataset min
+.PHONY: valid_min
+
+valid_full:
+	python3 .kaggle/validation.py --dataset full
+.PHONY: valid_full
+
+clean_res:
+	rm -rf .results/ pipeline/*.json
+	@echo "Cleaned pipeline results"
+.PHONY: clean_res
