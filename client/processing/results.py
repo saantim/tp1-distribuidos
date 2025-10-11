@@ -6,20 +6,68 @@ handles streaming result packets and EOF detection.
 import json
 import logging
 import time
+from pathlib import Path
 
 from shared.entity import EOF
 from shared.protocol import PacketType
 
 
+class ResultsSaver:
+    """Saves query results to disk for validation."""
+
+    def __init__(self, results_dir: str = ".results"):
+        pipeline_dir = Path(results_dir) / "pipeline"
+        self.results_dir = pipeline_dir
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.results_by_query = {}
+
+    def save_result(self, query_id: str, data: bytes):
+        """Save individual result data for a query."""
+        if query_id not in self.results_by_query:
+            self.results_by_query[query_id] = []
+
+        try:
+            result = json.loads(data.decode("utf-8"))
+            self.results_by_query[query_id].append(result)
+        except Exception as e:
+            logging.error(f"Failed to parse result for {query_id}: {e}")
+
+    def flush_to_disk(self):
+        """Write all accumulated results to disk."""
+        for query_id, results in self.results_by_query.items():
+            output_file = self.results_dir / f"{query_id.lower()}.json"
+
+            merged = self._merge_query_results(query_id, results)
+
+            with open(output_file, "w") as f:
+                json.dump(merged, f, indent=2)
+
+            logging.info(f"Saved {query_id} results to {output_file}")
+
+    @staticmethod
+    def _merge_query_results(query_id: str, results: list) -> dict:
+        """Merge multiple result chunks into single structure."""
+        if not results:
+            return {}
+
+        # Q1 returns list of transactions
+        if query_id == "Q1":
+            return results[0] if len(results) == 1 else results
+
+        # Q2, Q3, Q4 return structured dict
+        return results[0] if len(results) == 1 else {"merged": results}
+
+
 class ResultsCollector:
     """collects and displays query results from gateway."""
 
-    def __init__(self, network, shutdown_signal, expected_queries: set):
+    def __init__(self, network, shutdown_signal, expected_queries: set, results_dir: str = ".results"):
         self.network = network
         self.shutdown_signal = shutdown_signal
         self.expected_queries = expected_queries
         self.results_by_query = {}
         self.queries_complete = set()
+        self.saver = ResultsSaver(results_dir)
 
     def collect(self):
         """
@@ -49,6 +97,7 @@ class ResultsCollector:
                 else:
                     logging.warning(f"unexpected packet type: {packet.get_message_type()}")
 
+            self.saver.flush_to_disk()
             self.display_results()
 
         except Exception as e:
@@ -69,7 +118,10 @@ class ResultsCollector:
             )
             return
 
-        # Not EOF, accumulate result data
+        # Save to disk
+        self.saver.save_result(query_id, data)
+
+        # Keep in memory for display
         if query_id not in self.results_by_query:
             self.results_by_query[query_id] = []
         self.results_by_query[query_id].append(data)

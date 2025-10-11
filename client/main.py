@@ -46,6 +46,7 @@ def initialize_config():
         )
 
         config_params["data_dir"] = os.getenv("DATA_DIR", config["DATA"]["DATA_DIR"])
+        config_params["results_dir"] = os.getenv("RESULTS_DIR", config["DATA"]["RESULTS_DIR"])
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["LOGGING"]["LOGGING_LEVEL"])
     except KeyError as e:
         raise KeyError(f"Key was not found. Error: {e}. Aborting client")
@@ -105,11 +106,14 @@ def main():
     logging.debug(
         f"action: config | result: success | "
         f"gateway: {config_params['gateway_host']}:{config_params['gateway_port']} | "
-        f"data_dir: {config_params['data_dir']}"
+        f"data_dir: {config_params['data_dir']} | "
+        f"results_dir: {config_params['results_dir']}"
     )
 
     try:
-        analyzer_config = AnalyzerConfig(config_params["gateway_host"], config_params["gateway_port"])
+        analyzer_config = AnalyzerConfig(
+            config_params["gateway_host"], config_params["gateway_port"], config_params["results_dir"]
+        )
 
         folders = load_folders(config_params)
         if not folders:

@@ -94,9 +94,12 @@ class WorkerBuilder:
     def build(self):
         return self.params
 
-    def set_volume(self, from_vol: str, to_vol: str):
-        self.params["volumes"] = [f"{from_vol}:{to_vol}"]
-        return self.params
+    def add_volume(self, from_vol: str, to_vol: str):
+        """Agrega un volumen adicional a la lista existente"""
+        if "volumes" not in self.params:
+            self.params["volumes"] = []
+        self.params["volumes"].append(f"{from_vol}:{to_vol}")
+        return self
 
     def set_ports(self, param):
         self.params["ports"] = param
@@ -148,7 +151,9 @@ class DockerComposeBuilder:
         worker.set_depends_on(service="gateway")
         worker.set_environment({"LOGGING_LEVEL": "DEBUG"})
         dataset_from = "./.data" + ("/dataset_full" if full_dataset else "/dataset_min")
-        worker.set_volume(from_vol=dataset_from, to_vol="/client/.data")
+
+        worker.add_volume(from_vol=dataset_from, to_vol="/client/.data")
+        worker.add_volume(from_vol="./.results", to_vol="/client/.results")
 
         self.services["client"] = worker.build()
         return self
@@ -272,7 +277,7 @@ class DockerComposeBuilder:
     def add_rabbitmq(self) -> "DockerComposeBuilder":
         worker = WorkerBuilder("rabbitmq")
         worker.set_image("rabbitmq:4.1.4-management")
-        worker.set_volume(from_vol="rabbitmq-volume", to_vol="/var/lib/rabbitmq")
+        worker.add_volume(from_vol="rabbitmq-volume", to_vol="/var/lib/rabbitmq")
         worker.set_environment(
             {"RABBITMQ_DEFAULT_USER": "admin", "RABBITMQ_DEFAULT_PASS": "admin", "RABBITMQ_NODENAME": "rabbit@rabbitmq"}
         )
