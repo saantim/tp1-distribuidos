@@ -38,7 +38,7 @@ class Enricher(EnricherBase):
             return
 
         for store_id, users_map in incoming.user_purchases_by_store.items():
-            target_users = cast(self._loaded_entities, UserPurchasesByStore).user_purchases_by_store.setdefault(
+            target_users = cast(UserPurchasesByStore, self._loaded_entities).user_purchases_by_store.setdefault(
                 store_id, {}
             )
             for user_id, info in users_map.items():

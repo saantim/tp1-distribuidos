@@ -77,7 +77,8 @@ def build_q2(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
         builder.add_aggregator(
             aggregator_id=i,
             name=f"aggregator_period_{i}",
-            from_queue="filtered_item_amount",
+            from_type="QUEUE",
+            from_name="filtered_item_amount",
             to_queue="aggregated_item_by_period",
             module_name="period_agg",
             replicas=config["replicas"]["aggregator_period"],
@@ -121,7 +122,8 @@ def build_q3(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
         builder.add_aggregator(
             aggregator_id=i,
             name=f"semester_aggregator_{i}",
-            from_queue="filtered_tx_6am_11pm_q3",
+            from_type="QUEUE",
+            from_name="filtered_tx_6am_11pm_q3",
             to_queue="aggregated_semester_by_store",
             module_name="semester_agg",
             replicas=config["replicas"]["semester_aggregator"],
@@ -167,7 +169,10 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             router_id=i,
             name=f"router_{i}",
             from_queue="filtered_tx_2024_2025_q4",
-            to_queue="tx_filtered",  # TODO!: REVISAR
+            to="tx_filtered_q4",  # TODO!: REVISAR
+            to_type="EXCHANGE",
+            to_strategy="DIRECT",
+            to_routing_key=[f"tx_filtered_q4_{i}" for i in range(config["replicas"]["user_purchase_aggregator"])],
             module_name="router_transactions_q4",
             replicas=config["replicas"]["router"],
         )
@@ -175,7 +180,10 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
         builder.add_aggregator(
             aggregator_id=i,
             name=f"aggregator_user_purchase_{i}",
-            from_queue="tx_filtered",
+            from_name="tx_filtered_q4",
+            from_type="EXCHANGE",
+            from_strategy="DIRECT",
+            from_routing_key=[f"tx_filtered_q4_{i}"],
             to_queue="user_purchase_aggregated",
             module_name="user_purchase_aggregator",
             replicas=config["replicas"]["user_purchase_aggregator"],
@@ -184,7 +192,8 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
         builder.add_aggregator(
             aggregator_id=i,
             name=f"top3_users_aggregator_{i}",
-            from_queue="user_purchase_aggregated",
+            from_name="user_purchase_aggregated",
+            from_type="QUEUE",
             to_queue="top3_users_aggregated",
             module_name="top_3_users_aggregator",
             replicas=config["replicas"]["top3_users_aggregator"],
@@ -223,7 +232,7 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"merger_final_top3_{i}",
             from_queue="enriched_store_user_top3",
             to_queue="enriched_final_top3",
-            module_name="merger_final_top3_purchases",
+            module_name="top_3",
             replicas=config["replicas"]["merger_final_top3"],
         )
     for i in range(config["replicas"]["sink_q4"]):
@@ -308,7 +317,8 @@ def main():
     builder = build_q1(builder, config)
     builder = build_q2(builder, config)
     builder = build_q3(builder, config)
-    # builder = build_q4(builder, config)
+    # TODO: Refactor como se arma todo esto para hacerlo mas flexible.
+    builder = build_q4(builder, config)
 
     builder.save("docker-compose.yml")
     os.chmod("generate_compose.py", 0o755)

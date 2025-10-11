@@ -18,7 +18,7 @@ class Merger(MergerBase):
         current = cast(UserPurchasesByStore, self._merged)
 
         for store_id, new_users in message.user_purchases_by_store.items():
-            if not current.user_purchases_by_store[store_id]:
+            if store_id not in current.user_purchases_by_store:
                 # si me llega una tienda que no tengo, ese es mi top 3 por ahora.
                 current.user_purchases_by_store[store_id] = new_users
             else:

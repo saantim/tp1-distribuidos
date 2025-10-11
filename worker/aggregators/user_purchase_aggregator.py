@@ -1,4 +1,4 @@
-from typing import cast, Optional, Type
+from typing import cast, Type
 
 from shared.entity import Message, StoreName, Transaction
 from worker.aggregators.aggregator_base import AggregatorBase
@@ -11,29 +11,25 @@ class Aggregator(AggregatorBase):
     def get_entity_type(self) -> Type[Message]:
         return Transaction
 
-    def aggregator_fn(
-        self, aggregated: Optional[UserPurchasesByStore], transaction: Transaction
-    ) -> UserPurchasesByStore:
-        if aggregated is None:
-            aggregated = UserPurchasesByStore(user_purchases_by_store={})
+    def aggregator_fn(self, transaction: Transaction) -> None:
+        if self._aggregated is None:
+            self._aggregated = UserPurchasesByStore(user_purchases_by_store={})
 
         if not transaction.user_id:
-            return aggregated
+            return
 
-        if aggregated.user_purchases_by_store.get(transaction.store_id) is None:
-            aggregated.user_purchases_by_store[transaction.store_id] = {}
-        if aggregated.user_purchases_by_store[transaction.store_id].get(transaction.user_id) is None:
-            aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id] = UserPurchasesInfo(
+        if self._aggregated.user_purchases_by_store.get(transaction.store_id) is None:
+            self._aggregated.user_purchases_by_store[transaction.store_id] = {}
+        if self._aggregated.user_purchases_by_store[transaction.store_id].get(transaction.user_id) is None:
+            self._aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id] = UserPurchasesInfo(
                 user=transaction.user_id, birthday="", purchases=0, store_name=StoreName("")
             )
 
-        aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id].purchases += 1
-
-        return aggregated
+        self._aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id].purchases += 1
 
     def _end_of_session(self):
         if self._aggregated is not None:
-            self._aggregated = self._truncate_top_3(cast(self._aggregated, UserPurchasesByStore))
+            self._aggregated = self._truncate_top_3(cast(UserPurchasesByStore, self._aggregated))
             final = pack_entity_batch([self._aggregated])
             for output in self._output:
                 output.send(final)

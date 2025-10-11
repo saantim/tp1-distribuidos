@@ -171,7 +171,16 @@ class DockerComposeBuilder:
         return self
 
     def add_aggregator(
-        self, name: str, aggregator_id: int, from_queue: str, to_queue: str, module_name: str, replicas
+        self,
+        name: str,
+        aggregator_id: int,
+        to_queue: str,
+        module_name: str,
+        replicas,
+        from_name: str,
+        from_type: str,
+        from_strategy: str = None,
+        from_routing_key: List[str] = None,
     ) -> "DockerComposeBuilder":
         worker = WorkerBuilder(name)
         worker.set_image("aggregator_worker")
@@ -182,7 +191,7 @@ class DockerComposeBuilder:
         worker.set_depends_on("rabbitmq", "service_healthy")
         worker.set_module_name(module_name)
         worker.set_replicas(replicas)
-        worker.add_from(from_type="QUEUE", from_name=from_queue)
+        worker.add_from(from_type=from_type, from_name=from_name, strategy=from_strategy, routing_key=from_routing_key)
         worker.add_to(to_type="QUEUE", to_name=to_queue)
 
         self.services[name] = worker.build()
@@ -279,7 +288,16 @@ class DockerComposeBuilder:
         return self
 
     def add_router(
-        self, name: str, router_id: int, from_queue: str, to_queue: str, module_name: str, replicas: int
+        self,
+        name: str,
+        router_id: int,
+        from_queue: str,
+        to: str,
+        to_type: str,
+        to_strategy: str,
+        to_routing_key: list[str],
+        module_name: str,
+        replicas: int,
     ) -> "DockerComposeBuilder":
         worker = WorkerBuilder(name=name)
         worker.set_image("router_worker")
@@ -291,7 +309,8 @@ class DockerComposeBuilder:
         worker.set_replicas(replicas)
         worker.set_module_name(module_name)
         worker.add_from(from_type="QUEUE", from_name=from_queue)
-        worker.add_to(to_type="QUEUE", to_name=to_queue)  # TODO!: REVISAR
+        worker.add_to(to_type=to_type, to_name=to, strategy=to_strategy, routing_key=to_routing_key)
+        worker.add_to(to_type="QUEUE", to_name=to)  # TODO!: REVISAR
 
         self.services[name] = worker.build()
         return self
