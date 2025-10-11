@@ -4,7 +4,7 @@ from typing import cast, Type
 from shared.entity import Message, User
 from worker.enrichers.enricher_base import EnricherBase
 from worker.packer import pack_entity_batch
-from worker.types import UserPurchasesByStore, UserPurchasesInfo
+from worker.types import UserPurchasesByStore
 
 
 class Enricher(EnricherBase):
@@ -14,44 +14,46 @@ class Enricher(EnricherBase):
 
     def _flush_buffer(self) -> None:
         """Flush buffer to all queues"""
-        packed: bytes = pack_entity_batch([self._loaded_entities])
+        self._clear_non_enriched()
+        packed: bytes = pack_entity_batch(self._loaded_entities)
         for output in self._output:
             output.send(packed)
+        logging.info(f"action: finished_enrich | stage: {self._stage_name} | total: {self._enriched}")
+        self._enriched = 0
 
     def _enrich_entity_fn(self, incoming_user: User) -> None:
         """Enriches the Top3 lookup with user birthdates from User messages"""
-        for store_id, users_map in self._loaded_entities.user_purchases_by_store.items():
-            for user_id, user_info in users_map.items():
-                if int(incoming_user.user_id) == int(user_id):
-                    self._loaded_entities.user_purchases_by_store[store_id][user_id] = UserPurchasesInfo(
-                        user=incoming_user.user_id,
-                        birthday=str(incoming_user.birthdate),
-                        purchases=user_info.purchases,
-                        store_name=user_info.store_name,
-                    )
-                    logging.info(f"enriched {incoming_user.user_id} to {incoming_user.birthdate}")
+        if int(incoming_user.user_id) not in self._required_users:
+            return
+
+        for aggregation in self._loaded_entities:
+            aggregation = cast(UserPurchasesByStore, aggregation)
+            for _, users_dict in aggregation.user_purchases_by_store.items():
+                if str(incoming_user.user_id) in users_dict:
+                    users_dict[str(incoming_user.user_id)].birthday = str(incoming_user.birthdate)
+                    self._enriched += 1
 
     def _load_entity_fn(self, incoming: UserPurchasesByStore) -> None:
         """Builds lookup table from Top3 UserPurchasesByStore messages"""
         if self._loaded_entities is None:
-            self._loaded_entities = incoming
-            return
+            self._required_users = set()
+            self._loaded_entities = []
 
-        for store_id, users_map in incoming.user_purchases_by_store.items():
-            target_users = cast(UserPurchasesByStore, self._loaded_entities).user_purchases_by_store.setdefault(
-                store_id, {}
-            )
-            for user_id, info in users_map.items():
-                if user_id in target_users:
-                    existing = target_users[user_id]
-                    target_users[user_id] = UserPurchasesInfo(
-                        user=existing.user,
-                        birthday=existing.birthday or info.birthday,
-                        purchases=existing.purchases + info.purchases,
-                        store_name=existing.store_name or info.store_name,
-                    )
-                else:
-                    target_users[user_id] = info
+        self._loaded_entities.append(incoming)
+
+        for _, incoming_users_map in incoming.user_purchases_by_store.items():
+            for user_id, _ in incoming_users_map.items():
+                self._required_users.add(int(user_id))
+
+    def _clear_non_enriched(self):
+        """Remove users that weren't enriched with birthdate"""
+        for aggregation in self._loaded_entities:
+            aggregation = cast(UserPurchasesByStore, aggregation)
+            for store_id, users_dict in aggregation.user_purchases_by_store.items():
+                enriched_users = {
+                    user_id: info for user_id, info in users_dict.items() if info.birthday and info.birthday.strip()
+                }
+                aggregation.user_purchases_by_store[store_id] = enriched_users
 
     def get_enricher_type(self) -> Type[Message]:
         return UserPurchasesByStore

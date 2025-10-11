@@ -86,7 +86,43 @@ services:
     image: transformer_worker
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '1'
+      REPLICAS: '3'
+      MODULE_NAME: user
+      FROM: '[["QUEUE", "raw_users_batches"]]'
+      TO: '[["QUEUE", "users_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_user_1:
+    container_name: transformer_user_1
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      MODULE_NAME: user
+      FROM: '[["QUEUE", "raw_users_batches"]]'
+      TO: '[["QUEUE", "users_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_user_2:
+    container_name: transformer_user_2
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
       MODULE_NAME: user
       FROM: '[["QUEUE", "raw_users_batches"]]'
       TO: '[["QUEUE", "users_source"]]'
@@ -158,7 +194,79 @@ services:
     image: transformer_worker
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '1'
+      REPLICAS: '5'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_tx_items_1:
+    container_name: transformer_tx_items_1
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '5'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_tx_items_2:
+    container_name: transformer_tx_items_2
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '5'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_tx_items_3:
+    container_name: transformer_tx_items_3
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  transformer_tx_items_4:
+    container_name: transformer_tx_items_4
+    image: transformer_worker
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
       MODULE_NAME: transaction_item
       FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
       TO: '[["QUEUE", "transaction_items_source"]]'
@@ -393,7 +501,7 @@ services:
     environment:
       REPLICA_ID: '0'
       MODULE_NAME: period_agg
-      REPLICAS: '3'
+      REPLICAS: '5'
       FROM: '[["QUEUE", "filtered_item_amount"]]'
       TO: '[["QUEUE", "aggregated_item_by_period"]]'
     build:
@@ -411,7 +519,7 @@ services:
     environment:
       REPLICA_ID: '1'
       MODULE_NAME: period_agg
-      REPLICAS: '3'
+      REPLICAS: '5'
       FROM: '[["QUEUE", "filtered_item_amount"]]'
       TO: '[["QUEUE", "aggregated_item_by_period"]]'
     build:
@@ -429,7 +537,43 @@ services:
     environment:
       REPLICA_ID: '2'
       MODULE_NAME: period_agg
-      REPLICAS: '3'
+      REPLICAS: '5'
+      FROM: '[["QUEUE", "filtered_item_amount"]]'
+      TO: '[["QUEUE", "aggregated_item_by_period"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  aggregator_period_3:
+    container_name: aggregator_period_3
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '3'
+      MODULE_NAME: period_agg
+      REPLICAS: '5'
+      FROM: '[["QUEUE", "filtered_item_amount"]]'
+      TO: '[["QUEUE", "aggregated_item_by_period"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  aggregator_period_4:
+    container_name: aggregator_period_4
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '4'
+      MODULE_NAME: period_agg
+      REPLICAS: '5'
       FROM: '[["QUEUE", "filtered_item_amount"]]'
       TO: '[["QUEUE", "aggregated_item_by_period"]]'
     build:
@@ -667,7 +811,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       REPLICAS: '5'
       FROM: '[["EXCHANGE", "tx_filtered_q4", "DIRECT", ["tx_filtered_q4_0"]]]'
-      TO: '[["QUEUE", "user_purchase_aggregated"]]'
+      TO: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -685,7 +829,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       REPLICAS: '5'
       FROM: '[["EXCHANGE", "tx_filtered_q4", "DIRECT", ["tx_filtered_q4_1"]]]'
-      TO: '[["QUEUE", "user_purchase_aggregated"]]'
+      TO: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -703,7 +847,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       REPLICAS: '5'
       FROM: '[["EXCHANGE", "tx_filtered_q4", "DIRECT", ["tx_filtered_q4_2"]]]'
-      TO: '[["QUEUE", "user_purchase_aggregated"]]'
+      TO: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -721,7 +865,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       REPLICAS: '5'
       FROM: '[["EXCHANGE", "tx_filtered_q4", "DIRECT", ["tx_filtered_q4_3"]]]'
-      TO: '[["QUEUE", "user_purchase_aggregated"]]'
+      TO: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -739,48 +883,11 @@ services:
       MODULE_NAME: user_purchase_aggregator
       REPLICAS: '5'
       FROM: '[["EXCHANGE", "tx_filtered_q4", "DIRECT", ["tx_filtered_q4_4"]]]'
-      TO: '[["QUEUE", "user_purchase_aggregated"]]'
+      TO: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
     entrypoint: python /worker/aggregators/aggregator_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  top3_users_aggregator_0:
-    container_name: top3_users_aggregator_0
-    image: aggregator_worker
-    environment:
-      REPLICA_ID: '0'
-      MODULE_NAME: top_3_users_aggregator
-      REPLICAS: '1'
-      FROM: '[["QUEUE", "user_purchase_aggregated"]]'
-      TO: '[["QUEUE", "top3_users_aggregated"]]'
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-  store_enricher_tx_0:
-    container_name: store_enricher_tx_0
-    image: enricher_worker
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '1'
-      MODULE_NAME: store_enricher_q4
-      FROM: '[["QUEUE", "top3_users_aggregated"]]'
-      TO: '[["EXCHANGE", "top3_users_store_enriched", "FANOUT", ["common"]]]'
-      ENRICHER: '[["EXCHANGE", "stores_source", "FANOUT", ["common"]]]'
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -791,11 +898,49 @@ services:
     image: enricher_worker
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '1'
+      REPLICAS: '3'
       MODULE_NAME: user_enricher
       FROM: '[["QUEUE", "users_source"]]'
       TO: '[["QUEUE", "enriched_store_user_top3"]]'
-      ENRICHER: '[["EXCHANGE", "top3_users_store_enriched", "FANOUT", ["common"]]]'
+      ENRICHER: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  user_enricher_tx_1:
+    container_name: user_enricher_tx_1
+    image: enricher_worker
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      MODULE_NAME: user_enricher
+      FROM: '[["QUEUE", "users_source"]]'
+      TO: '[["QUEUE", "enriched_store_user_top3"]]'
+      ENRICHER: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  user_enricher_tx_2:
+    container_name: user_enricher_tx_2
+    image: enricher_worker
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
+      MODULE_NAME: user_enricher
+      FROM: '[["QUEUE", "users_source"]]'
+      TO: '[["QUEUE", "enriched_store_user_top3"]]'
+      ENRICHER: '[["EXCHANGE", "user_purchase_aggregated", "FANOUT", ["common"]]]'
     build:
       context: .
       dockerfile: ./worker/Dockerfile
@@ -823,12 +968,31 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+  store_enricher_tx_0:
+    container_name: store_enricher_tx_0
+    image: enricher_worker
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      MODULE_NAME: store_enricher_q4
+      FROM: '[["QUEUE", "enriched_final_top3"]]'
+      TO: '[["QUEUE", "top3_users_store_enriched"]]'
+      ENRICHER: '[["EXCHANGE", "stores_source", "FANOUT", ["common"]]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   sink_q4_0:
     container_name: sink_q4_0
     image: sink_worker
     environment:
       REPLICA_ID: '0'
-      FROM: '[["QUEUE", "enriched_final_top3"]]'
+      FROM: '[["QUEUE", "top3_users_store_enriched"]]'
       TO: '[["QUEUE", "results_q4"]]'
       MODULE_NAME: sink_q4
       REPLICAS: '1'

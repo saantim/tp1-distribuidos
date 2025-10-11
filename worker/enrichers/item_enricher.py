@@ -1,4 +1,3 @@
-import logging
 from typing import Type
 
 from shared.entity import MenuItem, Message
@@ -26,6 +25,6 @@ class Enricher(EnricherBase):
                 if name:
                     new = ItemInfo(item_name=ItemName(name), amount=item_info.amount, quantity=item_info.quantity)
                     entity.transaction_item_per_period[period][item_id] = new
-                    logging.info(f"enriched from {item_id} to {name}")
+                    self._enriched += 1
 
         return entity

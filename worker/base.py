@@ -141,7 +141,8 @@ class WorkerBase(ABC):
                 self._on_entity_upstream(channel, method, properties, message)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
-            logging.info(f"action: batch_process | stage: {self._stage_name} | error: {str(e)}")
+            _ = e
+            logging.exception(f"action: batch_process | stage: {self._stage_name}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _on_message_intra_exchange(self, channel, method, _properties, body: bytes) -> None:
@@ -152,9 +153,8 @@ class WorkerBase(ABC):
         eof_message: EOFIntraExchange = EOFIntraExchange.deserialize(body)
         worker_id = eof_message.worker_id
 
-        logging.info(f"action: got_intra_msg | from_worker: {worker_id} | stage: {self._stage_name}")
-
         if self._leader:
+            logging.info(f"action: got_intra_msg | from_worker: {worker_id} | stage: {self._stage_name}")
             self._eof_collected.add(worker_id)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)

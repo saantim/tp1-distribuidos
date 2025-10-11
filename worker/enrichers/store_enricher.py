@@ -1,4 +1,3 @@
-import logging
 from typing import Type
 
 from shared.entity import Message, Store
@@ -20,7 +19,7 @@ class Enricher(EnricherBase):
                 if name:
                     new = StoreInfo(store_name=name, amount=store_info.amount)
                     entity.semester_tpv_by_store[semester][store_id] = new
-                    logging.info(f"enriched from {store_id} to {name}")
+                    self._enriched += 1
         return entity
 
     def get_enricher_type(self) -> Type[Message]:

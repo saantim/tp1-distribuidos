@@ -13,9 +13,13 @@ class Enricher(EnricherBase):
                 store_name = self._loaded_entities.get(int(store_id), "")
                 if store_name:
                     new = UserPurchasesInfo(
-                        user=user_id, purchases=user_purchase_info.purchases, store_name=store_name, birthday=""
+                        user=user_id,
+                        purchases=user_purchase_info.purchases,
+                        store_name=store_name,
+                        birthday=user_purchase_info.birthday,
                     )
                     entity.user_purchases_by_store[store_id][user_id] = new
+                    self._enriched += 1
         return entity
 
     def _load_entity_fn(self, store: Store) -> None:

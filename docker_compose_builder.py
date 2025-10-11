@@ -174,11 +174,14 @@ class DockerComposeBuilder:
         self,
         name: str,
         aggregator_id: int,
-        to_queue: str,
         module_name: str,
         replicas,
+        to_name: str,
+        to_type: str,
         from_name: str,
         from_type: str,
+        to_strategy: str = None,
+        to_routing_key: List[str] = None,
         from_strategy: str = None,
         from_routing_key: List[str] = None,
     ) -> "DockerComposeBuilder":
@@ -192,7 +195,7 @@ class DockerComposeBuilder:
         worker.set_module_name(module_name)
         worker.set_replicas(replicas)
         worker.add_from(from_type=from_type, from_name=from_name, strategy=from_strategy, routing_key=from_routing_key)
-        worker.add_to(to_type="QUEUE", to_name=to_queue)
+        worker.add_to(to_type=to_type, to_name=to_name, strategy=to_strategy, routing_key=to_routing_key)
 
         self.services[name] = worker.build()
         return self

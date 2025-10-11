@@ -21,6 +21,7 @@ class EnricherBase(WorkerBase, ABC):
         enricher_input: MessageMiddleware,
     ):
         super().__init__(instances, index, stage_name, source, output, intra_exchange)
+        self._enriched = 0
         self._loaded_entities: Optional[Message] = None
         self._buffer: list[Message] = []
         self._buffer_size: int = 500
@@ -39,7 +40,9 @@ class EnricherBase(WorkerBase, ABC):
         packed: bytes = pack_entity_batch(self._buffer)
         for output in self._output:
             output.send(packed)
+        logging.info(f"action: finished_enrich | stage: {self._stage_name} | total: {self._enriched}")
         self._buffer.clear()
+        self._enriched = 0
 
     @abstractmethod
     def _enrich_entity_fn(self, entity: Message) -> Message:

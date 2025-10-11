@@ -79,7 +79,8 @@ def build_q2(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"aggregator_period_{i}",
             from_type="QUEUE",
             from_name="filtered_item_amount",
-            to_queue="aggregated_item_by_period",
+            to_type="QUEUE",
+            to_name="aggregated_item_by_period",
             module_name="period_agg",
             replicas=config["replicas"]["aggregator_period"],
         )
@@ -124,7 +125,8 @@ def build_q3(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             name=f"semester_aggregator_{i}",
             from_type="QUEUE",
             from_name="filtered_tx_6am_11pm_q3",
-            to_queue="aggregated_semester_by_store",
+            to_type="QUEUE",
+            to_name="aggregated_semester_by_store",
             module_name="semester_agg",
             replicas=config["replicas"]["semester_aggregator"],
         )
@@ -184,34 +186,12 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             from_type="EXCHANGE",
             from_strategy="DIRECT",
             from_routing_key=[f"tx_filtered_q4_{i}"],
-            to_queue="user_purchase_aggregated",
-            module_name="user_purchase_aggregator",
-            replicas=config["replicas"]["user_purchase_aggregator"],
-        )
-    for i in range(config["replicas"]["top3_users_aggregator"]):
-        builder.add_aggregator(
-            aggregator_id=i,
-            name=f"top3_users_aggregator_{i}",
-            from_name="user_purchase_aggregated",
-            from_type="QUEUE",
-            to_queue="top3_users_aggregated",
-            module_name="top_3_users_aggregator",
-            replicas=config["replicas"]["top3_users_aggregator"],
-        )
-    for i in range(config["replicas"]["store_enricher_tx"]):
-        builder.add_enricher(
-            enricher_id=i,
-            name=f"store_enricher_tx_{i}",
-            from_queue="top3_users_aggregated",
-            to="top3_users_store_enriched",
             to_type="EXCHANGE",
+            to_name="user_purchase_aggregated",
             to_strategy="FANOUT",
             to_routing_key=["common"],
-            enricher="stores_source",
-            enricher_strategy="FANOUT",
-            enricher_routing_key=["common"],
-            module_name="store_enricher_q4",
-            replicas=config["replicas"]["store_enricher_tx"],
+            module_name="user_purchase_aggregator",
+            replicas=config["replicas"]["user_purchase_aggregator"],
         )
     for i in range(config["replicas"]["user_enricher_tx"]):
         builder.add_enricher(
@@ -220,7 +200,7 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             from_queue="users_source",
             to="enriched_store_user_top3",
             to_type="QUEUE",
-            enricher="top3_users_store_enriched",
+            enricher="user_purchase_aggregated",
             enricher_strategy="FANOUT",
             enricher_routing_key=["common"],
             module_name="user_enricher",
@@ -235,11 +215,24 @@ def build_q4(builder: DockerComposeBuilder, config: Dict[str, Any]) -> DockerCom
             module_name="top_3",
             replicas=config["replicas"]["merger_final_top3"],
         )
+    for i in range(config["replicas"]["store_enricher_tx"]):
+        builder.add_enricher(
+            enricher_id=i,
+            name=f"store_enricher_tx_{i}",
+            from_queue="enriched_final_top3",
+            to="top3_users_store_enriched",
+            to_type="QUEUE",
+            enricher="stores_source",
+            enricher_strategy="FANOUT",
+            enricher_routing_key=["common"],
+            module_name="store_enricher_q4",
+            replicas=config["replicas"]["store_enricher_tx"],
+        )
     for i in range(config["replicas"]["sink_q4"]):
         builder.add_sink(
             sink_id=i,
             name=f"sink_q4_{i}",
-            from_queue="enriched_final_top3",
+            from_queue="top3_users_store_enriched",
             to_queue="results_q4",
             module_name="sink_q4",
             replicas=config["replicas"]["sink_q4"],
