@@ -154,30 +154,22 @@ class WorkerBase(ABC):
 
         logging.info(f"action: got_intra_msg | from_worker: {worker_id} | stage: {self._stage_name}")
 
-        # Leader collects all EOF messages
         if self._leader:
             self._eof_collected.add(worker_id)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)
 
-        # All workers end their session when they receive the FIRST EOF message
-        # This ensures all workers flush their buffers, regardless of who received upstream EOF
+        # TODO: si uno de los workers nunca laburo, nunca activa su sesion, por ende no propaga su Intra.
+        #   buscar luego una manera de fixear.
         if self._session_active:
             self._end_of_session()
-
             self._session_active = False
-
-            # Report our own EOF to the exchange so the leader knows we're done
-            # This happens for all workers, ensuring the leader can collect all EOFs
             self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize())
 
-        # Only leader flushes EOF downstream after collecting ALL worker EOFs
         if self._leader:
             self._flush_eof()
 
     def _flush_eof(self):
-        # Only flush ONCE when we have ALL EOFs and session is still active
-        # The session_active check ensures we only flush once
         if len(self._eof_collected) == self._instances:
             for output in self._output:
                 output.send(EOF().serialize())

@@ -502,7 +502,43 @@ services:
     environment:
       REPLICA_ID: '0'
       MODULE_NAME: semester_agg
-      REPLICAS: '1'
+      REPLICAS: '3'
+      FROM: '[["QUEUE", "filtered_tx_6am_11pm_q3"]]'
+      TO: '[["QUEUE", "aggregated_semester_by_store"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  semester_aggregator_1:
+    container_name: semester_aggregator_1
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '1'
+      MODULE_NAME: semester_agg
+      REPLICAS: '3'
+      FROM: '[["QUEUE", "filtered_tx_6am_11pm_q3"]]'
+      TO: '[["QUEUE", "aggregated_semester_by_store"]]'
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  semester_aggregator_2:
+    container_name: semester_aggregator_2
+    image: aggregator_worker
+    environment:
+      REPLICA_ID: '2'
+      MODULE_NAME: semester_agg
+      REPLICAS: '3'
       FROM: '[["QUEUE", "filtered_tx_6am_11pm_q3"]]'
       TO: '[["QUEUE", "aggregated_semester_by_store"]]'
     build:

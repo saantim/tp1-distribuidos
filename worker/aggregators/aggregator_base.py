@@ -24,7 +24,6 @@ class AggregatorBase(WorkerBase, ABC):
 
     def _end_of_session(self):
         if self._aggregated is not None:
-            logging.info(f"FLUSHING: {self._aggregated}")
             final = pack_entity_batch([self._aggregated])
             for output in self._output:
                 output.send(final)

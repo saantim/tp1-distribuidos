@@ -16,7 +16,7 @@
     "enricher_item": 1,
     "semester_aggregator": 3,
     "merger_semester_results": 1,
-    "enricher_semester_tx": 3,
+    "enricher_semester_tx": 1,
     "top3_users_aggregator": 1,
     "store_enricher_tx": 1,
     "user_enricher_tx": 1,
