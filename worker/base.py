@@ -1,17 +1,18 @@
 import logging
 import threading
+import uuid
 from abc import ABC, abstractmethod
 from typing import Type
 
 from shared.entity import EOF, Message
 from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
+from shared.protocol import SESSION_ID
 from shared.shutdown import ShutdownSignal
 from worker.packer import unpack_entity_batch
 from worker.types import EOFIntraExchange
 
 
 class WorkerBase(ABC):
-
     def __init__(
         self,
         instances: int,
@@ -25,12 +26,12 @@ class WorkerBase(ABC):
         self._instances: int = instances
         self._index: int = index
         self._leader: bool = index == 0
-        self._eof_collected = set()
+        self._active_sessions: set[uuid.UUID] = set()
+        self._eof_collected_by_session: dict[uuid.UUID, set[str]] = {}
         self._source: MessageMiddleware = source
         self._output: list[MessageMiddleware] = output
         self._intra_exchange: MessageMiddlewareExchange = intra_exchange
 
-        self._session_active = False
         self._data_thread = None
         self._control_thread = None
         self._shutdown_event = threading.Event()
@@ -86,14 +87,12 @@ class WorkerBase(ABC):
         """Cleanup method that stops consuming and waits for threads."""
         logging.info(f"action: cleanup_start | stage: {self._stage_name}")
 
-        # Stop consuming - sets the _should_stop flag
         try:
             self._source.stop_consuming()
             self._intra_exchange.stop_consuming()
         except Exception as e:
             logging.debug(f"Error stopping consumers: {e}")
 
-        # Wait for threads - they should exit within ~2 seconds after stop flag is set
         if self._data_thread and self._data_thread.is_alive():
             self._data_thread.join(timeout=5.0)
             if self._data_thread.is_alive():
@@ -104,7 +103,6 @@ class WorkerBase(ABC):
             if self._control_thread.is_alive():
                 logging.warning(f"action: control_thread_timeout | stage: {self._stage_name}")
 
-        # Close connections
         try:
             self._source.close()
             self._intra_exchange.close()
@@ -118,34 +116,40 @@ class WorkerBase(ABC):
         logging.info(f"action: signal_received | stage: {self._stage_name} | signal: {_signum}")
         self.stop()
 
-    def _handle_eof(self, message: bytes) -> bool:
+    def _handle_eof(self, message: bytes, session_id: uuid.UUID) -> bool:
         if not EOF.is_type(message):
             return False
 
-        logging.info(f"action: receive_EOF | stage: {self._stage_name} | from: {self._source}")
-        self._session_active = False
-        self._end_of_session()
-        self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize())
+        logging.info(f"action: receive_EOF | stage: {self._stage_name} | session: {session_id} | from: {self._source}")
+        self._active_sessions.discard(session_id)
+        self._end_of_session(session_id)
+        self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.int})
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
-        if not self._session_active:
-            self._session_active = True
+        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
 
-        if self._handle_eof(body):
+        if session_id not in self._active_sessions:
+            self._active_sessions.add(session_id)
+            self._eof_collected_by_session[session_id] = set()
+            self._start_of_session(session_id)
+
+        if self._handle_eof(body, session_id):
             channel.basic_ack(delivery_tag=method.delivery_tag)
             return
 
         try:
             for message in unpack_entity_batch(body, self.get_entity_type()):
-                self._on_entity_upstream(channel, method, properties, message)
+                self._on_entity_upstream(message, session_id)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
             logging.exception(f"action: batch_process | stage: {self._stage_name}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-    def _on_message_intra_exchange(self, channel, method, _properties, body: bytes) -> None:
+    def _on_message_intra_exchange(self, channel, method, properties, body: bytes) -> None:
+        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
+
         if not EOFIntraExchange.is_type(body):
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             return
@@ -154,33 +158,41 @@ class WorkerBase(ABC):
         worker_id = eof_message.worker_id
 
         if self._leader:
-            logging.info(f"action: got_intra_msg | from_worker: {worker_id} | stage: {self._stage_name}")
-            self._eof_collected.add(worker_id)
+            logging.info(
+                f"action: got_intra_msg | from_worker: {worker_id} |"
+                f" stage: {self._stage_name} | session: {session_id}"
+            )
+            self._eof_collected_by_session[session_id].add(worker_id)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)
 
         # TODO: si uno de los workers nunca laburo, nunca activa su sesion, por ende no propaga su Intra.
         #   buscar luego una manera de fixear.
-        if self._session_active:
-            self._end_of_session()
-            self._session_active = False
-            self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize())
+        if session_id in self._active_sessions:
+            self._active_sessions.discard(session_id)
+            self._end_of_session(session_id)
+            self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id})
 
         if self._leader:
-            self._flush_eof()
+            self._flush_eof_if_possible(session_id)
 
-    def _flush_eof(self):
-        if len(self._eof_collected) == self._instances:
+    def _flush_eof_if_possible(self, session_id: uuid.UUID) -> None:
+        if len(self._eof_collected_by_session[session_id]) == self._instances:
             for output in self._output:
-                output.send(EOF().serialize())
-                logging.info(f"action: flush_eof | to: {output}")
+                output.send(EOF().serialize(), headers={SESSION_ID: session_id})
+                logging.info(f"action: flush_eof | to: {output} | session: {session_id}")
+            self._eof_collected_by_session.pop(session_id, None)
 
     @abstractmethod
-    def _end_of_session(self):
+    def _end_of_session(self, session_id: uuid.UUID):
         pass
 
     @abstractmethod
-    def _on_entity_upstream(self, channel, method, properties, message: Message) -> None:
+    def _start_of_session(self, session_id: uuid.UUID):
+        pass
+
+    @abstractmethod
+    def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
         pass
 
     @abstractmethod

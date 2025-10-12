@@ -23,7 +23,7 @@ class Transformer(TransformerBase):
     def get_entity_type(self) -> Type[Message]:
         return Store
 
-    def parse_csv_row(self, csv_row: str) -> dict:
+    def parse_fn(self, csv_row: str) -> dict:
         """
         Parse CSV row string into dictionary.
         """
@@ -37,7 +37,7 @@ class Transformer(TransformerBase):
             "store_name": parts[1].strip(),
         }
 
-    def create_entity(self, row_dict: dict) -> Store:
+    def create_fn(self, row_dict: dict) -> Store:
         """
         Create Store entity from parsed row dictionary.
 

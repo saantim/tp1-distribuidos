@@ -1,8 +1,10 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
+from shared.protocol import SESSION_ID
 from worker.base import WorkerBase
 
 
@@ -22,17 +24,20 @@ class SinkBase(WorkerBase, ABC):
         intra_exchange: MessageMiddlewareExchange,
     ):
         super().__init__(instances, index, stage_name, source, output, intra_exchange)
-        self._results_collected: list[Message] = []
+        self._results_per_session: dict[uuid.UUID, list[Message]] = {}
 
     @abstractmethod
     def format_fn(self, results_collected: list[Message]) -> bytes: ...
 
-    def _end_of_session(self):
-        formatted_results: bytes = self.format_fn(self._results_collected)
+    def _start_of_session(self, session_id: uuid.UUID):
+        self._results_per_session[session_id] = []
+
+    def _end_of_session(self, session_id: uuid.UUID):
+        formatted_results: bytes = self.format_fn(self._results_per_session[session_id])
         if formatted_results:
             for output in self._output:
-                output.send(formatted_results)
-            logging.info(f"Sent batch results ({len(formatted_results)} bytes)")
+                output.send(formatted_results, headers={SESSION_ID: session_id.int})
+            logging.info(f"Sent batch results ({len(formatted_results)} bytes) | session: {session_id}")
 
-    def _on_entity_upstream(self, channel, method, properties, message: Message) -> None:
-        self._results_collected.append(message)
+    def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
+        self._results_per_session[session_id].append(message)

@@ -24,7 +24,7 @@ class Transformer(TransformerBase):
     def get_entity_type(self) -> Type[Message]:
         return User
 
-    def parse_csv_row(self, csv_row: str) -> dict:
+    def parse_fn(self, csv_row: str) -> dict:
         """
         Parse CSV row string into dictionary.
         """
@@ -41,7 +41,7 @@ class Transformer(TransformerBase):
             "birthdate": birthdate,
         }
 
-    def create_entity(self, row_dict: dict) -> User:
+    def create_fn(self, row_dict: dict) -> User:
         """
         Create User entity from parsed row dictionary.
 

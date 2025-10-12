@@ -22,7 +22,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         self._host: str = host
         self._queue_name: str = queue_name
         self._local = threading.local()
-        self._should_stop = False  # Shared across threads, accessed from worker thread
+        self._should_stop = False
 
     def _ensure_connection(self):
         """Ensure connection exists for current thread (thread-local storage)."""
@@ -78,15 +78,16 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         """
         self._should_stop = True
 
-    def send(self, message: str | bytes, routing_key: Optional[str] = None) -> None:
+    def send(self, message: str | bytes, routing_key: Optional[str] = None, headers: Optional[dict] = None) -> None:
         """Publish a message to the queue."""
         try:
             self._ensure_connection()
+            properties = pika.BasicProperties(delivery_mode=1, headers=headers)
             self._local.channel.basic_publish(
                 exchange="",
                 routing_key=self._queue_name,
                 body=message,
-                properties=pika.BasicProperties(delivery_mode=1),
+                properties=properties,
             )
         except AMQPConnectionError as e:
             logging.exception(e)
@@ -112,6 +113,51 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         except Exception as e:
             logging.exception(e)
             raise MessageMiddlewareDeleteError(e)
+
+
+def declare_queue_with_dlq(host: str, queue_name: str, dlq_ttl_ms: int, dlq_target_queue: str = None) -> str:
+    """
+    Declara una cola con Dead Letter Queue (DLQ).
+
+    Crea una cola que expira mensajes después de dlq_ttl_ms y los reenvía
+    a dlq_target_queue cuando expiran.
+
+    Args:
+        host: RabbitMQ host
+        queue_name: Nombre de la cola a crear (será la DLQ)
+        dlq_ttl_ms: TTL en ms para mensajes en esta cola
+        dlq_target_queue: Cola destino cuando expire (default: queue_name sin sufijo)
+
+    Returns:
+        Nombre de la cola DLQ creada (queue_name)
+    """
+    if dlq_target_queue is None:
+        dlq_target_queue = queue_name
+
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(
+            host=host,
+            port=5672,
+            credentials=pika.PlainCredentials(username="admin", password="admin"),
+            heartbeat=6000,
+        )
+    )
+    channel = connection.channel()
+
+    try:
+        channel.queue_declare(queue=dlq_target_queue, durable=False)
+        channel.queue_declare(
+            queue=queue_name,
+            durable=False,
+            arguments={
+                "x-message-ttl": dlq_ttl_ms,
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": dlq_target_queue,
+            },
+        )
+        return queue_name
+    finally:
+        connection.close()
 
 
 class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
@@ -177,15 +223,20 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
         """
         self._should_stop = True
 
-    def send(self, message: str | bytes, routing_key: Optional[str] = None) -> None:
+    def send(self, message: str | bytes, routing_key: Optional[str] = None, headers: Optional[dict] = None) -> None:
         """Publish the given message to each configured routing key on the exchange."""
         try:
             self._ensure_connection()
+            properties = pika.BasicProperties(delivery_mode=1, headers=headers)
             if routing_key:
-                self._local.channel.basic_publish(exchange=self._exchange_name, routing_key=routing_key, body=message)
+                self._local.channel.basic_publish(
+                    exchange=self._exchange_name, routing_key=routing_key, body=message, properties=properties
+                )
             else:
                 for route_key in self._route_keys:
-                    self._local.channel.basic_publish(exchange=self._exchange_name, routing_key=route_key, body=message)
+                    self._local.channel.basic_publish(
+                        exchange=self._exchange_name, routing_key=route_key, body=message, properties=properties
+                    )
         except AMQPConnectionError as e:
             logging.exception(e)
             raise MessageMiddlewareDisconnectedError(e)

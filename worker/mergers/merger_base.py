@@ -1,9 +1,11 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from typing import Optional
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
+from shared.protocol import SESSION_ID
 from worker.base import WorkerBase
 from worker.packer import pack_entity_batch
 
@@ -19,23 +21,28 @@ class MergerBase(WorkerBase, ABC):
         intra_exchange: MessageMiddlewareExchange,
     ):
         super().__init__(instances, index, stage_name, source, output, intra_exchange)
-        self._merged: Optional[Message] = None
+        self._merged_per_session: dict[uuid.UUID, Optional[Message]] = {}
 
     @abstractmethod
-    def merger_fn(self, payload: Message) -> None:
+    def merger_fn(self, merged: Optional[Message], payload: Message) -> None:
         pass
 
-    def _end_of_session(self):
-        if self._merged is not None:
-            self._flush_merged()
+    def _start_of_session(self, session_id: uuid.UUID):
+        self._merged_per_session[session_id] = None
 
-    def _on_entity_upstream(self, channel, method, properties, message: Message) -> None:
-        self.merger_fn(message)
+    def _end_of_session(self, session_id: uuid.UUID):
+        if self._merged_per_session[session_id] is not None:
+            self._flush_merged(session_id)
 
-    def _flush_merged(self) -> None:
+    def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
+        self._merged_per_session[session_id] = self.merger_fn(self._merged_per_session[session_id], message)
+
+    def _flush_merged(self, session_id: uuid.UUID) -> None:
         """Flush buffer to all queues"""
-        packed: bytes = pack_entity_batch([self._merged])
+        packed: bytes = pack_entity_batch([self._merged_per_session[session_id]])
+
         for output in self._output:
-            output.send(packed)
-            logging.info(f"action: flushed_merge | to: {output}")
-        self._merged = None
+            output.send(packed, headers={SESSION_ID: session_id})
+            logging.info(f"action: flushed_merge | to: {output} | session: {session_id}")
+
+        self._merged_per_session[session_id] = None

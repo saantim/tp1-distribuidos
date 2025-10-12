@@ -1,25 +1,26 @@
+import uuid
 from typing import Type
 
-from shared.entity import Message, Store
+from shared.entity import Message, Store, StoreName
 from worker.enrichers.enricher_base import EnricherBase
 from worker.types import SemesterTPVByStore, StoreInfo
 
 
 class Enricher(EnricherBase):
 
-    def _load_entity_fn(self, store: Store) -> None:
-        if not self._loaded_entities:
-            self._loaded_entities = {}
-        self._loaded_entities[int(store.store_id)] = store.store_name
+    def _load_entity_fn(self, loaded_entities: dict, entity: Store) -> dict:
+        loaded_entities[int(entity.store_id)] = entity.store_name
+        return loaded_entities
 
-    def _enrich_entity_fn(self, entity: SemesterTPVByStore) -> Message:
+    def _enrich_entity_fn(
+        self, loaded_entities: dict, entity: SemesterTPVByStore, session_id: uuid.UUID = None
+    ) -> SemesterTPVByStore:
         for semester in entity.semester_tpv_by_store.keys():
             for store_id, store_info in entity.semester_tpv_by_store[semester].items():
-                name = self._loaded_entities.get(int(store_id), "")
+                name = loaded_entities.get(int(store_id), "")
                 if name:
-                    new = StoreInfo(store_name=name, amount=store_info.amount)
+                    new = StoreInfo(store_name=StoreName(name), amount=store_info.amount)
                     entity.semester_tpv_by_store[semester][store_id] = new
-                    self._enriched += 1
         return entity
 
     def get_enricher_type(self) -> Type[Message]:

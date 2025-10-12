@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Type
+from typing import Optional, Type
 
 from shared.entity import Message, StoreName, Transaction
 from worker.aggregators.aggregator_base import AggregatorBase
@@ -10,18 +10,20 @@ class Aggregator(AggregatorBase):
     def get_entity_type(self) -> Type[Message]:
         return Transaction
 
-    def aggregator_fn(self, message: Transaction) -> None:
+    def aggregator_fn(self, aggregated: Optional[SemesterTPVByStore], message: Transaction) -> SemesterTPVByStore:
         semester: Semester = self._get_semester(message.created_at)
 
-        if self._aggregated is None:
-            self._aggregated = SemesterTPVByStore(semester_tpv_by_store={})
-        if not self._aggregated.semester_tpv_by_store.get(semester):
-            self._aggregated.semester_tpv_by_store[semester] = {}
-        if not self._aggregated.semester_tpv_by_store[semester].get(message.store_id):
-            self._aggregated.semester_tpv_by_store[semester][message.store_id] = StoreInfo(
+        if aggregated is None:
+            aggregated = SemesterTPVByStore(semester_tpv_by_store={})
+        if not aggregated.semester_tpv_by_store.get(semester):
+            aggregated.semester_tpv_by_store[semester] = {}
+        if not aggregated.semester_tpv_by_store[semester].get(message.store_id):
+            aggregated.semester_tpv_by_store[semester][message.store_id] = StoreInfo(
                 store_name=StoreName(""), amount=0.0
             )
-        self._aggregated.semester_tpv_by_store[semester][message.store_id].amount += message.final_amount
+        aggregated.semester_tpv_by_store[semester][message.store_id].amount += message.final_amount
+
+        return aggregated
 
     @staticmethod
     def _get_semester(dt: datetime) -> Semester:
