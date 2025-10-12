@@ -19,7 +19,7 @@ def _get_datetime_fields(cls) -> Set[str]:
 class Message(ABC):
 
     def __str__(self):
-        return asdict(self)
+        return str(asdict(self))
 
     def serialize(self) -> bytes:
         """Optimized serialization."""
@@ -92,6 +92,7 @@ class Store(Message):
 
 
 Quantity = NewType("Quantity", int)
+Subtotal = NewType("Subtotal", float)
 CreatedAt = NewType("CreatedAt", datetime)
 
 
@@ -99,6 +100,7 @@ CreatedAt = NewType("CreatedAt", datetime)
 class TransactionItem(Message):
     item_id: ItemId
     quantity: Quantity
+    subtotal: Subtotal
     created_at: CreatedAt
 
 

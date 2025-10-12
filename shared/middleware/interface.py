@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 
 class MessageMiddlewareMessageError(Exception):
@@ -38,7 +39,7 @@ class MessageMiddleware(ABC):
     # Si se pierde la conexión con el middleware eleva MessageMiddlewareDisconnectedError.
     # Si ocurre un error interno que no puede resolverse eleva MessageMiddlewareMessageError.
     @abstractmethod
-    def send(self, message: bytes):
+    def send(self, message: bytes, routing_key: Optional[str] = None):
         pass
 
     # Se desconecta de la cola o exchange al que estaba conectado.

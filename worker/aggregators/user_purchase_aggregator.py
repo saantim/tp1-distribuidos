@@ -1,24 +1,47 @@
-from typing import Optional
+from typing import cast, Type
 
-from shared.entity import StoreName, Transaction
+from shared.entity import Message, StoreName, Transaction
+from worker.aggregators.aggregator_base import AggregatorBase
+from worker.packer import pack_entity_batch
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 
-def aggregator_fn(aggregated: Optional[UserPurchasesByStore], message: bytes) -> UserPurchasesByStore:
-    transaction = Transaction.deserialize(message)
-    if aggregated is None:
-        aggregated = UserPurchasesByStore(user_purchases_by_store={})
+class Aggregator(AggregatorBase):
 
-    if not transaction.user_id:
+    def get_entity_type(self) -> Type[Message]:
+        return Transaction
+
+    def aggregator_fn(self, transaction: Transaction) -> None:
+        if self._aggregated is None:
+            self._aggregated = UserPurchasesByStore(user_purchases_by_store={})
+
+        if not transaction.user_id:
+            return
+
+        if self._aggregated.user_purchases_by_store.get(transaction.store_id) is None:
+            self._aggregated.user_purchases_by_store[transaction.store_id] = {}
+        if self._aggregated.user_purchases_by_store[transaction.store_id].get(transaction.user_id) is None:
+            self._aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id] = UserPurchasesInfo(
+                user=transaction.user_id, birthday="", purchases=0, store_name=StoreName("")
+            )
+
+        self._aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id].purchases += 1
+
+    def _end_of_session(self):
+        if self._aggregated is not None:
+            self._aggregated = self._truncate_top_3(cast(UserPurchasesByStore, self._aggregated))
+            final = pack_entity_batch([self._aggregated])
+            for output in self._output:
+                output.send(final)
+
+    @staticmethod
+    def _truncate_top_3(aggregated: UserPurchasesByStore) -> UserPurchasesByStore:
+        for store_id, dict_of_user_purchases_info in aggregated.user_purchases_by_store.items():
+            users_purchases_info = list(dict_of_user_purchases_info.values())
+            users_purchases_info.sort(key=lambda x: x.purchases, reverse=True)
+            users_purchases_info = users_purchases_info[:3]
+            aggregated.user_purchases_by_store[store_id] = {
+                user_purchases_info.user: user_purchases_info for user_purchases_info in users_purchases_info
+            }
+
         return aggregated
-
-    if aggregated.user_purchases_by_store.get(transaction.store_id) is None:
-        aggregated.user_purchases_by_store[transaction.store_id] = {}
-    if aggregated.user_purchases_by_store[transaction.store_id].get(transaction.user_id) is None:
-        aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id] = UserPurchasesInfo(
-            user=transaction.user_id, birthday="", purchases=0, store_name=StoreName("")
-        )
-
-    aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id].purchases += 1
-
-    return aggregated

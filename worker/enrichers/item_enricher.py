@@ -1,26 +1,30 @@
-import logging
-from typing import Optional
+from typing import Type
 
-from shared.entity import MenuItem
+from shared.entity import MenuItem, Message
+from worker.enrichers.enricher_base import EnricherBase
 from worker.types import ItemInfo, ItemName, TransactionItemByPeriod
 
 
-def build_enricher_fn(enricher: Optional[dict[int, str]], payload: bytes) -> dict[int, str]:
-    menu_item: MenuItem = MenuItem.deserialize(payload)
-    if not enricher:
-        enricher = {}
-    enricher[int(menu_item.item_id)] = menu_item.item_name
-    return enricher
+class Enricher(EnricherBase):
 
+    def _load_entity_fn(self, message: MenuItem) -> None:
+        if not self._loaded_entities:
+            self._loaded_entities = {}
+        self._loaded_entities[int(message.item_id)] = message.item_name
 
-def enricher_fn(enricher: dict[int, str], payload: bytes) -> TransactionItemByPeriod:
-    enriched: TransactionItemByPeriod = TransactionItemByPeriod.deserialize(payload)
-    for period, items in enriched.transaction_item_per_period.items():
-        for item_id, item_info in items.items():
-            name = enricher.get(int(item_id), "")
-            if name:
-                new = ItemInfo(item_name=ItemName(name), amount=item_info.amount, quantity=item_info.quantity)
-                enriched.transaction_item_per_period[period][item_id] = new
-                logging.info(f"enriched from {item_id} to {name}")
+    def get_enricher_type(self) -> Type[Message]:
+        return MenuItem
 
-    return enriched
+    def get_entity_type(self) -> Type[Message]:
+        return TransactionItemByPeriod
+
+    def _enrich_entity_fn(self, entity: TransactionItemByPeriod) -> TransactionItemByPeriod:
+        for period, items in entity.transaction_item_per_period.items():
+            for item_id, item_info in items.items():
+                name = self._loaded_entities.get(int(item_id), "")
+                if name:
+                    new = ItemInfo(item_name=ItemName(name), amount=item_info.amount, quantity=item_info.quantity)
+                    entity.transaction_item_per_period[period][item_id] = new
+                    self._enriched += 1
+
+        return entity

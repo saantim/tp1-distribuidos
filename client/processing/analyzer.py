@@ -20,9 +20,10 @@ from .session import Session
 class AnalyzerConfig:
     """configuration for the analyzer."""
 
-    def __init__(self, gateway_host: str, gateway_port: int):
+    def __init__(self, gateway_host: str, gateway_port: int, results_dir: str):
         self.gateway_host = gateway_host
         self.gateway_port = gateway_port
+        self.results_dir = results_dir
 
 
 class FolderConfig:
@@ -52,7 +53,6 @@ class Analyzer:
         session = Session(self.config.gateway_host, self.config.gateway_port, self.shutdown_signal)
 
         try:
-
             session.connect()
             session.start()
 
@@ -67,7 +67,12 @@ class Analyzer:
             sender.stop()
             session.end()
 
-            results = ResultsCollector(session.network, self.shutdown_signal, expected_queries={"Q1"})
+            results = ResultsCollector(
+                session.network,
+                self.shutdown_signal,
+                expected_queries={"Q1", "Q2", "Q3", "Q4"},
+                results_dir=self.config.results_dir,
+            )
             results.collect()
 
             total_duration = time.time() - start_time

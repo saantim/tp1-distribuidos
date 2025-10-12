@@ -17,7 +17,7 @@ def main():
     if not hasattr(merger_module, "Merger"):
         raise AttributeError(f"Module {module_name} must have a 'Merger' class")
 
-    worker_merger = merger_module.Filter(
+    worker_merger = merger_module.Merger(
         instances=instances,
         index=filter_id,
         stage_name=module_name,

@@ -1,18 +1,17 @@
 import hashlib
-import os
+from typing import Type
 
-from shared.entity import Transaction
-
-
-SUFFIX_NUMBER: int = int(os.getenv("TO_SUFFIX_NUM", 1))
+from shared.entity import Message, Transaction
+from worker.router.router_base import RouterBase
 
 
-def router_fn(payload: bytes) -> str:
-    tx: Transaction = Transaction.deserialize(payload)
+class Router(RouterBase):
+    def get_entity_type(self) -> Type[Message]:
+        return Transaction
 
-    key = f"{tx.user_id}{tx.store_id}".encode()
-    digest = hashlib.sha256(key).hexdigest()
+    def router_fn(self, tx: Transaction) -> str:
+        key = f"{tx.user_id}{tx.store_id}".encode()
+        digest = hashlib.sha256(key).hexdigest()
 
-    hashed_num = int(digest, 16) % SUFFIX_NUMBER
-
-    return f"tx_filtered_{hashed_num + 1}"
+        hashed_index = int(digest, 16) % len(self.routing_keys)
+        return self.routing_keys[hashed_index]
