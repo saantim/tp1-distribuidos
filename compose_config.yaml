@@ -1,0 +1,263 @@
+settings:
+  dataset: "minimal"
+  rabbitmq:
+    version: "4.1.4-management"
+    user: "admin"
+    password: "admin"
+
+# Transformers: parsean los CSVs crudos
+transformers:
+  menu_items:
+    module: "menu"
+    replicas: 1
+    input:
+      queue: "raw_menu_items_batches"
+    output:
+      exchange: "menu_items_source"
+      strategy: "FANOUT"
+      routing_keys: ["common"]
+
+  stores:
+    module: "store"
+    replicas: 1
+    input:
+      queue: "raw_stores_batches"
+    output:
+      exchange: "stores_source"
+      strategy: "FANOUT"
+      routing_keys: ["common"]
+
+  users:
+    module: "user"
+    replicas: 3
+    input:
+      queue: "raw_users_batches"
+    output:
+      queue: "users_source"
+
+  transactions:
+    module: "transaction"
+    replicas: 3
+    input:
+      queue: "raw_transactions_batches"
+    output:
+      queue: "transactions_source"
+
+  transaction_items:
+    module: "transaction_item"
+    replicas: 5
+    input:
+      queue: "raw_transaction_items_batches"
+    output:
+      queue: "transaction_items_source"
+
+# Queries del sistema
+queries:
+  q1:
+    description: "Filtrar transacciones por año → hora → monto"
+    enabled: true
+    stages:
+      filter_year:
+        type: "filter"
+        module: "year"
+        replicas: 3
+        input:
+          queue: "transactions_source"
+        output:
+          queues: ["q1.filtered_year", "q4.filtered_year"]
+
+      filter_hour:
+        type: "filter"
+        module: "hour"
+        replicas: 3
+        input:
+          queue: "q1.filtered_year"
+        output:
+          queues: ["q1.filtered_hour", "q3.filtered_hour"]
+
+      filter_amount:
+        type: "filter"
+        module: "amount"
+        replicas: 2
+        input:
+          queue: "q1.filtered_hour"
+        output:
+          queue: "q1.filtered_amount"
+
+      sink:
+        type: "sink"
+        module: "sink_q1"
+        replicas: 1
+        input:
+          queue: "q1.filtered_amount"
+        output:
+          queue: "results_q1"
+
+  q2:
+    description: "Filtrar items → agregar por período → enriquecer con menú"
+    enabled: true
+    stages:
+      filter_items:
+        type: "filter"
+        module: "item_year"
+        replicas: 3
+        input:
+          queue: "transaction_items_source"
+        output:
+          queue: "q2.filtered_items"
+
+      aggregate_period:
+        type: "aggregator"
+        module: "period_agg"
+        replicas: 5
+        input:
+          queue: "q2.filtered_items"
+        output:
+          queue: "q2.aggregated_period"
+
+      merge_period:
+        type: "merger"
+        module: "period_merge"
+        replicas: 1
+        input:
+          queue: "q2.aggregated_period"
+        output:
+          queue: "q2.merged_period"
+
+      enrich_items:
+        type: "enricher"
+        module: "item_enricher"
+        replicas: 1
+        input:
+          queue: "q2.merged_period"
+        enricher:
+          exchange: "menu_items_source"
+          strategy: "FANOUT"
+          routing_keys: ["common"]
+        output:
+          queue: "q2.enriched_items"
+
+      sink:
+        type: "sink"
+        module: "sink_q2"
+        replicas: 1
+        input:
+          queue: "q2.enriched_items"
+        output:
+          queue: "results_q2"
+
+  q3:
+    description: "Agregar por semestre/tienda → enriquecer con datos de tienda"
+    enabled: true
+    stages:
+      aggregate_semester:
+        type: "aggregator"
+        module: "semester_agg"
+        replicas: 3
+        input:
+          queue: "q3.filtered_hour"
+        output:
+          queue: "q3.aggregated_semester"
+
+      merge_semester:
+        type: "merger"
+        module: "semester_merge"
+        replicas: 1
+        input:
+          queue: "q3.aggregated_semester"
+        output:
+          queue: "q3.merged_semester"
+
+      enrich_stores:
+        type: "enricher"
+        module: "store_enricher"
+        replicas: 1
+        input:
+          queue: "q3.merged_semester"
+        enricher:
+          exchange: "stores_source"
+          strategy: "FANOUT"
+          routing_keys: ["common"]
+        output:
+          queue: "q3.enriched_stores"
+
+      sink:
+        type: "sink"
+        module: "sink_q3"
+        replicas: 1
+        input:
+          queue: "q3.enriched_stores"
+        output:
+          queue: "results_q3"
+
+  q4:
+    description: "Rutear → agregar por usuario → enriquecer → merge top-3 → enriquecer con tienda"
+    enabled: true
+    stages:
+      route_transactions:
+        type: "router"
+        module: "router_transactions_q4"
+        replicas: 3
+        input:
+          queue: "q4.filtered_year"
+        output:
+          exchange: "q4.routed_tx"
+          strategy: "DIRECT"
+          routing_keys: ["q4.route_0", "q4.route_1", "q4.route_2", "q4.route_3", "q4.route_4"]
+
+      aggregate_users:
+        type: "aggregator"
+        module: "user_purchase_aggregator"
+        replicas: 5
+        input:
+          exchange: "q4.routed_tx"
+          strategy: "DIRECT"
+          routing_keys_indexed: true
+        output:
+          exchange: "q4.aggregated_users"
+          strategy: "FANOUT"
+          routing_keys: ["common"]
+
+      enrich_users:
+        type: "enricher"
+        module: "user_enricher"
+        replicas: 3
+        input:
+          queue: "users_source"
+        enricher:
+          exchange: "q4.aggregated_users"
+          strategy: "FANOUT"
+          routing_keys: ["common"]
+        output:
+          queue: "q4.enriched_users"
+
+      merge_top3:
+        type: "merger"
+        module: "top_3"
+        replicas: 1
+        input:
+          queue: "q4.enriched_users"
+        output:
+          queue: "q4.merged_top3"
+
+      enrich_stores:
+        type: "enricher"
+        module: "store_enricher_q4"
+        replicas: 1
+        input:
+          queue: "q4.merged_top3"
+        enricher:
+          exchange: "stores_source"
+          strategy: "FANOUT"
+          routing_keys: ["common"]
+        output:
+          queue: "q4.enriched_stores"
+
+      sink:
+        type: "sink"
+        module: "sink_q4"
+        replicas: 1
+        input:
+          queue: "q4.enriched_stores"
+        output:
+          queue: "results_q4"
