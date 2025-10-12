@@ -1,5 +1,5 @@
 settings:
-  dataset: "minimal"
+  dataset: "full"
   rabbitmq:
     version: "4.1.4-management"
     user: "admin"
@@ -203,7 +203,7 @@ queries:
         output:
           exchange: "q4.routed_tx"
           strategy: "DIRECT"
-          routing_keys: ["q4.route_0", "q4.route_1", "q4.route_2", "q4.route_3", "q4.route_4"]
+          routing_keys_from: "aggregate_users"  # Auto-genera según replicas del stage destino
 
       aggregate_users:
         type: "aggregator"

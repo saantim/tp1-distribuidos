@@ -48,7 +48,7 @@ def create_worker_service(name, worker_type, replica_id, total_replicas, module,
     return service
 
 
-def parse_connection(conn_config):
+def parse_connection(conn_config, replica_id=0, total_replicas=1):
     """Parse a connection config into (type, name, strategy, routing_keys) tuple"""
     if not conn_config:
         return None
@@ -56,11 +56,16 @@ def parse_connection(conn_config):
     if "queue" in conn_config:
         return "QUEUE", conn_config["queue"]
     elif "queues" in conn_config:
-        # Multiple queues - return list of tuples
         return [("QUEUE", q) for q in conn_config["queues"]]
     elif "exchange" in conn_config:
         strategy = conn_config.get("strategy")
         routing_keys = conn_config.get("routing_keys", [])
+        routing_keys_indexed = conn_config.get("routing_keys_indexed", False)
+
+        if routing_keys_indexed and strategy:
+            exchange_name = conn_config["exchange"]
+            base_name = exchange_name.rsplit("_", 1)[0] if "_" in exchange_name else exchange_name
+            routing_keys = [f"{base_name}_{replica_id}"]
 
         if strategy and routing_keys:
             return "EXCHANGE", conn_config["exchange"], strategy, routing_keys
@@ -89,18 +94,42 @@ def add_transformer_workers(services, name, transformer):
         )
 
 
-def add_stage_workers(services, query_name, stage_name, stage):
+def resolve_routing_keys(conn_config, query_config):
+    """Resuelve routing_keys_from para generar automáticamente los routing keys"""
+    if not conn_config or "routing_keys_from" not in conn_config:
+        return conn_config
+
+    # Buscar el stage referenciado
+    target_stage = conn_config["routing_keys_from"]
+    if target_stage in query_config.get("stages", {}):
+        target_replicas = query_config["stages"][target_stage]["replicas"]
+        # Generar routing keys basándose en el exchange name
+        exchange_name = conn_config["exchange"]
+        base_name = exchange_name.rsplit("_", 1)[0] if "_" in exchange_name else exchange_name
+        conn_config["routing_keys"] = [f"{base_name}_{i}" for i in range(target_replicas)]
+        del conn_config["routing_keys_from"]
+
+    return conn_config
+
+
+def add_stage_workers(services, query_name, stage_name, stage, query_config):
     """Add workers for a query stage"""
     for i in range(stage["replicas"]):
         full_name = f"{query_name}_{stage_name}"
         worker_name = f"{full_name}_{i}" if stage["replicas"] > 1 else full_name
 
-        # Parse inputs
-        input_conn = parse_connection(stage.get("input"))
+        # Resolver routing_keys automáticos
+        if stage.get("output"):
+            stage["output"] = resolve_routing_keys(stage["output"], query_config)
+        if stage.get("input"):
+            stage["input"] = resolve_routing_keys(stage["input"], query_config)
+
+        # Parse inputs (con replica_id para routing_keys_indexed)
+        input_conn = parse_connection(stage.get("input"), i, stage["replicas"])
         inputs = [input_conn] if isinstance(input_conn, tuple) else input_conn
 
         # Parse outputs
-        output_conn = parse_connection(stage.get("output"))
+        output_conn = parse_connection(stage.get("output"), i, stage["replicas"])
         outputs = []
         if output_conn:
             outputs = [output_conn] if isinstance(output_conn, tuple) else output_conn
@@ -108,7 +137,7 @@ def add_stage_workers(services, query_name, stage_name, stage):
         # Parse enricher
         enricher = None
         if stage.get("enricher"):
-            enricher = parse_connection(stage["enricher"])
+            enricher = parse_connection(stage["enricher"], i, stage["replicas"])
 
         services[worker_name] = create_worker_service(
             name=worker_name,
@@ -181,7 +210,7 @@ def generate_compose(config):
             continue
 
         for stage_name, stage in query.get("stages", {}).items():
-            add_stage_workers(services, query_name, stage_name, stage)
+            add_stage_workers(services, query_name, stage_name, stage, query)
 
     # Build complete compose
     compose = {

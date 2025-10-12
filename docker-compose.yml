@@ -44,7 +44,7 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_min:/client/.data
+    - ./.data/dataset_full:/client/.data
     - ./.results:/client/.results
   transformer_menu_items:
     container_name: transformer_menu_items
@@ -767,7 +767,7 @@ services:
       REPLICAS: '3'
       MODULE_NAME: router_transactions_q4
       FROM: '[["QUEUE", "q4.filtered_year"]]'
-      TO: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.route_0", "q4.route_1", "q4.route_2", "q4.route_3", "q4.route_4"]]]'
+      TO: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_0", "q4.routed_1", "q4.routed_2", "q4.routed_3", "q4.routed_4"]]]'
   q4_route_transactions_1:
     container_name: q4_route_transactions_1
     image: router_worker
@@ -785,7 +785,7 @@ services:
       REPLICAS: '3'
       MODULE_NAME: router_transactions_q4
       FROM: '[["QUEUE", "q4.filtered_year"]]'
-      TO: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.route_0", "q4.route_1", "q4.route_2", "q4.route_3", "q4.route_4"]]]'
+      TO: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_0", "q4.routed_1", "q4.routed_2", "q4.routed_3", "q4.routed_4"]]]'
   q4_route_transactions_2:
     container_name: q4_route_transactions_2
     image: router_worker
@@ -803,7 +803,7 @@ services:
       REPLICAS: '3'
       MODULE_NAME: router_transactions_q4
       FROM: '[["QUEUE", "q4.filtered_year"]]'
-      TO: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.route_0", "q4.route_1", "q4.route_2", "q4.route_3", "q4.route_4"]]]'
+      TO: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_0", "q4.routed_1", "q4.routed_2", "q4.routed_3", "q4.routed_4"]]]'
   q4_aggregate_users_0:
     container_name: q4_aggregate_users_0
     image: aggregator_worker
@@ -820,7 +820,7 @@ services:
       REPLICA_ID: '0'
       REPLICAS: '5'
       MODULE_NAME: user_purchase_aggregator
-      FROM: '[["EXCHANGE", "q4.routed_tx"]]'
+      FROM: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_0"]]]'
       TO: '[["EXCHANGE", "q4.aggregated_users", "FANOUT", ["common"]]]'
   q4_aggregate_users_1:
     container_name: q4_aggregate_users_1
@@ -838,7 +838,7 @@ services:
       REPLICA_ID: '1'
       REPLICAS: '5'
       MODULE_NAME: user_purchase_aggregator
-      FROM: '[["EXCHANGE", "q4.routed_tx"]]'
+      FROM: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_1"]]]'
       TO: '[["EXCHANGE", "q4.aggregated_users", "FANOUT", ["common"]]]'
   q4_aggregate_users_2:
     container_name: q4_aggregate_users_2
@@ -856,7 +856,7 @@ services:
       REPLICA_ID: '2'
       REPLICAS: '5'
       MODULE_NAME: user_purchase_aggregator
-      FROM: '[["EXCHANGE", "q4.routed_tx"]]'
+      FROM: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_2"]]]'
       TO: '[["EXCHANGE", "q4.aggregated_users", "FANOUT", ["common"]]]'
   q4_aggregate_users_3:
     container_name: q4_aggregate_users_3
@@ -874,7 +874,7 @@ services:
       REPLICA_ID: '3'
       REPLICAS: '5'
       MODULE_NAME: user_purchase_aggregator
-      FROM: '[["EXCHANGE", "q4.routed_tx"]]'
+      FROM: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_3"]]]'
       TO: '[["EXCHANGE", "q4.aggregated_users", "FANOUT", ["common"]]]'
   q4_aggregate_users_4:
     container_name: q4_aggregate_users_4
@@ -892,7 +892,7 @@ services:
       REPLICA_ID: '4'
       REPLICAS: '5'
       MODULE_NAME: user_purchase_aggregator
-      FROM: '[["EXCHANGE", "q4.routed_tx"]]'
+      FROM: '[["EXCHANGE", "q4.routed_tx", "DIRECT", ["q4.routed_4"]]]'
       TO: '[["EXCHANGE", "q4.aggregated_users", "FANOUT", ["common"]]]'
   q4_enrich_users_0:
     container_name: q4_enrich_users_0
