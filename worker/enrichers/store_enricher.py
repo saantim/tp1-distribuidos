@@ -1,4 +1,3 @@
-import uuid
 from typing import Type
 
 from shared.entity import Message, Store, StoreName
@@ -12,9 +11,7 @@ class Enricher(EnricherBase):
         loaded_entities[int(entity.store_id)] = entity.store_name
         return loaded_entities
 
-    def _enrich_entity_fn(
-        self, loaded_entities: dict, entity: SemesterTPVByStore, session_id: uuid.UUID = None
-    ) -> SemesterTPVByStore:
+    def _enrich_entity_fn(self, loaded_entities: dict, entity: SemesterTPVByStore) -> SemesterTPVByStore:
         for semester in entity.semester_tpv_by_store.keys():
             for store_id, store_info in entity.semester_tpv_by_store[semester].items():
                 name = loaded_entities.get(int(store_id), "")

@@ -1,4 +1,3 @@
-import uuid
 from typing import Type
 
 from shared.entity import Message, Store, StoreName
@@ -8,9 +7,7 @@ from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 class Enricher(EnricherBase):
 
-    def _enrich_entity_fn(
-        self, loaded_entities: dict, entity: UserPurchasesByStore, session_id: uuid.UUID = None
-    ) -> UserPurchasesByStore:
+    def _enrich_entity_fn(self, loaded_entities: dict, entity: UserPurchasesByStore) -> UserPurchasesByStore:
         for store_id, user_info in entity.user_purchases_by_store.items():
             for user_id, user_purchase_info in user_info.items():
                 store_name = loaded_entities.get(int(store_id), "")

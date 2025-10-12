@@ -1,4 +1,3 @@
-import uuid
 from typing import Type
 
 from shared.entity import MenuItem, Message
@@ -18,9 +17,7 @@ class Enricher(EnricherBase):
     def get_entity_type(self) -> Type[Message]:
         return TransactionItemByPeriod
 
-    def _enrich_entity_fn(
-        self, loaded_entities: dict, entity: TransactionItemByPeriod, session_id: uuid.UUID = None
-    ) -> TransactionItemByPeriod:
+    def _enrich_entity_fn(self, loaded_entities: dict, entity: TransactionItemByPeriod) -> TransactionItemByPeriod:
         for period, items in entity.transaction_item_per_period.items():
             for item_id, item_info in items.items():
                 name = loaded_entities.get(int(item_id), "")

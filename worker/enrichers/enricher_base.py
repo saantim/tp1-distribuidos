@@ -147,7 +147,7 @@ class EnricherBase(WorkerBase, ABC):
             self._flush_buffer(session_id)
 
     @abstractmethod
-    def _enrich_entity_fn(self, loaded_entities: dict, entity: Message, session_id: uuid.UUID = None) -> Message:
+    def _enrich_entity_fn(self, loaded_entities: dict, entity: Message) -> Message:
         pass
 
     @abstractmethod
