@@ -9,6 +9,11 @@ from worker.types import UserPurchasesByStore
 
 class Enricher(EnricherBase):
 
+    def __init__(self, instances, index, stage_name, source, output, intra_exchange, enricher_input):
+        super().__init__(instances, index, stage_name, source, output, intra_exchange, enricher_input)
+        self._required_users = set()
+        self._loaded_entities = []
+
     def _on_entity_upstream(self, channel, method, properties, message: User) -> None:
         self._enrich_entity_fn(message)
 
@@ -35,10 +40,6 @@ class Enricher(EnricherBase):
 
     def _load_entity_fn(self, incoming: UserPurchasesByStore) -> None:
         """Builds lookup table from Top3 UserPurchasesByStore messages"""
-        if self._loaded_entities is None:
-            self._required_users = set()
-            self._loaded_entities = []
-
         self._loaded_entities.append(incoming)
 
         for _, incoming_users_map in incoming.user_purchases_by_store.items():
