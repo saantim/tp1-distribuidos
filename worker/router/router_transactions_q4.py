@@ -1,12 +1,8 @@
 import hashlib
-import os
 from typing import Type
 
 from shared.entity import Message, Transaction
 from worker.router.router_base import RouterBase
-
-
-SUFFIX_NUMBER: int = int(os.getenv("TO_SUFFIX_NUM", 5))
 
 
 class Router(RouterBase):
@@ -17,6 +13,5 @@ class Router(RouterBase):
         key = f"{tx.user_id}{tx.store_id}".encode()
         digest = hashlib.sha256(key).hexdigest()
 
-        hashed_num = int(digest, 16) % SUFFIX_NUMBER
-
-        return f"tx_filtered_q4_{hashed_num}"
+        hashed_index = int(digest, 16) % len(self.routing_keys)
+        return self.routing_keys[hashed_index]

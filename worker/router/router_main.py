@@ -1,10 +1,20 @@
 # worker/router/router_main.py
 import importlib
+import json
 import os
 from types import ModuleType
 
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from worker.utils import build_middlewares_list
+
+
+def extract_routing_keys(destinations: str) -> list[str]:
+    """Extract routing keys from TO configuration for routing logic"""
+    destinations_list = json.loads(destinations)
+    for dest in destinations_list:
+        if dest[0] == "EXCHANGE" and len(dest) >= 4:
+            return dest[3]
+    return []
 
 
 def main():
@@ -18,6 +28,8 @@ def main():
     if not hasattr(router_module, "Router"):
         raise AttributeError(f"Module {module_name} must have a 'Router' class")
 
+    routing_keys = extract_routing_keys(destinations)
+
     worker_router = router_module.Router(
         instances=instances,
         index=router_id,
@@ -25,6 +37,7 @@ def main():
         source=build_middlewares_list(sources)[0],
         output=build_middlewares_list(destinations),
         intra_exchange=MessageMiddlewareExchangeRMQ(host="rabbitmq", exchange_name=module_name, route_keys=["common"]),
+        routing_keys=routing_keys,
     )
     worker_router.start()
 

@@ -18,12 +18,14 @@ class RouterBase(WorkerBase):
         source: MessageMiddleware,
         output: list[MessageMiddleware],
         intra_exchange: MessageMiddlewareExchange,
+        routing_keys: list[str],
         batch_size: int = 500,
     ):
         super().__init__(instances, index, stage_name, source, output, intra_exchange)
         self.buffer_size = batch_size
         self.buffer_per_key: dict[str, list[Message]] = {}
         self.routed = 0
+        self.routing_keys = routing_keys
 
     def _end_of_session(self):
         for routing_key in self.buffer_per_key.keys():
