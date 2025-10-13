@@ -123,11 +123,11 @@ class WorkerBase(ABC):
         logging.info(f"action: receive_EOF | stage: {self._stage_name} | session: {session_id} | from: {self._source}")
         self._active_sessions.discard(session_id)
         self._end_of_session(session_id)
-        self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.int})
+        self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex})
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
-        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
         if session_id not in self._active_sessions:
             self._active_sessions.add(session_id)
@@ -148,7 +148,7 @@ class WorkerBase(ABC):
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _on_message_intra_exchange(self, channel, method, properties, body: bytes) -> None:
-        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
         if not EOFIntraExchange.is_type(body):
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
@@ -171,7 +171,9 @@ class WorkerBase(ABC):
         if session_id in self._active_sessions:
             self._active_sessions.discard(session_id)
             self._end_of_session(session_id)
-            self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id})
+            self._intra_exchange.send(
+                EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex}
+            )
 
         if self._leader:
             self._flush_eof_if_possible(session_id)
@@ -179,7 +181,7 @@ class WorkerBase(ABC):
     def _flush_eof_if_possible(self, session_id: uuid.UUID) -> None:
         if len(self._eof_collected_by_session[session_id]) == self._instances:
             for output in self._output:
-                output.send(EOF().serialize(), headers={SESSION_ID: session_id})
+                output.send(EOF().serialize(), headers={SESSION_ID: session_id.hex})
                 logging.info(f"action: flush_eof | to: {output} | session: {session_id}")
             self._eof_collected_by_session.pop(session_id, None)
 

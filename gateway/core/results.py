@@ -6,6 +6,7 @@ import logging
 import threading
 from uuid import UUID
 
+from gateway.core.session import SessionData
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
 from shared.protocol import ResultPacket, SESSION_ID
@@ -65,8 +66,8 @@ class ResultCollector:
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 return
 
-            session_id = UUID(int=session_id)
-            session = self.session_manager.get_session(session_id)
+            session_id = UUID(hex=session_id)
+            session: SessionData = self.session_manager.get_session(session_id)
             if not session:
                 logging.warning(
                     f"action: result_unknown_session | query: {query_id} | "
@@ -79,7 +80,7 @@ class ResultCollector:
 
             try:
                 result_packet = ResultPacket(query_id, body)
-                network = Network(session.client_socket, self.shutdown_signal)
+                network = Network(session.socket, self.shutdown_signal)
                 network.send_packet(result_packet)
 
                 logging.debug(f"action: result_sent | session_id: {session_id} | query: {query_id}")

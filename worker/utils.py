@@ -2,7 +2,7 @@ import json
 from typing import List
 
 from shared.middleware.interface import MessageMiddleware
-from shared.middleware.rabbit_mq import declare_queue_with_dlq, MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 
 
 MIDDLEWARE_HOST = "MIDDLEWARE_HOST"
@@ -71,11 +71,15 @@ def build_enricher_middlewares(sources: str, enricher_module) -> tuple[MessageMi
 
     ttl_ms = getattr(enricher_module.Enricher, "DEFAULT_WAITING_TTL_MS", 5000)
 
-    declare_queue_with_dlq(
-        host="rabbitmq", queue_name=waiting_queue_name, dlq_ttl_ms=ttl_ms, dlq_target_queue=main_queue_name
-    )
-
     source = MessageMiddlewareQueueMQ(host="rabbitmq", queue_name=main_queue_name)
-    waiting_queue = MessageMiddlewareQueueMQ(host="rabbitmq", queue_name=waiting_queue_name)
+    waiting_queue = MessageMiddlewareQueueMQ(
+        host="rabbitmq",
+        queue_name=waiting_queue_name,
+        arguments={
+            "x-message-ttl": ttl_ms,
+            "x-dead-letter-exchange": "",
+            "x-dead-letter-routing-key": main_queue_name,
+        },
+    )
 
     return source, waiting_queue

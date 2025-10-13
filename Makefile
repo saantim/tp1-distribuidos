@@ -52,11 +52,19 @@ gen_full:
 .PHONY: gen_full
 
 valid_min:
-	python3 .kaggle/validation.py --dataset min
+	@if [ -n "$(SESSION)" ]; then \
+		python3 .kaggle/validation.py --dataset min --session $(SESSION); \
+	else \
+		python3 .kaggle/validation.py --dataset min; \
+	fi
 .PHONY: valid_min
 
 valid_full:
-	python3 .kaggle/validation.py --dataset full
+	@if [ -n "$(SESSION)" ]; then \
+		python3 .kaggle/validation.py --dataset full --session $(SESSION); \
+	else \
+		python3 .kaggle/validation.py --dataset full; \
+	fi
 .PHONY: valid_full
 
 clean_res:

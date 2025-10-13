@@ -46,7 +46,7 @@ class TransformerBase(WorkerBase, ABC):
             properties: Message properties
             body: Message bytes (either EOF or raw Batch packet)
         """
-        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
         if session_id not in self._active_sessions:
             self._active_sessions.add(session_id)
@@ -144,7 +144,7 @@ class TransformerBase(WorkerBase, ABC):
 
         packed: bytes = pack_entity_batch(self._buffer_per_session[session_id])
         for output in self._output:
-            output.send(packed, headers={SESSION_ID: session_id})
+            output.send(packed, headers={SESSION_ID: session_id.hex})
         self._buffer_per_session[session_id].clear()
 
     @abstractmethod

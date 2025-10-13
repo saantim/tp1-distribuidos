@@ -1,5 +1,5 @@
 settings:
-  dataset: "full"
+  dataset: "min"
   rabbitmq:
     version: "4.1.4-management"
     user: "admin"

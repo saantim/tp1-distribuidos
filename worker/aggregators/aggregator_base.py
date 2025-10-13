@@ -24,7 +24,7 @@ class AggregatorBase(WorkerBase, ABC):
         self._aggregated_per_session: dict[uuid.UUID, Optional[Message]] = {}
         self._message_count_per_session: dict[uuid.UUID, int] = {}
 
-    def _start_of_session(self, session_id: uuid.UUID()):
+    def _start_of_session(self, session_id: uuid.UUID):
         self._aggregated_per_session[session_id] = None
         self._message_count_per_session[session_id] = 0
 
@@ -35,7 +35,7 @@ class AggregatorBase(WorkerBase, ABC):
         final = pack_entity_batch([self._aggregated_per_session[session_id]])
 
         for output in self._output:
-            output.send(final, headers={SESSION_ID: session_id.int})
+            output.send(final, headers={SESSION_ID: session_id.hex})
             logging.info(f"action: flushed_aggregation | to: {output} | session: {session_id}")
 
     def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:

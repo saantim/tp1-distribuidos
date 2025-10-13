@@ -18,11 +18,22 @@ from typing import Dict, List, Tuple
 class ResultsValidator:
     """Validates pipeline results against expected outputs."""
 
-    def __init__(self, dataset_mode: str = "min"):
+    def __init__(self, dataset_mode: str = "min", session_id: str = None):
         self.dataset_mode = dataset_mode
-        self.pipeline_dir = Path(".results/pipeline")
+        self.session_id = session_id
+
+        if session_id:
+            self.pipeline_dir = Path(f".results/{session_id}/pipeline")
+        else:
+            self.pipeline_dir = Path(".results/pipeline")
+
         self.expected_dir = Path(f".results/expected/{dataset_mode}")
-        self.report = {"dataset_mode": dataset_mode, "queries": {}, "summary": {"total": 0, "passed": 0, "failed": 0}}
+        self.report = {
+            "dataset_mode": dataset_mode,
+            "session_id": session_id,
+            "queries": {},
+            "summary": {"total": 0, "passed": 0, "failed": 0},
+        }
 
     def validate_all(self) -> bool:
         """Validate all queries. Returns True if all pass."""
@@ -350,15 +361,20 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python validate_results.py              # Auto-detect from compose_config.json
-  python validate_results.py --dataset min
-  python validate_results.py --dataset full
+  python validation.py --dataset min
+  python validation.py --dataset min --session <uuid>
+  python validation.py --dataset full --session <uuid>
         """,
     )
     parser.add_argument(
         "--dataset",
         choices=["min", "full"],
         help="Dataset type (auto-detected from compose_config.json if not specified)",
+    )
+    parser.add_argument(
+        "--session",
+        type=str,
+        help="Session ID (UUID) to validate. If not specified, uses .results/pipeline/",
     )
     args = parser.parse_args()
 
@@ -370,8 +386,12 @@ Examples:
         mode = detect_dataset_mode()
         print(f"Auto-detected dataset mode from config: {mode}")
 
+    # Session
+    if args.session:
+        print(f"Validating session: {args.session}")
+
     # Validate
-    validator = ResultsValidator(dataset_mode=mode)
+    validator = ResultsValidator(dataset_mode=mode, session_id=args.session)
     success = validator.validate_all()
 
     sys.exit(0 if success else 1)

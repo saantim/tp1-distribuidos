@@ -93,7 +93,7 @@ class ClientHandler:
         batch_count = 0
         eof_count = 0
 
-        headers = {SESSION_ID: self.session_id.int}
+        headers = {SESSION_ID: self.session_id.hex}
 
         while not self.shutdown_signal.should_shutdown():
             packet = self.network.recv_packet()

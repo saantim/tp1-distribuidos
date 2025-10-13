@@ -36,7 +36,7 @@ class SinkBase(WorkerBase, ABC):
         formatted_results: bytes = self.format_fn(self._results_per_session[session_id])
         if formatted_results:
             for output in self._output:
-                output.send(formatted_results, headers={SESSION_ID: session_id.int})
+                output.send(formatted_results, headers={SESSION_ID: session_id.hex})
             logging.info(f"Sent batch results ({len(formatted_results)} bytes) | session: {session_id}")
 
     def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:

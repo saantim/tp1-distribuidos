@@ -38,7 +38,7 @@ class Aggregator(AggregatorBase):
             aggregated = self._truncate_top_3(cast(UserPurchasesByStore, aggregated))
             final = pack_entity_batch([aggregated])
             for output in self._output:
-                output.send(final, headers={SESSION_ID: session_id.int})
+                output.send(final, headers={SESSION_ID: session_id.hex})
 
     @staticmethod
     def _truncate_top_3(aggregated: UserPurchasesByStore) -> UserPurchasesByStore:

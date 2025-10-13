@@ -37,6 +37,7 @@ class FilterBase(WorkerBase, ABC):
 
     def _end_of_session(self, session_id: uuid.UUID):
         self._flush_buffer(session_id)
+        self.passed_per_session[session_id] = 0
 
     def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
         self.received_per_session[session_id] += 1
@@ -58,5 +59,5 @@ class FilterBase(WorkerBase, ABC):
         """Flush buffer to all queues"""
         packed: bytes = pack_entity_batch(self.buffer_per_session[session_id])
         for output in self._output:
-            output.send(packed, headers={SESSION_ID: session_id})
+            output.send(packed, headers={SESSION_ID: session_id.hex})
         self.buffer_per_session[session_id].clear()

@@ -17,12 +17,13 @@ from .interface import (
 class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
     """RabbitMQ queue middleware based on Pika's BlockingConnection."""
 
-    def __init__(self, host: str, queue_name: str) -> None:
+    def __init__(self, host: str, queue_name: str, arguments: dict = None) -> None:
         super().__init__(host, queue_name)
         self._host: str = host
         self._queue_name: str = queue_name
         self._local = threading.local()
         self._should_stop = False
+        self._arguments = arguments
 
     def _ensure_connection(self):
         """Ensure connection exists for current thread (thread-local storage)."""
@@ -36,7 +37,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
                 )
             )
             self._local.channel = self._local.connection.channel()
-            self._local.channel.queue_declare(queue=self._queue_name, durable=False)
+            self._local.channel.queue_declare(queue=self._queue_name, durable=False, arguments=self._arguments)
             self._local.channel.basic_qos(prefetch_count=1)
 
     def __str__(self):
@@ -113,51 +114,6 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         except Exception as e:
             logging.exception(e)
             raise MessageMiddlewareDeleteError(e)
-
-
-def declare_queue_with_dlq(host: str, queue_name: str, dlq_ttl_ms: int, dlq_target_queue: str = None) -> str:
-    """
-    Declara una cola con Dead Letter Queue (DLQ).
-
-    Crea una cola que expira mensajes después de dlq_ttl_ms y los reenvía
-    a dlq_target_queue cuando expiran.
-
-    Args:
-        host: RabbitMQ host
-        queue_name: Nombre de la cola a crear (será la DLQ)
-        dlq_ttl_ms: TTL en ms para mensajes en esta cola
-        dlq_target_queue: Cola destino cuando expire (default: queue_name sin sufijo)
-
-    Returns:
-        Nombre de la cola DLQ creada (queue_name)
-    """
-    if dlq_target_queue is None:
-        dlq_target_queue = queue_name
-
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(
-            host=host,
-            port=5672,
-            credentials=pika.PlainCredentials(username="admin", password="admin"),
-            heartbeat=6000,
-        )
-    )
-    channel = connection.channel()
-
-    try:
-        channel.queue_declare(queue=dlq_target_queue, durable=False)
-        channel.queue_declare(
-            queue=queue_name,
-            durable=False,
-            arguments={
-                "x-message-ttl": dlq_ttl_ms,
-                "x-dead-letter-exchange": "",
-                "x-dead-letter-routing-key": dlq_target_queue,
-            },
-        )
-        return queue_name
-    finally:
-        connection.close()
 
 
 class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
