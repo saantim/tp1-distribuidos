@@ -3,7 +3,7 @@ import os
 from types import ModuleType
 
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
-from worker.utils import build_enricher_middlewares, build_middlewares_list
+from worker.utils import build_middlewares_list
 
 
 def main():
@@ -19,17 +19,14 @@ def main():
     if not hasattr(enricher_module, "Enricher"):
         raise AttributeError(f"Module {module_name} must have a 'Enricher' class")
 
-    source, waiting_queue = build_enricher_middlewares(sources, enricher_module)
-
     enricher_worker = enricher_module.Enricher(
         instances=instances,
         index=filter_id,
         stage_name=module_name,
-        source=source,
+        source=build_middlewares_list(sources)[0],
         output=build_middlewares_list(destinations),
         intra_exchange=MessageMiddlewareExchangeRMQ(host="rabbitmq", exchange_name=module_name, route_keys=["common"]),
         enricher_input=build_middlewares_list(enricher)[0],
-        waiting_queue=waiting_queue,
     )
 
     enricher_worker.start()

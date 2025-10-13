@@ -330,7 +330,8 @@ class ResultsValidator:
         print(f"Dataset Mode: {self.dataset_mode}")
         print(f"Total Queries: {self.report['summary']['total']}")
         print(f"✅ Passed: {self.report['summary']['passed']}")
-        print(f"❌ Failed: {self.report['summary']['failed']}")
+        if self.report["summary"]["failed"] > 0:
+            print(f"❌ Failed: {self.report['summary']['failed']}")
 
     def _save_report(self):
         """Save validation report to disk."""

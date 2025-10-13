@@ -9,38 +9,12 @@ from worker.types import UserPurchasesByStore
 
 
 class Enricher(EnricherBase):
-    """
-    Enricher que trabaja con patrón invertido:
-    - Main input: User (millones de mensajes - todos los usuarios del dataset)
-    - Enricher input: UserPurchasesByStore (muchos mensajes - del aggregator)
-
-    Flujo (con orden aggregate → enrich → merge):
-    1. _load_entity_fn acumula TODOS los UserPurchasesByStore y construye set de user_ids requeridos
-    2. _enrich_entity_fn recibe cada User, verifica si está en el set, y enriquece in-place
-    3. Al finalizar sesión, flush envía TODOS los UserPurchasesByStore enriquecidos
-    4. merge_top3 (downstream) selecciona el top-3 global
-
-    Ventaja: Permite múltiples replicas de enrich_users trabajando en paralelo.
-    """
 
     DEFAULT_WAITING_TTL_MS = 10000
 
-    def __init__(self, instances, index, stage_name, source, output, intra_exchange, enricher_input, waiting_queue):
-        super().__init__(instances, index, stage_name, source, output, intra_exchange, enricher_input, waiting_queue)
+    def __init__(self, instances, index, stage_name, source, output, intra_exchange, enricher_input):
+        super().__init__(instances, index, stage_name, source, output, intra_exchange, enricher_input)
         self._required_users_per_session: dict[uuid.UUID, set[int]] = {}
-
-    def _start_of_session(self, session_id: uuid.UUID):
-        """Hook cuando una nueva sesión comienza."""
-        super()._start_of_session(session_id)
-        self._required_users_per_session[session_id] = set()
-
-    def _end_of_session(self, session_id: uuid.UUID):
-        """Flush final y limpieza cuando una sesión termina."""
-        self._flush_buffer(session_id)
-        self._buffer_per_session.pop(session_id, None)
-        self._required_users_per_session.pop(session_id, None)
-        self._enricher_ready_per_session.pop(session_id, None)
-        self._loaded_entities_per_session.pop(session_id, None)
 
     def _load_entity_fn(self, loaded_entities: dict, entity: UserPurchasesByStore) -> dict:
         """
@@ -80,16 +54,10 @@ class Enricher(EnricherBase):
         return user_purchases_list
 
     def _on_entity_upstream(self, message: User, session_id: uuid.UUID) -> None:
-        """
-        Override: no buffereamos cada User individual, solo actualizamos la lista in-place.
-        """
         loaded = self._loaded_entities_per_session[session_id]
         self._enrich_entity_fn(loaded, message)
 
     def _flush_buffer(self, session_id: uuid.UUID) -> None:
-        """
-        Override: enviamos todos los UserPurchasesByStore enriquecidos.
-        """
         loaded = self._loaded_entities_per_session.get(session_id, {})
         user_purchases_list = loaded.get("user_purchases_list", [])
 
