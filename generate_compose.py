@@ -12,7 +12,7 @@ def load_config(config_file="compose_config.yaml"):
         return yaml.safe_load(f)
 
 
-def create_worker_service(name, worker_type, replica_id, total_replicas, module, inputs, outputs, enricher=None):
+def create_worker_service(name, worker_type, replica_id, total_replicas, module, inputs, outputs, reference=None):
     """Create a worker service definition"""
 
     # Entrypoint mapping
@@ -20,7 +20,7 @@ def create_worker_service(name, worker_type, replica_id, total_replicas, module,
         "filter": "python /worker/filters/filter_main.py",
         "aggregator": "python /worker/aggregators/aggregator_main.py",
         "merger": "python /worker/mergers/merger_main.py",
-        "enricher": "python /worker/enrichers/enricher_main.py",
+        "joiner": "python /worker/joiners/joiner_main.py",
         "router": "python /worker/router/router_main.py",
         "sink": "python /worker/sinks/sink_main.py",
         "transformer": "python /worker/transformers/transformer_main.py",
@@ -42,8 +42,8 @@ def create_worker_service(name, worker_type, replica_id, total_replicas, module,
         },
     }
 
-    if enricher:
-        service["environment"]["ENRICHER"] = json.dumps([enricher])
+    if reference:
+        service["environment"]["REFERENCE"] = json.dumps([reference])
 
     return service
 
@@ -134,10 +134,10 @@ def add_stage_workers(services, query_name, stage_name, stage, query_config):
         if output_conn:
             outputs = [output_conn] if isinstance(output_conn, tuple) else output_conn
 
-        # Parse enricher
-        enricher = None
-        if stage.get("enricher"):
-            enricher = parse_connection(stage["enricher"], i, stage["replicas"])
+        # Parse reference (for joiners)
+        reference = None
+        if stage.get("reference"):
+            reference = parse_connection(stage["reference"], i, stage["replicas"])
 
         services[worker_name] = create_worker_service(
             name=worker_name,
@@ -147,7 +147,7 @@ def add_stage_workers(services, query_name, stage_name, stage, query_config):
             module=stage["module"],
             inputs=inputs,
             outputs=outputs,
-            enricher=enricher,
+            reference=reference,
         )
 
 

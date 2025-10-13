@@ -124,25 +124,25 @@ queries:
         output:
           queue: "q2.merged_period"
 
-      enrich_items:
-        type: "enricher"
-        module: "item_enricher"
+      join_items:
+        type: "joiner"
+        module: "item_joiner"
         replicas: 1
         input:
           queue: "q2.merged_period"
-        enricher:
+        reference:
           exchange: "menu_items_source"
           strategy: "FANOUT"
           routing_keys: ["common"]
         output:
-          queue: "q2.enriched_items"
+          queue: "q2.joined_items"
 
       sink:
         type: "sink"
         module: "sink_q2"
         replicas: 1
         input:
-          queue: "q2.enriched_items"
+          queue: "q2.joined_items"
         output:
           queue: "results_q2"
 
@@ -168,25 +168,25 @@ queries:
         output:
           queue: "q3.merged_semester"
 
-      enrich_stores:
-        type: "enricher"
-        module: "store_enricher"
+      join_stores:
+        type: "joiner"
+        module: "store_joiner"
         replicas: 1
         input:
           queue: "q3.merged_semester"
-        enricher:
+        reference:
           exchange: "stores_source"
           strategy: "FANOUT"
           routing_keys: ["common"]
         output:
-          queue: "q3.enriched_stores"
+          queue: "q3.joined_stores"
 
       sink:
         type: "sink"
         module: "sink_q3"
         replicas: 1
         input:
-          queue: "q3.enriched_stores"
+          queue: "q3.joined_stores"
         output:
           queue: "results_q3"
 
@@ -218,46 +218,49 @@ queries:
           strategy: "FANOUT"
           routing_keys: ["common"]
 
-      enrich_users:
-        type: "enricher"
-        module: "user_enricher"
-        replicas: 3
-        input:
-          queue: "users_source"
-        enricher:
-          exchange: "q4.aggregated_users"
-          strategy: "FANOUT"
-          routing_keys: ["common"]
-        output:
-          queue: "q4.enriched_users"
+      # TODO: enrich_users requires pre-filtering pipeline (isolated for now)
+      # enrich_users:
+      #   type: "enricher"
+      #   module: "user_enricher"
+      #   replicas: 3
+      #   input:
+      #     queue: "users_source"
+      #   enricher:
+      #     exchange: "q4.aggregated_users"
+      #     strategy: "FANOUT"
+      #     routing_keys: ["common"]
+      #   output:
+      #     queue: "q4.enriched_users"
 
       merge_top3:
         type: "merger"
         module: "top_3"
         replicas: 1
         input:
-          queue: "q4.enriched_users"
+          exchange: "q4.aggregated_users"
+          strategy: "FANOUT"
+          routing_keys: ["common"]
         output:
           queue: "q4.merged_top3"
 
-      enrich_stores:
-        type: "enricher"
-        module: "store_enricher_q4"
+      join_stores:
+        type: "joiner"
+        module: "store_joiner_q4"
         replicas: 1
         input:
           queue: "q4.merged_top3"
-        enricher:
+        reference:
           exchange: "stores_source"
           strategy: "FANOUT"
           routing_keys: ["common"]
         output:
-          queue: "q4.enriched_stores"
+          queue: "q4.joined_stores"
 
       sink:
         type: "sink"
         module: "sink_q4"
         replicas: 1
         input:
-          queue: "q4.enriched_stores"
+          queue: "q4.joined_stores"
         output:
           queue: "results_q4"
