@@ -49,7 +49,7 @@ class EnricherBase(WorkerBase, ABC):
         Callback para enricher input (datos de referencia).
         Corre en thread separado.
         """
-        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
         try:
             if EOF.is_type(body):
@@ -75,7 +75,7 @@ class EnricherBase(WorkerBase, ABC):
         Callback para main input (datos a enriquecer).
         Sobrescribe WorkerBase._on_message_upstream para agregar lógica de waiting queue.
         """
-        session_id: uuid.UUID = uuid.UUID(int=properties.headers.get(SESSION_ID))
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
         if not self._enricher_ready_per_session.get(session_id, False):
             channel.basic_ack(delivery_tag=method.delivery_tag)
             self._waiting_queue.send(message=body, headers=properties.headers)
@@ -85,7 +85,6 @@ class EnricherBase(WorkerBase, ABC):
     def _start_of_session(self, session_id: uuid.UUID):
         """Hook cuando una nueva sesión comienza."""
         logging.info(f"action: session_start | stage: {self._stage_name} | " f"session: {session_id}")
-
         self._buffer_per_session[session_id] = []
 
     def _end_of_session(self, session_id: uuid.UUID):
@@ -107,7 +106,7 @@ class EnricherBase(WorkerBase, ABC):
         packed: bytes = pack_entity_batch(buffer)
 
         for output in self._output:
-            output.send(packed, headers={SESSION_ID: session_id.int})
+            output.send(packed, headers={SESSION_ID: session_id.hex})
 
         count = len(buffer)
 

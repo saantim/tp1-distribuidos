@@ -84,7 +84,6 @@ class Enricher(EnricherBase):
         Override: no buffereamos cada User individual, solo actualizamos la lista in-place.
         """
         loaded = self._loaded_entities_per_session[session_id]
-        # Actualiza todos los UserPurchasesByStore in-place, no agregamos al buffer en cada mensaje
         self._enrich_entity_fn(loaded, message)
 
     def _flush_buffer(self, session_id: uuid.UUID) -> None:
@@ -107,7 +106,7 @@ class Enricher(EnricherBase):
 
         packed = pack_entity_batch(user_purchases_list)
         for output in self._output:
-            output.send(packed, headers={SESSION_ID: session_id.int})
+            output.send(packed, headers={SESSION_ID: session_id.hex})
 
     def get_enricher_type(self) -> Type[Message]:
         """Tipo de referencia que cargamos (el top-3)."""
