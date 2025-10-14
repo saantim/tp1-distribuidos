@@ -59,15 +59,18 @@ class TransformerBase(WorkerBase, ABC):
 
         if is_raw_batch(body):
             try:
+                self._not_processing_batch.clear()
                 for csv_row in unpack_raw_batch(body):
                     self._on_csv_row(csv_row, session_id)
                 channel.basic_ack(delivery_tag=method.delivery_tag)
             except Exception as e:
-                logging.error(
+                logging.exception(
                     f"action: batch_process | stage: {self._stage_name} |"
                     f" error: {str(e)} | session_id: {session_id}"
                 )
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            finally:
+                self._not_processing_batch.set()
         else:
             logging.warning(
                 f"action: unknown_message |"
@@ -105,13 +108,14 @@ class TransformerBase(WorkerBase, ABC):
                 f"error: {str(e)} |"
                 f" csv_row: {csv_row} | session_id: {session_id}"
             )
+            raise e
         except Exception as e:
             logging.error(
                 f"action: transform_entity | stage: {self._stage_name} |"
                 f" "
                 f"error: {str(e)} | session_id: {session_id}"
             )
-            raise
+            raise e
 
     def _on_entity_upstream(self, body, session_id: uuid.UUID) -> None:
         """
@@ -136,6 +140,7 @@ class TransformerBase(WorkerBase, ABC):
             f" "
             f"total_transformed: {transformed} | session_id: {session_id}"
         )
+        self._transformed_per_session.pop(session_id)
 
     def _flush_buffer(self, session_id: uuid.UUID) -> None:
         """Flush buffer to all output queues."""

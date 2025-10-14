@@ -130,7 +130,10 @@ class ResultsCollector:
             if query_id != "Q1":
                 logging.info(f"RESULT for {query_id} AT EOF: {result}")
             else:
-                logging.info(f"RESULT for {query_id} AT EOF: {len(list(result[0]))}")
+                if len(result) == 0:
+                    logging.info(f"RESULT for {query_id} AT EOF: {result}")
+                else:
+                    logging.info(f"RESULT for {query_id} AT EOF: {len(list(result[0]))}")
 
             return
 

@@ -32,7 +32,8 @@ class WorkerBase(ABC):
         self._source: MessageMiddleware = source
         self._output: list[MessageMiddleware] = output
         self._intra_exchange: MessageMiddlewareExchange = intra_exchange
-
+        self._not_processing_batch: threading.Event = threading.Event()
+        self._not_processing_batch.set()
         self._data_thread = None
         self._control_thread = None
         self._shutdown_event = threading.Event()
@@ -141,6 +142,7 @@ class WorkerBase(ABC):
             return
 
         try:
+            self._not_processing_batch.clear()
             for message in unpack_entity_batch(body, self.get_entity_type()):
                 self._on_entity_upstream(message, session_id)
             channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -148,6 +150,8 @@ class WorkerBase(ABC):
             _ = e
             logging.exception(f"action: batch_process | stage: {self._stage_name}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        finally:
+            self._not_processing_batch.set()
 
     def _on_message_intra_exchange(self, channel, method, properties, body: bytes) -> None:
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
@@ -171,6 +175,7 @@ class WorkerBase(ABC):
         # TODO: si uno de los workers nunca laburo, nunca activa su sesion, por ende no propaga su Intra.
         #   buscar luego una manera de fixear.
         if session_id in self._active_sessions:
+            assert self._not_processing_batch.wait(timeout=10.0), "timeamos out esperando desde un intra."
             self._finished_sessions.add(session_id)
             self._active_sessions.discard(session_id)
             self._end_of_session(session_id)

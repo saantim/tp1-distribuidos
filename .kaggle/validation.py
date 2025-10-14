@@ -102,38 +102,45 @@ class ResultsValidator:
         Validate Q1: List of transactions with id and amount.
         Expected format: [{"transaction_id": "...", "final_amount": ...}, ...]
         """
-        # Convert to sets of transaction IDs for comparison
-        pipeline_ids = {tx["transaction_id"] for tx in pipeline}
-        expected_ids = {tx["transaction_id"] for tx in expected}
+        # Check total count first (simple and effective)
+        if len(pipeline) != len(expected):
+            return False, {
+                "reason": "Count mismatch",
+                "expected_count": len(expected),
+                "got_count": len(pipeline),
+                "difference": len(pipeline) - len(expected),
+            }
 
-        if pipeline_ids == expected_ids:
-            # Check amounts match
-            pipeline_map = {tx["transaction_id"]: tx["final_amount"] for tx in pipeline}
-            expected_map = {tx["transaction_id"]: tx["final_amount"] for tx in expected}
+        # Create lookup dictionaries for expected data
+        expected_map = {tx["transaction_id"]: tx["final_amount"] for tx in expected}
+        pipeline_map = {tx["transaction_id"]: tx["final_amount"] for tx in pipeline}
 
-            mismatches = []
-            for tx_id in pipeline_ids:
-                if pipeline_map[tx_id] != expected_map[tx_id]:
-                    mismatches.append(
-                        {"transaction_id": tx_id, "expected": expected_map[tx_id], "got": pipeline_map[tx_id]}
-                    )
+        # Check if all pipeline IDs exist in expected and amounts match
+        mismatches = []
+        missing_ids = []
 
-            if mismatches:
-                return False, {"reason": "Amount mismatches", "count": len(mismatches), "examples": mismatches[:5]}
+        for tx_id, amount in pipeline_map.items():
+            if tx_id not in expected_map:
+                missing_ids.append(tx_id)
+            elif expected_map[tx_id] != amount:
+                mismatches.append({"transaction_id": tx_id, "expected": expected_map[tx_id], "got": amount})
 
+        # Check for extra IDs in pipeline (IDs that shouldn't be there)
+        extra_ids = set(pipeline_map.keys()) - set(expected_map.keys())
+
+        if not missing_ids and not extra_ids and not mismatches:
             return True, {"transaction_count": len(pipeline), "all_ids_match": True, "all_amounts_match": True}
 
-        missing = expected_ids - pipeline_ids
-        extra = pipeline_ids - expected_ids
-
         return False, {
-            "reason": "Transaction ID mismatch",
+            "reason": "Data validation failed",
             "expected_count": len(expected),
             "got_count": len(pipeline),
-            "missing_count": len(missing),
-            "extra_count": len(extra),
-            "missing_examples": list(missing)[:5] if missing else [],
-            "extra_examples": list(extra)[:5] if extra else [],
+            "missing_ids_count": len(missing_ids),
+            "extra_ids_count": len(extra_ids),
+            "amount_mismatches_count": len(mismatches),
+            "missing_ids_examples": missing_ids[:5],
+            "extra_ids_examples": list(extra_ids)[:5],
+            "amount_mismatch_examples": mismatches[:5],
         }
 
     @staticmethod
