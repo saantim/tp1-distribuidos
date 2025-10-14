@@ -125,16 +125,6 @@ class ResultsCollector:
                 f"({len(self.queries_complete)}/{len(self.expected_queries)}) "
                 f"received {elapsed:.2f}s after waiting."
             )
-            # todo: sacar luego de fixear bugs.
-            result = self.saver.results_by_query.get(query_id, [])
-            if query_id != "Q1":
-                logging.info(f"RESULT for {query_id} AT EOF: {result}")
-            else:
-                if len(result) == 0:
-                    logging.info(f"RESULT for {query_id} AT EOF: {result}")
-                else:
-                    logging.info(f"RESULT for {query_id} AT EOF: {len(list(result[0]))}")
-
             return
 
         self.saver.save_result(query_id, data)

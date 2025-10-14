@@ -123,10 +123,13 @@ class WorkerBase(ABC):
             return False
 
         logging.info(f"action: receive_EOF | stage: {self._stage_name} | session: {session_id} | from: {self._source}")
-        self._active_sessions.discard(session_id)
-        self._finished_sessions.add(session_id)
-        self._end_of_session(session_id)
-        self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex})
+        if session_id not in self._finished_sessions:
+            self._active_sessions.discard(session_id)
+            self._finished_sessions.add(session_id)
+            self._end_of_session(session_id)
+            self._intra_exchange.send(
+                EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex}
+            )
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
@@ -137,14 +140,11 @@ class WorkerBase(ABC):
             self._eof_collected_by_session[session_id] = set()
             self._start_of_session(session_id)
 
-        if self._handle_eof(body, session_id):
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-            return
-
         try:
             self._not_processing_batch.clear()
-            for message in unpack_entity_batch(body, self.get_entity_type()):
-                self._on_entity_upstream(message, session_id)
+            if not self._handle_eof(body, session_id):
+                for message in unpack_entity_batch(body, self.get_entity_type()):
+                    self._on_entity_upstream(message, session_id)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e

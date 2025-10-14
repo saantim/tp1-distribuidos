@@ -166,18 +166,18 @@ class EnricherBase(WorkerBase, ABC):
     def _on_message_session_queue(self, channel, method, properties, body: bytes):
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if self._handle_eof(body, session_id):
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-            return
-
         try:
-            for message in unpack_entity_batch(body, self.get_entity_type()):
-                self._on_entity_upstream(message, session_id)
+            self._not_processing_batch.clear()
+            if not self._handle_eof(body, session_id):
+                for message in unpack_entity_batch(body, self.get_entity_type()):
+                    self._on_entity_upstream(message, session_id)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
             logging.exception(f"action: batch_process | stage: {self._stage_name}")
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        finally:
+            self._not_processing_batch.set()
 
     def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
         """
