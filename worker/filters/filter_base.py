@@ -38,7 +38,7 @@ class FilterBase(WorkerBase, ABC):
     def _end_of_session(self, session_id: uuid.UUID):
         logging.info(
             f"[{self._stage_name}] end_of_session: received_per_session={self.received_per_session[session_id]},"
-            f" pass={self.passed_per_session[session_id]}"
+            f" pass={self.passed_per_session[session_id]} session_id={session_id}"
         )
         self._flush_buffer(session_id)
         self.received_per_session[session_id] = 0

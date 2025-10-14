@@ -197,7 +197,7 @@ def generate_compose(config):
         "depends_on": ["gateway"],
         "environment": {"LOGGING_LEVEL": "DEBUG"},
         "volumes": [f"./.data{dataset_path}:/client/.data", "./.results:/client/.results"],
-        "scale": 5,
+        "scale": 10,
     }
 
     # Add transformers
