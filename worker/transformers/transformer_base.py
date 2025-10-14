@@ -48,7 +48,7 @@ class TransformerBase(WorkerBase, ABC):
         """
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions:
+        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
             self._active_sessions.add(session_id)
             self._eof_collected_by_session[session_id] = set()
             self._start_of_session(session_id)

@@ -89,8 +89,8 @@ class ResultCollector:
 
                 if self.session_manager.is_session_complete(session_id):
                     logging.info(f"action: session_results_complete | session_id: {session_id}")
-                    # todo: ver de mejorar esto, cerramos luego de 1 segundo para que se envie todo.
-                    threading.Timer(1.0, self.session_manager.close_session, args=[session_id]).start()
+                    # todo: ver de mejorar esto, cerramos luego de 5 segundo para que se envie todo.
+                    threading.Timer(5.0, self.session_manager.close_session, args=[session_id]).start()
 
             except NetworkError as err:
                 logging.error(

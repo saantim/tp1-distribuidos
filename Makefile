@@ -6,7 +6,7 @@ generate-compose:
 	./venv/bin/python generate_compose.py
 .PHONY: generate-compose
 
-docker-compose-up: generate-compose
+docker-compose-up: clean_res generate-compose
 	docker compose -f docker-compose.yml up -d --build --force-recreate
 .PHONY: docker-compose-up
 
@@ -68,6 +68,6 @@ valid_full:
 .PHONY: valid_full
 
 clean_res:
-	rm -rf .results/ pipeline/*.json
-	@echo "Cleaned pipeline results"
+	ls .results | grep -v '^expected$$' | xargs -I{} rm -rf .results/{}
+	@echo "Cleaned pipeline results (except '.results/expected')"
 .PHONY: clean_res

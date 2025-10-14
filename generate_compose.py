@@ -191,13 +191,13 @@ def generate_compose(config):
     dataset = config["settings"]["dataset"]
     dataset_path = "/dataset_full" if dataset == "full" else "/dataset_min"
     services["client"] = {
-        "container_name": "client",
         "build": {"context": ".", "dockerfile": "./client/Dockerfile"},
         "entrypoint": "python main.py",
         "networks": ["coffee"],
         "depends_on": ["gateway"],
         "environment": {"LOGGING_LEVEL": "DEBUG"},
         "volumes": [f"./.data{dataset_path}:/client/.data", "./.results:/client/.results"],
+        "scale": 5,
     }
 
     # Add transformers

@@ -43,6 +43,6 @@ class MergerBase(WorkerBase, ABC):
 
         for output in self._output:
             output.send(packed, headers={SESSION_ID: session_id.hex})
-            logging.info(f"action: flushed_merge | to: {output} | session: {session_id}")
+            logging.info(f"action: flushed_merge | to: {output} | session: {session_id} | size: {len(packed)}")
 
         self._merged_per_session[session_id] = None

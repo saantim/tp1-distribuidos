@@ -83,6 +83,8 @@ class SessionManager:
                         f"query: {query_id} | "
                         f"progress: {len(session.query_results_received)}/{len(session.queries_expected)}"
                     )
+                else:
+                    logging.info(f"action: got_result | session_id: {session_id} | size: {len(result_body)}")
 
     def is_session_complete(self, session_id: UUID) -> bool:
         """Check if session has received all results."""

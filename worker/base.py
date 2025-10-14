@@ -27,6 +27,7 @@ class WorkerBase(ABC):
         self._index: int = index
         self._leader: bool = index == 0
         self._active_sessions: set[uuid.UUID] = set()
+        self._finished_sessions: set[uuid.UUID] = set()
         self._eof_collected_by_session: dict[uuid.UUID, set[str]] = {}
         self._source: MessageMiddleware = source
         self._output: list[MessageMiddleware] = output
@@ -40,7 +41,7 @@ class WorkerBase(ABC):
 
         logging.basicConfig(
             level=logging.INFO,
-            format=self.__class__.__name__ + " - %(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            format=self.__class__.__name__ + " - %(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         logging.getLogger("pika").setLevel(logging.WARNING)
@@ -122,6 +123,7 @@ class WorkerBase(ABC):
 
         logging.info(f"action: receive_EOF | stage: {self._stage_name} | session: {session_id} | from: {self._source}")
         self._active_sessions.discard(session_id)
+        self._finished_sessions.add(session_id)
         self._end_of_session(session_id)
         self._intra_exchange.send(EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex})
         return True
@@ -129,7 +131,7 @@ class WorkerBase(ABC):
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions:
+        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
             self._active_sessions.add(session_id)
             self._eof_collected_by_session[session_id] = set()
             self._start_of_session(session_id)
@@ -169,6 +171,7 @@ class WorkerBase(ABC):
         # TODO: si uno de los workers nunca laburo, nunca activa su sesion, por ende no propaga su Intra.
         #   buscar luego una manera de fixear.
         if session_id in self._active_sessions:
+            self._finished_sessions.add(session_id)
             self._active_sessions.discard(session_id)
             self._end_of_session(session_id)
             self._intra_exchange.send(

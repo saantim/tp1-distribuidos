@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Type
 
@@ -75,6 +76,8 @@ class Enricher(EnricherBase):
         packed = pack_entity_batch(user_purchases_list)
         for output in self._output:
             output.send(packed, headers={SESSION_ID: session_id.hex})
+
+        logging.info(f"action: flushed_buffer | session_id: {session_id} | size: {len(packed)}")
 
     def get_enricher_type(self) -> Type[Message]:
         """Tipo de referencia que cargamos (el top-3)."""

@@ -37,6 +37,7 @@ class EnricherBase(WorkerBase, ABC):
 
         self._loaded_entities_per_session: dict[uuid.UUID, dict] = {}
         self._buffer_per_session: dict[uuid.UUID, list[Message]] = {}
+        self._enriched_count_per_session: dict[uuid.UUID, int] = {}
 
         self._enricher_input: MessageMiddleware = enricher_input
         self._queue_per_session: dict[uuid.UUID, MessageMiddleware] = {}
@@ -51,7 +52,7 @@ class EnricherBase(WorkerBase, ABC):
         """
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions:
+        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
             self._active_sessions.add(session_id)
             self._eof_collected_by_session[session_id] = set()
             self._start_of_session(session_id)
@@ -82,7 +83,7 @@ class EnricherBase(WorkerBase, ABC):
         """
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions:
+        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
             self._active_sessions.add(session_id)
             self._eof_collected_by_session[session_id] = set()
             self._start_of_session(session_id)
@@ -94,19 +95,24 @@ class EnricherBase(WorkerBase, ABC):
         """Hook cuando una nueva sesión comienza."""
         logging.info(f"action: session_start | stage: {self._stage_name} | " f"session: {session_id}")
         self._buffer_per_session[session_id] = []
+        self._enriched_count_per_session[session_id] = 0
         self._queue_per_session[session_id] = self._get_session_queue(session_id)
 
     def _end_of_session(self, session_id: uuid.UUID):
         """Flush final y limpieza cuando una sesión termina."""
         self._flush_buffer(session_id)
+        final_count = self._enriched_count_per_session[session_id]
 
         self._buffer_per_session.pop(session_id, None)
+        self._enriched_count_per_session.pop(session_id, None)
         self._loaded_entities_per_session.pop(session_id, None)
 
         self._queue_per_session[session_id].stop_consuming()
         self._queue_per_session.pop(session_id, None)
 
-        logging.info(f"action: session_end | stage: {self._stage_name} | " f"session: {session_id}")
+        logging.info(
+            f"action: session_end | stage: {self._stage_name} |" f" session: {session_id} | final_count: {final_count}"
+        )
 
     def _flush_buffer(self, session_id: uuid.UUID) -> None:
         """Envía buffer acumulado a todas las colas de salida."""
@@ -121,8 +127,9 @@ class EnricherBase(WorkerBase, ABC):
             output.send(packed, headers={SESSION_ID: session_id.hex})
 
         count = len(buffer)
+        self._enriched_count_per_session[session_id] += count
 
-        logging.info(f"action: flush_buffer | stage: {self._stage_name} | " f"session: {session_id} | count: {count}")
+        logging.info(f"action: flush_buffer | stage: {self._stage_name} | session: {session_id} | count: {count}")
 
         self._buffer_per_session[session_id].clear()
 

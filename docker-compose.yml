@@ -32,7 +32,6 @@ services:
       rabbitmq:
         condition: service_healthy
   client:
-    container_name: client
     build:
       context: .
       dockerfile: ./client/Dockerfile
@@ -46,6 +45,7 @@ services:
     volumes:
     - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
+    scale: 5
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker

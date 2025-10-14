@@ -41,8 +41,8 @@ def initialize_config():
 def initialize_log(logging_level):
     """python custom logging initialization."""
     logging.basicConfig(
-        format="%(asctime)s %(levelname)-8s %(message)s",
-        level=logging_level,
+        level=logging.INFO,
+        format="GATEWAY" + " - %(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
