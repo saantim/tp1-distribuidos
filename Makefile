@@ -20,7 +20,7 @@ docker-compose-logs:
 
 logs-client:
 	clear
-	docker compose -f docker-compose.yml logs client_min client_full gateway -f
+	@docker compose -f docker-compose.yml ps --services | grep -E '^(client_|gateway)' | xargs -r docker compose -f docker-compose.yml logs -f
 .PHONY: logs-client
 
 logs-q1:

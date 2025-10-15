@@ -45,22 +45,7 @@ services:
     volumes:
     - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 2
-  client_full:
-    build:
-      context: .
-      dockerfile: ./client/Dockerfile
-    entrypoint: python main.py
-    networks:
-    - coffee
-    depends_on:
-    - gateway
-    environment:
-      LOGGING_LEVEL: DEBUG
-    volumes:
-    - ./.data/dataset_full:/client/.data
-    - ./.results:/client/.results
-    scale: 2
+    scale: 5
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
@@ -165,7 +150,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '3'
+      REPLICAS: '10'
       MODULE_NAME: transaction
       FROM: '[["QUEUE", "raw_transactions_batches"]]'
       TO: '[["QUEUE", "transactions_source"]]'
@@ -183,7 +168,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '3'
+      REPLICAS: '10'
       MODULE_NAME: transaction
       FROM: '[["QUEUE", "raw_transactions_batches"]]'
       TO: '[["QUEUE", "transactions_source"]]'
@@ -201,7 +186,133 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '3'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_3:
+    container_name: transformer_transactions_3
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_4:
+    container_name: transformer_transactions_4
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_5:
+    container_name: transformer_transactions_5
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '5'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_6:
+    container_name: transformer_transactions_6
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '6'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_7:
+    container_name: transformer_transactions_7
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '7'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_8:
+    container_name: transformer_transactions_8
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '8'
+      REPLICAS: '10'
+      MODULE_NAME: transaction
+      FROM: '[["QUEUE", "raw_transactions_batches"]]'
+      TO: '[["QUEUE", "transactions_source"]]'
+  transformer_transactions_9:
+    container_name: transformer_transactions_9
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '9'
+      REPLICAS: '10'
       MODULE_NAME: transaction
       FROM: '[["QUEUE", "raw_transactions_batches"]]'
       TO: '[["QUEUE", "transactions_source"]]'
@@ -219,7 +330,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '5'
+      REPLICAS: '10'
       MODULE_NAME: transaction_item
       FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
       TO: '[["QUEUE", "transaction_items_source"]]'
@@ -237,7 +348,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '5'
+      REPLICAS: '10'
       MODULE_NAME: transaction_item
       FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
       TO: '[["QUEUE", "transaction_items_source"]]'
@@ -255,7 +366,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '5'
+      REPLICAS: '10'
       MODULE_NAME: transaction_item
       FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
       TO: '[["QUEUE", "transaction_items_source"]]'
@@ -273,7 +384,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '3'
-      REPLICAS: '5'
+      REPLICAS: '10'
       MODULE_NAME: transaction_item
       FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
       TO: '[["QUEUE", "transaction_items_source"]]'
@@ -291,7 +402,97 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '4'
-      REPLICAS: '5'
+      REPLICAS: '10'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+  transformer_transaction_items_5:
+    container_name: transformer_transaction_items_5
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '5'
+      REPLICAS: '10'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+  transformer_transaction_items_6:
+    container_name: transformer_transaction_items_6
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '6'
+      REPLICAS: '10'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+  transformer_transaction_items_7:
+    container_name: transformer_transaction_items_7
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '7'
+      REPLICAS: '10'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+  transformer_transaction_items_8:
+    container_name: transformer_transaction_items_8
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '8'
+      REPLICAS: '10'
+      MODULE_NAME: transaction_item
+      FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
+      TO: '[["QUEUE", "transaction_items_source"]]'
+  transformer_transaction_items_9:
+    container_name: transformer_transaction_items_9
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '9'
+      REPLICAS: '10'
       MODULE_NAME: transaction_item
       FROM: '[["QUEUE", "raw_transaction_items_batches"]]'
       TO: '[["QUEUE", "transaction_items_source"]]'
@@ -309,7 +510,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '3'
+      REPLICAS: '5'
       MODULE_NAME: year
       FROM: '[["QUEUE", "transactions_source"]]'
       TO: '[["QUEUE", "q1.filtered_year"], ["QUEUE", "q4.filtered_year"]]'
@@ -327,7 +528,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '3'
+      REPLICAS: '5'
       MODULE_NAME: year
       FROM: '[["QUEUE", "transactions_source"]]'
       TO: '[["QUEUE", "q1.filtered_year"], ["QUEUE", "q4.filtered_year"]]'
@@ -345,7 +546,43 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      MODULE_NAME: year
+      FROM: '[["QUEUE", "transactions_source"]]'
+      TO: '[["QUEUE", "q1.filtered_year"], ["QUEUE", "q4.filtered_year"]]'
+  q1_filter_year_3:
+    container_name: q1_filter_year_3
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      MODULE_NAME: year
+      FROM: '[["QUEUE", "transactions_source"]]'
+      TO: '[["QUEUE", "q1.filtered_year"], ["QUEUE", "q4.filtered_year"]]'
+  q1_filter_year_4:
+    container_name: q1_filter_year_4
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
       MODULE_NAME: year
       FROM: '[["QUEUE", "transactions_source"]]'
       TO: '[["QUEUE", "q1.filtered_year"], ["QUEUE", "q4.filtered_year"]]'
@@ -363,7 +600,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '3'
+      REPLICAS: '5'
       MODULE_NAME: hour
       FROM: '[["QUEUE", "q1.filtered_year"]]'
       TO: '[["QUEUE", "q1.filtered_hour"], ["QUEUE", "q3.filtered_hour"]]'
@@ -381,7 +618,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '3'
+      REPLICAS: '5'
       MODULE_NAME: hour
       FROM: '[["QUEUE", "q1.filtered_year"]]'
       TO: '[["QUEUE", "q1.filtered_hour"], ["QUEUE", "q3.filtered_hour"]]'
@@ -399,7 +636,43 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      MODULE_NAME: hour
+      FROM: '[["QUEUE", "q1.filtered_year"]]'
+      TO: '[["QUEUE", "q1.filtered_hour"], ["QUEUE", "q3.filtered_hour"]]'
+  q1_filter_hour_3:
+    container_name: q1_filter_hour_3
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      MODULE_NAME: hour
+      FROM: '[["QUEUE", "q1.filtered_year"]]'
+      TO: '[["QUEUE", "q1.filtered_hour"], ["QUEUE", "q3.filtered_hour"]]'
+  q1_filter_hour_4:
+    container_name: q1_filter_hour_4
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
       MODULE_NAME: hour
       FROM: '[["QUEUE", "q1.filtered_year"]]'
       TO: '[["QUEUE", "q1.filtered_hour"], ["QUEUE", "q3.filtered_hour"]]'
@@ -471,7 +744,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '3'
+      REPLICAS: '5'
       MODULE_NAME: item_year
       FROM: '[["QUEUE", "transaction_items_source"]]'
       TO: '[["QUEUE", "q2.filtered_items"]]'
@@ -489,7 +762,7 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '3'
+      REPLICAS: '5'
       MODULE_NAME: item_year
       FROM: '[["QUEUE", "transaction_items_source"]]'
       TO: '[["QUEUE", "q2.filtered_items"]]'
@@ -507,7 +780,43 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      MODULE_NAME: item_year
+      FROM: '[["QUEUE", "transaction_items_source"]]'
+      TO: '[["QUEUE", "q2.filtered_items"]]'
+  q2_filter_items_3:
+    container_name: q2_filter_items_3
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      MODULE_NAME: item_year
+      FROM: '[["QUEUE", "transaction_items_source"]]'
+      TO: '[["QUEUE", "q2.filtered_items"]]'
+  q2_filter_items_4:
+    container_name: q2_filter_items_4
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
       MODULE_NAME: item_year
       FROM: '[["QUEUE", "transaction_items_source"]]'
       TO: '[["QUEUE", "q2.filtered_items"]]'

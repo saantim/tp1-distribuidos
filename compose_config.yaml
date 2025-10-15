@@ -4,8 +4,8 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 2
-    full: 2
+    min: 5
+    full: 0
 
 # Transformers: parsean los CSVs crudos
 transformers:
@@ -39,7 +39,7 @@ transformers:
 
   transactions:
     module: "transaction"
-    replicas: 3
+    replicas: 5
     input:
       queue: "raw_transactions_batches"
     output:
@@ -47,7 +47,7 @@ transformers:
 
   transaction_items:
     module: "transaction_item"
-    replicas: 5
+    replicas: 8
     input:
       queue: "raw_transaction_items_batches"
     output:
@@ -102,7 +102,7 @@ queries:
       filter_items:
         type: "filter"
         module: "item_year"
-        replicas: 3
+        replicas: 5
         input:
           queue: "transaction_items_source"
         output:
