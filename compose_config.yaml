@@ -1,9 +1,11 @@
 settings:
-  dataset: "min"
   rabbitmq:
     version: "4.1.4-management"
     user: "admin"
     password: "admin"
+  clients:
+    min: 2
+    full: 2
 
 # Transformers: parsean los CSVs crudos
 transformers:

@@ -10,7 +10,7 @@ Usage:
 
 import argparse
 import json
-import sys
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -18,16 +18,12 @@ from typing import Dict, List, Tuple
 class ResultsValidator:
     """Validates pipeline results against expected outputs."""
 
-    def __init__(self, dataset_mode: str = "min", session_id: str = None):
+    def __init__(self, session_id: str, dataset_mode: str = "min"):
         self.dataset_mode = dataset_mode
         self.session_id = session_id
-
-        if session_id:
-            self.pipeline_dir = Path(f".results/{session_id}/pipeline")
-        else:
-            self.pipeline_dir = Path(".results/pipeline")
-
+        self.pipeline_dir = Path(f".results/{session_id}/pipeline")
         self.expected_dir = Path(f".results/expected/{dataset_mode}")
+
         self.report = {
             "dataset_mode": dataset_mode,
             "session_id": session_id,
@@ -50,9 +46,9 @@ class ResultsValidator:
 
     def validate_query(self, query: str) -> bool:
         """Validate a single query."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Validating {query.upper()}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         pipeline_file = self.pipeline_dir / f"{query}.json"
         expected_file = self.expected_dir / f"{query}.json"
@@ -331,9 +327,9 @@ class ResultsValidator:
 
     def _print_summary(self):
         """Print validation summary."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("VALIDATION SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Dataset Mode: {self.dataset_mode}")
         print(f"Total Queries: {self.report['summary']['total']}")
         print(f"✅ Passed: {self.report['summary']['passed']}")
@@ -342,7 +338,8 @@ class ResultsValidator:
 
     def _save_report(self):
         """Save validation report to disk."""
-        report_file = Path(".results") / f"validation_report_{self.dataset_mode}.json"
+        report_file = Path(".results") / f"reports/{self.session_id}_{self.dataset_mode}.json"
+        os.makedirs(".results/reports", exist_ok=True)
         with open(report_file, "w") as f:
             json.dump(self.report, f, indent=2)
         print(f"\nDetailed report saved to: {report_file}")
@@ -361,6 +358,14 @@ def detect_dataset_mode() -> str:
         print(f"Warning: Could not read config file: {e}")
 
     return "min"  # Default
+
+
+def get_all_sessions() -> List[str]:
+    return [
+        name
+        for name in os.listdir(".results")
+        if os.path.isdir(os.path.join(".results", name)) and name not in ("expected", "reports")
+    ]
 
 
 def main():
@@ -382,7 +387,7 @@ Examples:
     parser.add_argument(
         "--session",
         type=str,
-        help="Session ID (UUID) to validate. If not specified, uses .results/pipeline/",
+        help="Session ID (UUID) to validate. If not specified, validates all session in .results/",
     )
     args = parser.parse_args()
 
@@ -396,13 +401,20 @@ Examples:
 
     # Session
     if args.session:
-        print(f"Validating session: {args.session}")
+        sessions = [args.sessions]
+    else:
+        sessions = get_all_sessions()
 
     # Validate
-    validator = ResultsValidator(dataset_mode=mode, session_id=args.session)
-    success = validator.validate_all()
+    results_per_session = []
 
-    sys.exit(0 if success else 1)
+    for session_id in sessions:
+        print(f"\n VALIDATION SESSION: {session_id}\n")
+        validator = ResultsValidator(dataset_mode=mode, session_id=session_id)
+        results_per_session.append(validator.validate_all())
+
+    print("\nEXITO TOTAL ✅ " if all(results_per_session) else "\nFRACASO ROTUNDO ❌")
+    print(f"{len(list(filter(lambda x: x, results_per_session)))} / {len(results_per_session)}")
 
 
 if __name__ == "__main__":

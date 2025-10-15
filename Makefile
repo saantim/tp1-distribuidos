@@ -20,7 +20,7 @@ docker-compose-logs:
 
 logs-client:
 	clear
-	docker compose -f docker-compose.yml logs client gateway -f
+	docker compose -f docker-compose.yml logs client_min client_full gateway -f
 .PHONY: logs-client
 
 logs-q1:

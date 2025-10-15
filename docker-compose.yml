@@ -31,7 +31,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-  client:
+  client_min:
     build:
       context: .
       dockerfile: ./client/Dockerfile
@@ -45,7 +45,22 @@ services:
     volumes:
     - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 10
+    scale: 2
+  client_full:
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    entrypoint: python main.py
+    networks:
+    - coffee
+    depends_on:
+    - gateway
+    environment:
+      LOGGING_LEVEL: DEBUG
+    volumes:
+    - ./.data/dataset_full:/client/.data
+    - ./.results:/client/.results
+    scale: 2
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
