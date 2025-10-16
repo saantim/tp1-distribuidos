@@ -57,7 +57,7 @@ class FilterBase(WorkerBase, ABC):
         if self.received_per_session[session_id] % 100000 == 0:
             logging.info(
                 f"[{self._stage_name}] checkpoint: received_per_session={self.received_per_session[session_id]},"
-                f" pass={self.passed_per_session[session_id]}"
+                f" pass={self.passed_per_session[session_id]} session_id={session_id}"
             )
 
     def _flush_buffer(self, session_id: uuid.UUID) -> None:

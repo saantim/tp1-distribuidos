@@ -50,46 +50,48 @@ class EnricherBase(WorkerBase, ABC):
         Callback para enricher input (datos de referencia).
         Corre en thread separado.
         """
-        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        with self._session_lock:
+            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
-            self._active_sessions.add(session_id)
-            self._eof_collected_by_session[session_id] = set()
-            self._start_of_session(session_id)
+            if session_id not in self._active_sessions and session_id not in self._finished_sessions:
+                self._active_sessions.add(session_id)
+                self._eof_collected_by_session[session_id] = set()
+                self._start_of_session(session_id)
 
-        try:
-            if EOF.is_type(body):
-                self._consume_session_queue(session_id)
-                logging.info(f"action: enricher_data_ready | stage: {self._stage_name} | " f"session: {session_id}")
+            try:
+                if EOF.is_type(body):
+                    self._consume_session_queue(session_id)
+                    logging.info(f"action: enricher_data_ready | stage: {self._stage_name} | " f"session: {session_id}")
+                    channel.basic_ack(delivery_tag=method.delivery_tag)
+                    return
+
+                for entity in unpack_entity_batch(body, self.get_enricher_type()):
+                    loaded = self._loaded_entities_per_session.get(session_id, {})
+                    self._loaded_entities_per_session[session_id] = self._load_entity_fn(loaded, entity)
+
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-                return
 
-            for entity in unpack_entity_batch(body, self.get_enricher_type()):
-                loaded = self._loaded_entities_per_session.get(session_id, {})
-                self._loaded_entities_per_session[session_id] = self._load_entity_fn(loaded, entity)
-
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-
-        except Exception as e:
-            logging.error(
-                f"action: enricher_msg_error | stage: {self._stage_name} | " f"session: {session_id} | error: {e}"
-            )
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            except Exception as e:
+                logging.error(
+                    f"action: enricher_msg_error | stage: {self._stage_name} | " f"session: {session_id} | error: {e}"
+                )
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
         """
         Callback para main input (datos a enriquecer).
         Sobrescribe WorkerBase._on_message_upstream para agregar lógica de waiting queue.
         """
-        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        with self._session_lock:
+            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
-            self._active_sessions.add(session_id)
-            self._eof_collected_by_session[session_id] = set()
-            self._start_of_session(session_id)
+            if session_id not in self._active_sessions and session_id not in self._finished_sessions:
+                self._active_sessions.add(session_id)
+                self._eof_collected_by_session[session_id] = set()
+                self._start_of_session(session_id)
 
-        self._send_to_session_queue(message=body, session_id=session_id)
-        channel.basic_ack(delivery_tag=method.delivery_tag)
+            self._send_to_session_queue(message=body, session_id=session_id)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
 
     def _start_of_session(self, session_id: uuid.UUID):
         """Hook cuando una nueva sesión comienza."""
@@ -164,20 +166,17 @@ class EnricherBase(WorkerBase, ABC):
         super()._cleanup()
 
     def _on_message_session_queue(self, channel, method, properties, body: bytes):
-        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
-
-        try:
-            self._not_processing_batch.clear()
-            if not self._handle_eof(body, session_id):
-                for message in unpack_entity_batch(body, self.get_entity_type()):
-                    self._on_entity_upstream(message, session_id)
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-        except Exception as e:
-            _ = e
-            logging.exception(f"action: batch_process | stage: {self._stage_name}")
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-        finally:
-            self._not_processing_batch.set()
+        with self._session_lock:
+            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+            try:
+                if not self._handle_eof(body, session_id):
+                    for message in unpack_entity_batch(body, self.get_entity_type()):
+                        self._on_entity_upstream(message, session_id)
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception as e:
+                _ = e
+                logging.exception(f"action: batch_process | stage: {self._stage_name}")
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
         """

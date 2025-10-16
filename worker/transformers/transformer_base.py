@@ -46,40 +46,36 @@ class TransformerBase(WorkerBase, ABC):
             properties: Message properties
             body: Message bytes (either EOF or raw Batch packet)
         """
-        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        with self._session_lock:
+            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
 
-        if session_id not in self._active_sessions and session_id not in self._finished_sessions:
-            self._active_sessions.add(session_id)
-            self._eof_collected_by_session[session_id] = set()
-            self._start_of_session(session_id)
+            if session_id not in self._active_sessions and session_id not in self._finished_sessions:
+                self._active_sessions.add(session_id)
+                self._eof_collected_by_session[session_id] = set()
+                self._start_of_session(session_id)
 
-        try:
-            self._not_processing_batch.clear()
+            try:
+                if self._handle_eof(body, session_id):
+                    channel.basic_ack(delivery_tag=method.delivery_tag)
+                    return
 
-            if self._handle_eof(body, session_id):
-                channel.basic_ack(delivery_tag=method.delivery_tag)
-                return
+                if is_raw_batch(body):
+                    for csv_row in unpack_raw_batch(body):
+                        self._on_csv_row(csv_row, session_id)
+                    channel.basic_ack(delivery_tag=method.delivery_tag)
+                    return
 
-            if is_raw_batch(body):
-                for csv_row in unpack_raw_batch(body):
-                    self._on_csv_row(csv_row, session_id)
-                channel.basic_ack(delivery_tag=method.delivery_tag)
-                return
+                logging.warning(
+                    f"action: unknown_message |"
+                    f" stage: {self._stage_name} | message not EOF or Batch | session_id: {session_id}"
+                )
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-            logging.warning(
-                f"action: unknown_message |"
-                f" stage: {self._stage_name} | message not EOF or Batch | session_id: {session_id}"
-            )
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
-        except Exception as e:
-            logging.exception(
-                f"action: batch_process | stage: {self._stage_name} |" f" error: {str(e)} | session_id: {session_id}"
-            )
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
-        finally:
-            self._not_processing_batch.set()
+            except Exception as e:
+                logging.exception(
+                    f"action: batch_process | stage: {self._stage_name} |" f" error: {str(e)} | session_id: {session_id}"
+                )
+                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _on_csv_row(self, csv_row: str, session_id: uuid.UUID) -> None:
         """
