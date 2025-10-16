@@ -76,18 +76,13 @@ class SessionManager:
             session = self.sessions.get(session_id)
             if session:
                 session.results.append((query_id, result_body))
-                if self._is_eof(result_body):
-                    session.query_results_received.add(query_id)
-                    logging.info(
-                        f"action: query_complete | session_id: {session_id} | "
-                        f"query: {query_id} | "
-                        f"progress: {len(session.query_results_received)}/{len(session.queries_expected)}"
-                    )
-                else:
-                    logging.info(
-                        f"action: got_result | query_id: {query_id} |"
-                        f" session_id: {session_id} | size: {len(result_body)}"
-                    )
+                session.query_results_received.add(query_id)
+                logging.info(
+                    f"action: query_complete | session_id: {session_id} | "
+                    f"query: {query_id} | "
+                    f"size: {len(result_body)} | "
+                    f"progress: {len(session.query_results_received)}/{len(session.queries_expected)}"
+                )
 
     def is_session_complete(self, session_id: UUID) -> bool:
         """Check if session has received all results."""
@@ -116,15 +111,3 @@ class SessionManager:
         """Get number of active sessions."""
         with self._lock:
             return len(self.sessions)
-
-    @staticmethod
-    def _is_eof(data: bytes) -> bool:
-        """Check if data is EOF marker."""
-        from shared.entity import EOF
-
-        try:
-            EOF.deserialize(data)
-            return True
-        except Exception as e:
-            _ = e
-            return False

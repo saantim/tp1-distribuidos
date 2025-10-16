@@ -7,6 +7,7 @@ import threading
 from uuid import UUID
 
 from gateway.core.session import SessionData
+from shared.entity import EOF
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.network import Network, NetworkError
 from shared.protocol import ResultPacket, SESSION_ID
@@ -68,6 +69,14 @@ class ResultCollector:
 
             session_id = UUID(hex=session_id)
             session: SessionData = self.session_manager.get_session(session_id)
+
+            is_final_data = properties.headers.get("FINAL") is not None
+            if not is_final_data:
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+                logging.debug(f"action: ignore_eof | query: {query_id} |"
+                              f" session_id: {session_id} | gateway uses new protocol.")
+                return
+
             if not session:
                 logging.warning(
                     f"action: result_unknown_session | query: {query_id} | "
@@ -79,12 +88,13 @@ class ResultCollector:
             self.session_manager.add_result(session_id, query_id, body)
 
             try:
-                result_packet = ResultPacket(query_id, body)
                 network = Network(session.socket, self.shutdown_signal)
+
+                result_packet = ResultPacket(query_id, body)
                 network.send_packet(result_packet)
 
-                logging.debug(f"action: result_sent | session_id: {session_id} | query: {query_id}")
-
+                eof_packet = ResultPacket(query_id, EOF().serialize())
+                network.send_packet(eof_packet)
                 channel.basic_ack(delivery_tag=method.delivery_tag)
 
                 if self.session_manager.is_session_complete(session_id):
@@ -93,7 +103,7 @@ class ResultCollector:
                     threading.Timer(5.0, self.session_manager.close_session, args=[session_id]).start()
 
             except NetworkError as err:
-                logging.error(
+                logging.warning(
                     f"action: result_send_fail | session_id: {session_id} | " f"query: {query_id} | error: {err}"
                 )
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)

@@ -6,6 +6,13 @@ generate-compose:
 	./venv/bin/python generate_compose.py
 .PHONY: generate-compose
 
+build_test_compose:
+	./venv/bin/python generate_compose.py test_compose_config.yaml
+
+multi_client_test: docker-compose-down build_test_compose
+	docker compose -f docker-compose.yml up -d --build --force-recreate
+.PHONY: multi_client_test
+
 docker-compose-up: clean_res generate-compose
 	docker compose -f docker-compose.yml up -d --build --force-recreate
 .PHONY: docker-compose-up
@@ -22,6 +29,11 @@ logs-client:
 	clear
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(client_|gateway)' | xargs -r docker compose -f docker-compose.yml logs -f
 .PHONY: logs-client
+
+logs-qtest:
+	clear
+	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|q_testing_)' | xargs docker compose -f docker-compose.yml logs -f
+.PHONY: logs-q1
 
 logs-q1:
 	clear
@@ -52,19 +64,17 @@ gen_full:
 .PHONY: gen_full
 
 valid_min:
-	@if [ -n "$(SESSION)" ]; then \
-		python3 .kaggle/validation.py --dataset min --session $(SESSION); \
-	else \
-		python3 .kaggle/validation.py --dataset min; \
-	fi
+	@ARGS="--dataset min"; \
+	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
+	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
+	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_min
 
 valid_full:
-	@if [ -n "$(SESSION)" ]; then \
-		python3 .kaggle/validation.py --dataset full --session $(SESSION); \
-	else \
-		python3 .kaggle/validation.py --dataset full; \
-	fi
+	@ARGS="--dataset full"; \
+	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
+	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
+	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
 
 clean_res:

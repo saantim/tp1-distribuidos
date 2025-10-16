@@ -62,7 +62,7 @@ queries:
       filter_year:
         type: "filter"
         module: "year"
-        replicas: 3
+        replicas: 6
         input:
           queue: "transactions_source"
         output:
@@ -71,7 +71,7 @@ queries:
       filter_hour:
         type: "filter"
         module: "hour"
-        replicas: 3
+        replicas: 6
         input:
           queue: "q1.filtered_year"
         output:
@@ -80,7 +80,7 @@ queries:
       filter_amount:
         type: "filter"
         module: "amount"
-        replicas: 2
+        replicas: 4
         input:
           queue: "q1.filtered_hour"
         output:

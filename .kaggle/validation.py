@@ -18,11 +18,12 @@ from typing import Dict, List, Tuple
 class ResultsValidator:
     """Validates pipeline results against expected outputs."""
 
-    def __init__(self, session_id: str, dataset_mode: str = "min"):
+    def __init__(self, session_id: str, dataset_mode: str = "min", queries: list[str] = None):
         self.dataset_mode = dataset_mode
         self.session_id = session_id
         self.pipeline_dir = Path(f".results/{session_id}/pipeline")
         self.expected_dir = Path(f".results/expected/{dataset_mode}")
+        self.queries_to_validate = queries if queries else ["q1", "q2", "q3", "q4"]
 
         self.report = {
             "dataset_mode": dataset_mode,
@@ -33,10 +34,9 @@ class ResultsValidator:
 
     def validate_all(self) -> bool:
         """Validate all queries. Returns True if all pass."""
-        queries = ["q1", "q2", "q3", "q4"]
         all_passed = True
 
-        for query in queries:
+        for query in self.queries_to_validate:
             passed = self.validate_query(query)
             all_passed = all_passed and passed
 
@@ -375,8 +375,10 @@ def main():
         epilog="""
 Examples:
   python validation.py --dataset min
+  python validation.py --dataset min --queries q1
+  python validation.py --dataset min --queries q1 q3
   python validation.py --dataset min --session <uuid>
-  python validation.py --dataset full --session <uuid>
+  python validation.py --dataset full --session <uuid> --queries q1 q2
         """,
     )
     parser.add_argument(
@@ -388,6 +390,13 @@ Examples:
         "--session",
         type=str,
         help="Session ID (UUID) to validate. If not specified, validates all session in .results/",
+    )
+    parser.add_argument(
+        "--queries",
+        type=str,
+        nargs="+",
+        choices=["q1", "q2", "q3", "q4"],
+        help="Specific queries to validate (e.g., --queries q1 q3). If not specified, validates all queries.",
     )
     args = parser.parse_args()
 
@@ -405,12 +414,15 @@ Examples:
     else:
         sessions = get_all_sessions()
 
+    # Queries
+    queries = args.queries if args.queries else None
+
     # Validate
     results_per_session = []
 
     for session_id in sessions:
         print(f"\n VALIDATION SESSION: {session_id}\n")
-        validator = ResultsValidator(dataset_mode=mode, session_id=session_id)
+        validator = ResultsValidator(dataset_mode=mode, session_id=session_id, queries=queries)
         results_per_session.append(validator.validate_all())
 
     print("\nEXITO TOTAL ✅ " if all(results_per_session) else "\nFRACASO ROTUNDO ❌")

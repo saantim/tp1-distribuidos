@@ -33,11 +33,19 @@ class SinkBase(WorkerBase, ABC):
         self._results_per_session[session_id] = []
 
     def _end_of_session(self, session_id: uuid.UUID):
-        formatted_results: bytes = self.format_fn(self._results_per_session[session_id])
-        if formatted_results:
-            for output in self._output:
-                output.send(formatted_results, headers={SESSION_ID: session_id.hex})
-            logging.info(f"Sent batch results ({len(formatted_results)} bytes) | session: {session_id}")
+        if session_id in self._results_per_session:
+            formatted_results: bytes = self.format_fn(self._results_per_session[session_id])
+            if formatted_results:
+                for output in self._output:
+                    output.send(formatted_results, headers={SESSION_ID: session_id.hex, "FINAL": "true"})
+                logging.info(
+                    f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session_id}")
+
+        self._results_per_session.pop(session_id, None)
 
     def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
-        self._results_per_session[session_id].append(message)
+        if session_id in self._results_per_session:
+            self._results_per_session[session_id].append(message)
+        else:
+            logging.warning(f"action: received_data_for_finished_session |"
+                            f" stage: {self._stage_name} | session: {session_id}")
