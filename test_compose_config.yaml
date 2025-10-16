@@ -46,7 +46,7 @@ queries:
       filter_hour:
         type: "filter"
         module: "hour"
-        replicas: 3
+        replicas: 1
         input:
           queue: "q1.filtered_year"
         output:

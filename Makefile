@@ -77,6 +77,11 @@ valid_full:
 	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
 
+test_count_eof:
+	@echo "Contando mensajes 'flush_eof'..."
+	@make logs-qtest | grep -c "flush_eof" | xargs echo "TOTAL flush_eof encontrados:"
+.PHONY: count-flush
+
 clean_res:
 	ls .results | grep -v '^expected$$' | xargs -I{} rm -rf .results/{}
 	@echo "Cleaned pipeline results (except '.results/expected')"
