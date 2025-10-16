@@ -8,13 +8,17 @@ from enum import IntEnum
 from .utils import ByteReader, ByteWriter
 
 
+SESSION_ID = "session_id"
+
+
 class PacketType(IntEnum):
     ERROR = 0
     ACK = 1
     FILE_SEND_START = 2
     FILE_SEND_END = 3
     BATCH = 4
-    RESULT = 5
+    SESSION_ID_PACKET = 5
+    RESULT = 6
 
 
 class EntityType(IntEnum):
@@ -77,6 +81,7 @@ class Packet(ABC):
             PacketType.FILE_SEND_START: FileSendStart,
             PacketType.FILE_SEND_END: FileSendEnd,
             PacketType.BATCH: Batch,
+            PacketType.SESSION_ID_PACKET: SessionIdPacket,
             PacketType.RESULT: ResultPacket,
             PacketType.ACK: AckPacket,
             PacketType.ERROR: ErrorPacket,
@@ -217,3 +222,28 @@ class Batch(Packet):
             csv_rows.append(reader.read_string())
 
         return cls(entity_type, csv_rows, eof)
+
+
+class SessionIdPacket(Packet):
+    """Packet that sends session_id from gateway to client as 128-bit integer."""
+
+    def __init__(self, session_id_int: int):
+        """
+        Args:
+            session_id_int: UUID as 128-bit integer (use uuid.int to convert)
+        """
+        self.session_id_int = session_id_int
+
+    def get_message_type(self) -> int:
+        return PacketType.SESSION_ID_PACKET
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_uint128(self.session_id_int)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "SessionIdPacket":
+        reader = ByteReader(data)
+        session_id_int = reader.read_uint128()
+        return cls(session_id_int)

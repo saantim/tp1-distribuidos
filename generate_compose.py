@@ -188,17 +188,32 @@ def generate_compose(config):
     }
 
     # Add Client
-    dataset = config["settings"]["dataset"]
-    dataset_path = "/dataset_full" if dataset == "full" else "/dataset_min"
-    services["client"] = {
-        "container_name": "client",
-        "build": {"context": ".", "dockerfile": "./client/Dockerfile"},
-        "entrypoint": "python main.py",
-        "networks": ["coffee"],
-        "depends_on": ["gateway"],
-        "environment": {"LOGGING_LEVEL": "DEBUG"},
-        "volumes": [f"./.data{dataset_path}:/client/.data", "./.results:/client/.results"],
-    }
+    clients = config["settings"]["clients"]
+
+    amount_min = int(clients["min"])
+    amount_full = int(clients["full"])
+
+    if amount_min > 0:
+        services["client_min"] = {
+            "build": {"context": ".", "dockerfile": "./client/Dockerfile"},
+            "entrypoint": "python main.py",
+            "networks": ["coffee"],
+            "depends_on": ["gateway"],
+            "environment": {"LOGGING_LEVEL": "DEBUG"},
+            "volumes": ["./.data/dataset_min:/client/.data", "./.results:/client/.results"],
+            "scale": amount_min,
+        }
+
+    if amount_full > 0:
+        services["client_full"] = {
+            "build": {"context": ".", "dockerfile": "./client/Dockerfile"},
+            "entrypoint": "python main.py",
+            "networks": ["coffee"],
+            "depends_on": ["gateway"],
+            "environment": {"LOGGING_LEVEL": "DEBUG"},
+            "volumes": ["./.data/dataset_full:/client/.data", "./.results:/client/.results"],
+            "scale": int(amount_full),
+        }
 
     # Add transformers
     for name, transformer in config.get("transformers", {}).items():

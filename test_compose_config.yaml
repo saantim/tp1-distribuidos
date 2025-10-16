@@ -1,0 +1,53 @@
+settings:
+  rabbitmq:
+    version: "4.1.4-management"
+    user: "admin"
+    password: "admin"
+  clients:
+    min: 3
+    full: 0
+
+# Transformers: parsean los CSVs crudos
+transformers:
+
+  transactions:
+    module: "transaction"
+    replicas: 3
+    input:
+      queue: "raw_transactions_batches"
+    output:
+      queue: "transactions_source"
+
+# Queries del sistema
+queries:
+  q_testing:
+    description: "Filtrar transacciones por año → hora → monto"
+    enabled: true
+    stages:
+
+      filter_amount:
+        type: "filter"
+        module: "amount"
+        replicas: 4
+        input:
+          queue: "transactions_source"
+        output:
+          queue: "q1.filtered_amount"
+
+      filter_year:
+        type: "filter"
+        module: "year"
+        replicas: 5
+        input:
+          queue: "q1.filtered_amount"
+        output:
+          queue: "q1.filtered_year"
+
+      filter_hour:
+        type: "filter"
+        module: "hour"
+        replicas: 1
+        input:
+          queue: "q1.filtered_year"
+        output:
+          queue: "q1.filtered_hour"

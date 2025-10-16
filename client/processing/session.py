@@ -19,6 +19,7 @@ class Session:
         self.port = port
         self.shutdown_signal = shutdown_signal
         self.network = None
+        self.session_id = None
 
     def connect(self):
         """establish tcp connection to gateway."""
@@ -30,6 +31,7 @@ class Session:
     def start(self):
         """send session start and wait for acknowledgment."""
         self.network.send_packet(FileSendStart())
+        self._receive_session_id()
         self._wait_for_ack("session start")
 
     def end(self):
@@ -51,3 +53,19 @@ class Session:
             raise Exception(f"server error for {stage}: {ack_packet.message}")
         elif ack_packet.get_message_type() != PacketType.ACK:
             raise Exception(f"did not receive ACK for {stage}")
+
+    def _receive_session_id(self):
+        """receive session_id from gateway."""
+        from uuid import UUID
+
+        packet = self.network.recv_packet()
+        if not packet:
+            raise Exception("connection lost while waiting for session_id")
+
+        if packet.get_message_type() != PacketType.SESSION_ID_PACKET:
+            raise Exception(f"expected SESSION_ID_PACKET, got {packet.get_message_type()}")
+
+        session_packet = packet
+        session_uuid = UUID(int=session_packet.session_id_int)
+        self.session_id = str(session_uuid)
+        logging.info(f"action: session_id_received | session_id: {self.session_id}")

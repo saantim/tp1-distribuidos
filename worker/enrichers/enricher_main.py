@@ -13,6 +13,7 @@ def main():
     sources: str = os.getenv("FROM")
     destinations: str = os.getenv("TO")
     enricher: str = os.getenv("ENRICHER")
+
     enricher_module: ModuleType = importlib.import_module(module_name)
 
     if not hasattr(enricher_module, "Enricher"):

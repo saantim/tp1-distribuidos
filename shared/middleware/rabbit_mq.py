@@ -17,12 +17,13 @@ from .interface import (
 class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
     """RabbitMQ queue middleware based on Pika's BlockingConnection."""
 
-    def __init__(self, host: str, queue_name: str) -> None:
+    def __init__(self, host: str, queue_name: str, arguments: dict = None) -> None:
         super().__init__(host, queue_name)
         self._host: str = host
         self._queue_name: str = queue_name
         self._local = threading.local()
-        self._should_stop = False  # Shared across threads, accessed from worker thread
+        self._should_stop = False
+        self._arguments = arguments
 
     def _ensure_connection(self):
         """Ensure connection exists for current thread (thread-local storage)."""
@@ -36,7 +37,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
                 )
             )
             self._local.channel = self._local.connection.channel()
-            self._local.channel.queue_declare(queue=self._queue_name, durable=False)
+            self._local.channel.queue_declare(queue=self._queue_name, durable=False, arguments=self._arguments)
             self._local.channel.basic_qos(prefetch_count=1)
 
     def __str__(self):
@@ -78,15 +79,16 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         """
         self._should_stop = True
 
-    def send(self, message: str | bytes, routing_key: Optional[str] = None) -> None:
+    def send(self, message: str | bytes, routing_key: Optional[str] = None, headers: Optional[dict] = None) -> None:
         """Publish a message to the queue."""
         try:
             self._ensure_connection()
+            properties = pika.BasicProperties(delivery_mode=1, headers=headers)
             self._local.channel.basic_publish(
                 exchange="",
                 routing_key=self._queue_name,
                 body=message,
-                properties=pika.BasicProperties(delivery_mode=1),
+                properties=properties,
             )
         except AMQPConnectionError as e:
             logging.exception(e)
@@ -177,15 +179,20 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
         """
         self._should_stop = True
 
-    def send(self, message: str | bytes, routing_key: Optional[str] = None) -> None:
+    def send(self, message: str | bytes, routing_key: Optional[str] = None, headers: Optional[dict] = None) -> None:
         """Publish the given message to each configured routing key on the exchange."""
         try:
             self._ensure_connection()
+            properties = pika.BasicProperties(delivery_mode=1, headers=headers)
             if routing_key:
-                self._local.channel.basic_publish(exchange=self._exchange_name, routing_key=routing_key, body=message)
+                self._local.channel.basic_publish(
+                    exchange=self._exchange_name, routing_key=routing_key, body=message, properties=properties
+                )
             else:
                 for route_key in self._route_keys:
-                    self._local.channel.basic_publish(exchange=self._exchange_name, routing_key=route_key, body=message)
+                    self._local.channel.basic_publish(
+                        exchange=self._exchange_name, routing_key=route_key, body=message, properties=properties
+                    )
         except AMQPConnectionError as e:
             logging.exception(e)
             raise MessageMiddlewareDisconnectedError(e)

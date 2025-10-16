@@ -27,7 +27,7 @@ class Transformer(TransformerBase):
     def get_entity_type(self) -> Type[Message]:
         return Transaction
 
-    def parse_csv_row(self, csv_row: str) -> dict:
+    def parse_fn(self, csv_row: str) -> dict:
         """
         Parse CSV row string into dictionary.
 
@@ -59,7 +59,7 @@ class Transformer(TransformerBase):
             "created_at": created_at,
         }
 
-    def create_entity(self, row_dict: dict) -> Transaction:
+    def create_fn(self, row_dict: dict) -> Transaction:
         """
         Create Transaction entity from parsed row dictionary.
 

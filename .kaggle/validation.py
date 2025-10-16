@@ -10,7 +10,7 @@ Usage:
 
 import argparse
 import json
-import sys
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -18,18 +18,25 @@ from typing import Dict, List, Tuple
 class ResultsValidator:
     """Validates pipeline results against expected outputs."""
 
-    def __init__(self, dataset_mode: str = "min"):
+    def __init__(self, session_id: str, dataset_mode: str = "min", queries: list[str] = None):
         self.dataset_mode = dataset_mode
-        self.pipeline_dir = Path(".results/pipeline")
+        self.session_id = session_id
+        self.pipeline_dir = Path(f".results/{session_id}/pipeline")
         self.expected_dir = Path(f".results/expected/{dataset_mode}")
-        self.report = {"dataset_mode": dataset_mode, "queries": {}, "summary": {"total": 0, "passed": 0, "failed": 0}}
+        self.queries_to_validate = queries if queries else ["q1", "q2", "q3", "q4"]
+
+        self.report = {
+            "dataset_mode": dataset_mode,
+            "session_id": session_id,
+            "queries": {},
+            "summary": {"total": 0, "passed": 0, "failed": 0},
+        }
 
     def validate_all(self) -> bool:
         """Validate all queries. Returns True if all pass."""
-        queries = ["q1", "q2", "q3", "q4"]
         all_passed = True
 
-        for query in queries:
+        for query in self.queries_to_validate:
             passed = self.validate_query(query)
             all_passed = all_passed and passed
 
@@ -39,9 +46,9 @@ class ResultsValidator:
 
     def validate_query(self, query: str) -> bool:
         """Validate a single query."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Validating {query.upper()}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         pipeline_file = self.pipeline_dir / f"{query}.json"
         expected_file = self.expected_dir / f"{query}.json"
@@ -91,38 +98,45 @@ class ResultsValidator:
         Validate Q1: List of transactions with id and amount.
         Expected format: [{"transaction_id": "...", "final_amount": ...}, ...]
         """
-        # Convert to sets of transaction IDs for comparison
-        pipeline_ids = {tx["transaction_id"] for tx in pipeline}
-        expected_ids = {tx["transaction_id"] for tx in expected}
+        # Check total count first (simple and effective)
+        if len(pipeline) != len(expected):
+            return False, {
+                "reason": "Count mismatch",
+                "expected_count": len(expected),
+                "got_count": len(pipeline),
+                "difference": len(pipeline) - len(expected),
+            }
 
-        if pipeline_ids == expected_ids:
-            # Check amounts match
-            pipeline_map = {tx["transaction_id"]: tx["final_amount"] for tx in pipeline}
-            expected_map = {tx["transaction_id"]: tx["final_amount"] for tx in expected}
+        # Create lookup dictionaries for expected data
+        expected_map = {tx["transaction_id"]: tx["final_amount"] for tx in expected}
+        pipeline_map = {tx["transaction_id"]: tx["final_amount"] for tx in pipeline}
 
-            mismatches = []
-            for tx_id in pipeline_ids:
-                if pipeline_map[tx_id] != expected_map[tx_id]:
-                    mismatches.append(
-                        {"transaction_id": tx_id, "expected": expected_map[tx_id], "got": pipeline_map[tx_id]}
-                    )
+        # Check if all pipeline IDs exist in expected and amounts match
+        mismatches = []
+        missing_ids = []
 
-            if mismatches:
-                return False, {"reason": "Amount mismatches", "count": len(mismatches), "examples": mismatches[:5]}
+        for tx_id, amount in pipeline_map.items():
+            if tx_id not in expected_map:
+                missing_ids.append(tx_id)
+            elif expected_map[tx_id] != amount:
+                mismatches.append({"transaction_id": tx_id, "expected": expected_map[tx_id], "got": amount})
 
+        # Check for extra IDs in pipeline (IDs that shouldn't be there)
+        extra_ids = set(pipeline_map.keys()) - set(expected_map.keys())
+
+        if not missing_ids and not extra_ids and not mismatches:
             return True, {"transaction_count": len(pipeline), "all_ids_match": True, "all_amounts_match": True}
 
-        missing = expected_ids - pipeline_ids
-        extra = pipeline_ids - expected_ids
-
         return False, {
-            "reason": "Transaction ID mismatch",
+            "reason": "Data validation failed",
             "expected_count": len(expected),
             "got_count": len(pipeline),
-            "missing_count": len(missing),
-            "extra_count": len(extra),
-            "missing_examples": list(missing)[:5] if missing else [],
-            "extra_examples": list(extra)[:5] if extra else [],
+            "missing_ids_count": len(missing_ids),
+            "extra_ids_count": len(extra_ids),
+            "amount_mismatches_count": len(mismatches),
+            "missing_ids_examples": missing_ids[:5],
+            "extra_ids_examples": list(extra_ids)[:5],
+            "amount_mismatch_examples": mismatches[:5],
         }
 
     @staticmethod
@@ -313,17 +327,19 @@ class ResultsValidator:
 
     def _print_summary(self):
         """Print validation summary."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("VALIDATION SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Dataset Mode: {self.dataset_mode}")
         print(f"Total Queries: {self.report['summary']['total']}")
         print(f"✅ Passed: {self.report['summary']['passed']}")
-        print(f"❌ Failed: {self.report['summary']['failed']}")
+        if self.report["summary"]["failed"] > 0:
+            print(f"❌ Failed: {self.report['summary']['failed']}")
 
     def _save_report(self):
         """Save validation report to disk."""
-        report_file = Path(".results") / f"validation_report_{self.dataset_mode}.json"
+        report_file = Path(".results") / f"reports/{self.session_id}_{self.dataset_mode}.json"
+        os.makedirs(".results/reports", exist_ok=True)
         with open(report_file, "w") as f:
             json.dump(self.report, f, indent=2)
         print(f"\nDetailed report saved to: {report_file}")
@@ -344,21 +360,43 @@ def detect_dataset_mode() -> str:
     return "min"  # Default
 
 
+def get_all_sessions() -> List[str]:
+    return [
+        name
+        for name in os.listdir(".results")
+        if os.path.isdir(os.path.join(".results", name)) and name not in ("expected", "reports")
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Validate pipeline results against expected outputs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python validate_results.py              # Auto-detect from compose_config.json
-  python validate_results.py --dataset min
-  python validate_results.py --dataset full
+  python validation.py --dataset min
+  python validation.py --dataset min --queries q1
+  python validation.py --dataset min --queries q1 q3
+  python validation.py --dataset min --session <uuid>
+  python validation.py --dataset full --session <uuid> --queries q1 q2
         """,
     )
     parser.add_argument(
         "--dataset",
         choices=["min", "full"],
         help="Dataset type (auto-detected from compose_config.json if not specified)",
+    )
+    parser.add_argument(
+        "--session",
+        type=str,
+        help="Session ID (UUID) to validate. If not specified, validates all session in .results/",
+    )
+    parser.add_argument(
+        "--queries",
+        type=str,
+        nargs="+",
+        choices=["q1", "q2", "q3", "q4"],
+        help="Specific queries to validate (e.g., --queries q1 q3). If not specified, validates all queries.",
     )
     args = parser.parse_args()
 
@@ -370,11 +408,25 @@ Examples:
         mode = detect_dataset_mode()
         print(f"Auto-detected dataset mode from config: {mode}")
 
-    # Validate
-    validator = ResultsValidator(dataset_mode=mode)
-    success = validator.validate_all()
+    # Session
+    if args.session:
+        sessions = [args.sessions]
+    else:
+        sessions = get_all_sessions()
 
-    sys.exit(0 if success else 1)
+    # Queries
+    queries = args.queries if args.queries else None
+
+    # Validate
+    results_per_session = []
+
+    for session_id in sessions:
+        print(f"\n VALIDATION SESSION: {session_id}\n")
+        validator = ResultsValidator(dataset_mode=mode, session_id=session_id, queries=queries)
+        results_per_session.append(validator.validate_all())
+
+    print("\nEXITO TOTAL ✅ " if all(results_per_session) else "\nFRACASO ROTUNDO ❌")
+    print(f"{len(list(filter(lambda x: x, results_per_session)))} / {len(results_per_session)}")
 
 
 if __name__ == "__main__":

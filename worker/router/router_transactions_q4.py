@@ -13,5 +13,5 @@ class Router(RouterBase):
         key = f"{tx.user_id}{tx.store_id}".encode()
         digest = hashlib.sha256(key).hexdigest()
 
-        hashed_index = int(digest, 16) % len(self.routing_keys)
-        return self.routing_keys[hashed_index]
+        hashed_index = int(digest, 16) % len(self._routing_keys)
+        return self._routing_keys[hashed_index]

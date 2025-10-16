@@ -1,9 +1,11 @@
 settings:
-  dataset: "full"
   rabbitmq:
     version: "4.1.4-management"
     user: "admin"
     password: "admin"
+  clients:
+    min: 3
+    full: 0
 
 # Transformers: parsean los CSVs crudos
 transformers:
@@ -37,7 +39,7 @@ transformers:
 
   transactions:
     module: "transaction"
-    replicas: 3
+    replicas: 5
     input:
       queue: "raw_transactions_batches"
     output:
@@ -45,7 +47,7 @@ transformers:
 
   transaction_items:
     module: "transaction_item"
-    replicas: 5
+    replicas: 8
     input:
       queue: "raw_transaction_items_batches"
     output:
@@ -60,7 +62,7 @@ queries:
       filter_year:
         type: "filter"
         module: "year"
-        replicas: 3
+        replicas: 6
         input:
           queue: "transactions_source"
         output:
@@ -69,7 +71,7 @@ queries:
       filter_hour:
         type: "filter"
         module: "hour"
-        replicas: 3
+        replicas: 6
         input:
           queue: "q1.filtered_year"
         output:
@@ -78,7 +80,7 @@ queries:
       filter_amount:
         type: "filter"
         module: "amount"
-        replicas: 2
+        replicas: 4
         input:
           queue: "q1.filtered_hour"
         output:
@@ -100,7 +102,7 @@ queries:
       filter_items:
         type: "filter"
         module: "item_year"
-        replicas: 3
+        replicas: 5
         input:
           queue: "transaction_items_source"
         output:

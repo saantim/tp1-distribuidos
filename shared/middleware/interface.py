@@ -39,7 +39,7 @@ class MessageMiddleware(ABC):
     # Si se pierde la conexión con el middleware eleva MessageMiddlewareDisconnectedError.
     # Si ocurre un error interno que no puede resolverse eleva MessageMiddlewareMessageError.
     @abstractmethod
-    def send(self, message: bytes, routing_key: Optional[str] = None):
+    def send(self, message: bytes, routing_key: Optional[str] = None, headers: Optional[dict] = None):
         pass
 
     # Se desconecta de la cola o exchange al que estaba conectado.

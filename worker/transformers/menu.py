@@ -23,7 +23,7 @@ class Transformer(TransformerBase):
     def get_entity_type(self) -> Type[Message]:
         return MenuItem
 
-    def parse_csv_row(self, csv_row: str) -> dict:
+    def parse_fn(self, csv_row: str) -> dict:
         """
         Parse CSV row string into dictionary.
         """
@@ -37,7 +37,7 @@ class Transformer(TransformerBase):
             "item_name": parts[1].strip(),
         }
 
-    def create_entity(self, row_dict: dict) -> MenuItem:
+    def create_fn(self, row_dict: dict) -> MenuItem:
         """
         Create MenuItem entity from parsed row dictionary.
 

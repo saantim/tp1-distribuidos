@@ -72,6 +72,7 @@ class Analyzer:
                 self.shutdown_signal,
                 expected_queries={"Q1", "Q2", "Q3", "Q4"},
                 results_dir=self.config.results_dir,
+                session_id=session.session_id,
             )
             results.collect()
 

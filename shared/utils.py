@@ -27,6 +27,11 @@ class ByteWriter:
         self.chunks.append(value.to_bytes(8))
         return self
 
+    def write_uint128(self, value: int) -> "ByteWriter":
+        """Write unsigned 128-bit integer (16 bytes) for UUID storage."""
+        self.chunks.append(value.to_bytes(16, byteorder="big"))
+        return self
+
     def write_float64(self, value: float) -> "ByteWriter":
         """Write double precision float and return self for chaining."""
         import struct
@@ -103,6 +108,14 @@ class ByteReader:
             raise ValueError(f"Not enough bytes: need 8, have {self.length - self.offset}")
         value = int.from_bytes(self.data[self.offset : self.offset + 8])
         self.offset += 8
+        return value
+
+    def read_uint128(self) -> int:
+        """Read unsigned 128-bit integer (16 bytes) for UUID storage."""
+        if not self.has_bytes(16):
+            raise ValueError(f"Not enough bytes: need 16, have {self.length - self.offset}")
+        value = int.from_bytes(self.data[self.offset : self.offset + 16], byteorder="big")
+        self.offset += 16
         return value
 
     def read_float64(self) -> float:

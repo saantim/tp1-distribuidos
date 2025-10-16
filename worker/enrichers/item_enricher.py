@@ -7,10 +7,9 @@ from worker.types import ItemInfo, ItemName, TransactionItemByPeriod
 
 class Enricher(EnricherBase):
 
-    def _load_entity_fn(self, message: MenuItem) -> None:
-        if not self._loaded_entities:
-            self._loaded_entities = {}
-        self._loaded_entities[int(message.item_id)] = message.item_name
+    def _load_entity_fn(self, loaded_entities: dict, entity: MenuItem) -> dict:
+        loaded_entities[int(entity.item_id)] = entity.item_name
+        return loaded_entities
 
     def get_enricher_type(self) -> Type[Message]:
         return MenuItem
@@ -18,13 +17,12 @@ class Enricher(EnricherBase):
     def get_entity_type(self) -> Type[Message]:
         return TransactionItemByPeriod
 
-    def _enrich_entity_fn(self, entity: TransactionItemByPeriod) -> TransactionItemByPeriod:
+    def _enrich_entity_fn(self, loaded_entities: dict, entity: TransactionItemByPeriod) -> TransactionItemByPeriod:
         for period, items in entity.transaction_item_per_period.items():
             for item_id, item_info in items.items():
-                name = self._loaded_entities.get(int(item_id), "")
+                name = loaded_entities.get(int(item_id), "")
                 if name:
                     new = ItemInfo(item_name=ItemName(name), amount=item_info.amount, quantity=item_info.quantity)
                     entity.transaction_item_per_period[period][item_id] = new
-                    self._enriched += 1
 
         return entity

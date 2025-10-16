@@ -1,5 +1,4 @@
 import json
-import os
 from typing import List
 
 from shared.middleware.interface import MessageMiddleware
@@ -43,43 +42,44 @@ def build_middlewares_list(middlewares: str) -> List[MessageMiddleware]:
     return result
 
 
-def get_input_queue() -> list[MessageMiddleware] | ValueError:
-    return get_source(env_var_source_type=FROM_TYPE, env_var_source_name=FROM, env_var_source_strategy=FROM_STRATEGY)
+def build_enricher_middlewares(sources: str, enricher_module) -> tuple[MessageMiddleware, MessageMiddleware]:
+    """
+    Construye source y waiting_queue para enrichers.
 
+    Enrichers necesitan dos colas:
+    - Main queue: donde llegan mensajes a enriquecer
+    - Waiting queue: donde se ponen mensajes si enricher data no está listo
 
-def get_output_queue() -> list[MessageMiddleware] | ValueError:
-    return get_source(env_var_source_type=TO_TYPE, env_var_source_name=TO, env_var_source_strategy=TO_STRATEGY)
+    La waiting queue tiene TTL y dead-letter a main queue para reintentar
+    automáticamente después del TTL.
 
+    Args:
+        sources: JSON string del env var FROM
+        enricher_module: Módulo del enricher (para leer DEFAULT_WAITING_TTL_MS)
 
-def get_enricher_queue() -> list[MessageMiddleware] | ValueError:
-    return get_source(
-        env_var_source_type=ENRICHER_TYPE, env_var_source_name=ENRICHER, env_var_source_strategy=ENRICHER_STRATEGY
+    Returns:
+        (source_queue, waiting_queue) tuple de MessageMiddleware
+    """
+    source_list = build_middlewares_list(sources)
+    source_queue = source_list[0]
+
+    if not hasattr(source_queue, "_queue_name"):
+        raise ValueError("Enricher source must be a queue, not an exchange")
+
+    main_queue_name = source_queue._queue_name
+    waiting_queue_name = f"{main_queue_name}.waiting"
+
+    ttl_ms = getattr(enricher_module.Enricher, "DEFAULT_WAITING_TTL_MS", 5000)
+
+    source = MessageMiddlewareQueueMQ(host="rabbitmq", queue_name=main_queue_name)
+    waiting_queue = MessageMiddlewareQueueMQ(
+        host="rabbitmq",
+        queue_name=waiting_queue_name,
+        arguments={
+            "x-message-ttl": ttl_ms,
+            "x-dead-letter-exchange": "",
+            "x-dead-letter-routing-key": main_queue_name,
+        },
     )
 
-
-def get_source(
-    env_var_source_type: str, env_var_source_name: str, env_var_source_strategy: str
-) -> list[MessageMiddleware] | ValueError:
-    host: str = os.getenv(MIDDLEWARE_HOST)
-    source_type: str = os.getenv(env_var_source_type)
-    source_names: list[str] = os.getenv(env_var_source_name).split(",")
-    source_strategy: str = os.getenv(env_var_source_strategy)
-
-    if source_type == QUEUE_TYPE:
-        return [
-            MessageMiddlewareQueueMQ(host, source_name.format(i=os.getenv("REPLICA_INDEX")))
-            for source_name in source_names
-        ]
-    elif source_type == EXCHANGE_TYPE:
-        if source_strategy == FANOUT_STRATEGY:
-            route_key: str = "common"
-        elif source_strategy == SHARDING_STRATEGY:
-            raise NotImplementedError
-        else:
-            raise ValueError(f"STRATEGY must be {FANOUT_STRATEGY} or {SHARDING_STRATEGY}")
-        return [
-            MessageMiddlewareExchangeRMQ(host=host, exchange_name=source_name, route_keys=[route_key])
-            for source_name in source_names
-        ]
-
-    raise ValueError(f"TYPE must be {QUEUE_TYPE} or {EXCHANGE_TYPE}")
+    return source, waiting_queue

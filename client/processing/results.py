@@ -15,11 +15,17 @@ from shared.protocol import PacketType
 class ResultsSaver:
     """Saves query results to disk for validation."""
 
-    def __init__(self, results_dir: str = ".results"):
-        pipeline_dir = Path(results_dir) / "pipeline"
+    def __init__(self, results_dir: str = ".results", session_id: str = None):
+        if session_id:
+            base_dir = Path(results_dir) / session_id
+        else:
+            base_dir = Path(results_dir)
+
+        pipeline_dir = base_dir / "pipeline"
         self.results_dir = pipeline_dir
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.results_by_query = {}
+        self.session_id = session_id
 
     def save_result(self, query_id: str, data: bytes):
         """Save individual result data for a query."""
@@ -42,7 +48,8 @@ class ResultsSaver:
             with open(output_file, "w") as f:
                 json.dump(merged, f, indent=2)
 
-            logging.info(f"Saved {query_id} results to {output_file}")
+            session_info = f" | session_id: {self.session_id}" if self.session_id else ""
+            logging.info(f"Saved {query_id} results to {output_file}{session_info}")
 
     @staticmethod
     def _merge_query_results(query_id: str, results: list) -> dict:
@@ -61,20 +68,23 @@ class ResultsSaver:
 class ResultsCollector:
     """collects and displays query results from gateway."""
 
-    def __init__(self, network, shutdown_signal, expected_queries: set, results_dir: str = ".results"):
+    def __init__(
+        self, network, shutdown_signal, expected_queries: set, results_dir: str = ".results", session_id: str = None
+    ):
         self.network = network
         self.shutdown_signal = shutdown_signal
         self.expected_queries = expected_queries
-        self.results_by_query = {}
         self.queries_complete = set()
-        self.saver = ResultsSaver(results_dir)
+        self.session_id = session_id
+        self.saver = ResultsSaver(results_dir, session_id=session_id)
 
     def collect(self):
         """
         collect results from all expected queries.
         blocks until all queries complete or error occurs.
         """
-        logging.info("action: waiting_for_results | status: started")
+        session_info = f" | session_id: {self.session_id}" if self.session_id else ""
+        logging.info(f"action: waiting_for_results | status: started{session_info}")
         start_time = time.time()
 
         try:
@@ -92,16 +102,15 @@ class ResultsCollector:
                     self._handle_result_packet(packet, start_time)
 
                 elif packet.get_message_type() == PacketType.ERROR:
-                    logging.error(f"action: collect_results | error: {packet.message}")
+                    logging.error(f"action: collect_results_error_packet | error: {packet.message}")
                     break
                 else:
                     logging.warning(f"unexpected packet type: {packet.get_message_type()}")
 
             self.saver.flush_to_disk()
-            self.display_results()
 
         except Exception as e:
-            logging.error(f"action: collect_results | error: {e}")
+            logging.exception(f"action: collect_results_exception | error: {e}")
 
     def _handle_result_packet(self, packet, start_time):
         """process individual result packet."""
@@ -118,39 +127,17 @@ class ResultsCollector:
             )
             return
 
-        # Save to disk
         self.saver.save_result(query_id, data)
-
-        # Keep in memory for display
-        if query_id not in self.results_by_query:
-            self.results_by_query[query_id] = []
-        self.results_by_query[query_id].append(data)
+        logging.info(f"action: saved_result | query: {query_id} | size: {len(data)}")
 
     @staticmethod
     def _is_eof(data: bytes) -> bool:
         """
         check if data represents EOF.
-
-        TODO: refactor this when redesigning EOF handling.
-        current implementation uses exception-based detection.
         """
         try:
             EOF.deserialize(data)
             return True
-        except Exception:
+        except Exception as e:
+            _ = e
             return False
-
-    def display_results(self):
-        """display all collected results."""
-        for query_id in sorted(self.results_by_query.keys()):
-            logging.info(f"\n========== {query_id} Results ==========")
-            results = self.results_by_query[query_id]
-
-            for result_bytes in results:
-                try:
-                    result = json.loads(result_bytes.decode("utf-8"))
-                    logging.info(json.dumps(result, indent=2))
-                    if query_id == "Q1":
-                        logging.info(f"Q1 Total Transactions: {len(list(result))}")
-                except Exception as e:
-                    logging.error(f"Failed to parse result for {query_id}: {e}")

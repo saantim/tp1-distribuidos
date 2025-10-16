@@ -1,10 +1,11 @@
 """
-gateway tcp server that accepts client connections and routes packets to middleware.
-currently handles single client connection.
+gateway tcp server that accepts MULTIPLE concurrent client connections.
+spawns thread per client and routes packets to middleware with session_id tagging.
 """
 
 import logging
 import socket
+import threading
 from typing import Optional
 
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
@@ -12,12 +13,14 @@ from shared.protocol import EntityType
 from shared.shutdown import ShutdownSignal
 
 from .handler import ClientHandler
+from .results import ResultCollector
+from .session import SessionManager
 
 
 class Server:
     """
-    tcp server that accepts client connections and handles data processing sessions.
-    routes incoming raw batch packets to appropriate middleware queues.
+    tcp server that accepts MULTIPLE concurrent client connections.
+    each client gets unique session_id for tracking throughout pipeline.
     """
 
     def __init__(
@@ -35,12 +38,18 @@ class Server:
         self.backlog = listen_backlog
         self.server_socket: Optional[socket.socket] = None
 
+        self.session_manager = SessionManager()
+        self.result_collector = ResultCollector(middleware_host, self.session_manager, shutdown_signal)
+        self.client_threads = []
+        self.client_threads_lock = threading.Lock()
+
     def run(self):
         """
-        start server and handle client connections.
+        start server and handle multiple concurrent client connections.
         """
         try:
             self._setup_server_socket()
+            self.result_collector.start()
             self._accept_connections()
         except Exception as e:
             logging.error(f"action: server_run | result: fail | error: {e}")
@@ -53,35 +62,32 @@ class Server:
         self.server_socket.bind(("", self.port))
         self.server_socket.listen(self.backlog)
 
-        logging.info(f"action: server_start | result: success | port: {self.port}")
+        logging.info(f"action: server_start | result: success | port: {self.port} | " f"backlog: {self.backlog}")
 
     def _accept_connections(self):
-        """accept and handle client connections."""
+        """accept and handle multiple concurrent client connections."""
         while not self.shutdown_signal.should_shutdown():
             try:
                 self.server_socket.settimeout(1.0)
                 client_socket, client_address = self.server_socket.accept()
 
-                logging.info(f"action: client_connect | client: {client_address}")
+                logging.info(
+                    f"action: client_accept | client: {client_address} | "
+                    f"active_sessions: {self.session_manager.get_active_session_count()}"
+                )
 
-                publishers = {
-                    EntityType.STORE: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["STORE"]),
-                    EntityType.USER: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["USER"]),
-                    EntityType.TRANSACTION: MessageMiddlewareQueueMQ(
-                        self.middleware_host, self.batch_queues["TRANSACTION"]
-                    ),
-                    EntityType.TRANSACTION_ITEM: MessageMiddlewareQueueMQ(
-                        self.middleware_host, self.batch_queues["TRANSACTION_ITEM"]
-                    ),
-                    EntityType.MENU_ITEM: MessageMiddlewareQueueMQ(
-                        self.middleware_host, self.batch_queues["MENU_ITEM"]
-                    ),
-                }
+                session_id = self.session_manager.create_session(client_socket, client_address)
+                publishers = self._create_publishers()
+                client_thread = threading.Thread(
+                    target=self._handle_client_thread,
+                    args=(client_socket, client_address, session_id, publishers),
+                    name=f"client-{session_id}",
+                    daemon=False,
+                )
+                client_thread.start()
 
-                handler = ClientHandler(client_socket, publishers, self.middleware_host, self.shutdown_signal)
-                handler.handle_session()
-
-                logging.info(f"action: client_disconnect | client: {client_address}")
+                with self.client_threads_lock:
+                    self.client_threads.append(client_thread)
 
             except socket.timeout:
                 continue
@@ -89,8 +95,49 @@ class Server:
                 if not self.shutdown_signal.should_shutdown():
                     logging.error(f"action: accept_connection | result: fail | error: {e}")
 
+    def _handle_client_thread(self, client_socket, client_address, session_id, publishers):
+        """Thread target for handling individual client."""
+        try:
+            handler = ClientHandler(
+                client_socket, client_address, session_id, publishers, self.session_manager, self.shutdown_signal
+            )
+            handler.handle_session()
+
+            logging.info(f"action: client_handler_complete | session_id: {session_id} | " f"client: {client_address}")
+
+        except Exception as e:
+            logging.exception(f"action: client_thread_error | session_id: {session_id} | error: {e}")
+        finally:
+            for publisher in publishers.values():
+                try:
+                    publisher.close()
+                except Exception:
+                    pass
+
+    def _create_publishers(self) -> dict:
+        """Create middleware publishers for a client (thread-local connections)."""
+        return {
+            EntityType.STORE: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["STORE"]),
+            EntityType.USER: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["USER"]),
+            EntityType.TRANSACTION: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["TRANSACTION"]),
+            EntityType.TRANSACTION_ITEM: MessageMiddlewareQueueMQ(
+                self.middleware_host, self.batch_queues["TRANSACTION_ITEM"]
+            ),
+            EntityType.MENU_ITEM: MessageMiddlewareQueueMQ(self.middleware_host, self.batch_queues["MENU_ITEM"]),
+        }
+
     def _cleanup(self):
-        """cleanup server resources."""
+        """cleanup server resources and wait for client threads."""
+        logging.info("action: server_cleanup_start")
+
+        with self.client_threads_lock:
+            active_threads = [t for t in self.client_threads if t.is_alive()]
+
+        if active_threads:
+            logging.info(f"action: waiting_for_clients | count: {len(active_threads)}")
+            for thread in active_threads:
+                thread.join(timeout=5.0)
+
         if self.server_socket:
             try:
                 self.server_socket.close()
