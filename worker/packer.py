@@ -9,7 +9,7 @@ from typing import Iterator, List, Optional, Type
 from shared.entity import Message
 from shared.protocol import Batch, Header, Packet
 from shared.utils import ByteReader, ByteWriter
-
+from shared.protocol import PacketType
 
 @dataclass
 class EntityBatch:
@@ -175,8 +175,6 @@ def is_raw_batch(body: bytes) -> bool:
 
     try:
         header = Header.deserialize(body[: Header.SIZE])
-        from shared.protocol import PacketType
-
         return header.message_type == PacketType.BATCH
     except Exception as e:
         _ = e

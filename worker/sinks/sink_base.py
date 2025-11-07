@@ -1,12 +1,18 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
 from shared.protocol import SESSION_ID
-from worker.base import WorkerBase
+from worker.base import WorkerBase, Session
+from dataclasses import dataclass, field
 
+@dataclass
+class SessionData:
+    result: list[Message] = field(default_factory=list)
+    message_count: int = 0
 
 class SinkBase(WorkerBase, ABC):
     """
@@ -19,33 +25,28 @@ class SinkBase(WorkerBase, ABC):
         instances: int,
         index: int,
         stage_name: str,
-        source: MessageMiddleware,
-        output: list[MessageMiddleware],
-        intra_exchange: MessageMiddlewareExchange,
+        downstream_worker_quantity: int,
+        source: MessageMiddlewareExchange,
+        output: MessageMiddlewareExchange,
     ):
-        super().__init__(instances, index, stage_name, source, output, intra_exchange)
+        super().__init__(instances, index, stage_name, downstream_worker_quantity, source, output)
         self._results_per_session: dict[uuid.UUID, list[Message]] = {}
 
     @abstractmethod
     def format_fn(self, results_collected: list[Message]) -> bytes: ...
 
-    def _start_of_session(self, session_id: uuid.UUID):
-        self._results_per_session[session_id] = []
+    def _start_of_session(self, session: Session):
+        session.set_storage(SessionData())
 
-    def _end_of_session(self, session_id: uuid.UUID):
-        if session_id in self._results_per_session:
-            formatted_results: bytes = self.format_fn(self._results_per_session[session_id])
-            if formatted_results:
-                for output in self._output:
-                    output.send(formatted_results, headers={SESSION_ID: session_id.hex, "FINAL": "true"})
-                logging.info(
-                    f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session_id}")
+    def _end_of_session(self, session: Session):
+        session_data: SessionData = session.get_storage()
+        formatted_results: bytes = self.format_fn(session_data.result)
+        if formatted_results:
+            # TODO: Modificar gateway para que no necesite el FINAL:true y tome en su lugar el EOF.
+            self._send_message(formatted_results, session_id=session.session_id, message_id=uuid.uuid4())
+            logging.info(
+                f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session.session_id}")
 
-        self._results_per_session.pop(session_id, None)
-
-    def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
-        if session_id in self._results_per_session:
-            self._results_per_session[session_id].append(message)
-        else:
-            logging.warning(f"action: received_data_for_finished_session |"
-                            f" stage: {self._stage_name} | session: {session_id}")
+    def _on_entity_upstream(self, message: Message, session: Session) -> None:
+        session_data: SessionData = session.get_storage()
+        session_data.result.append(message)

@@ -19,10 +19,6 @@ class Transformer(TransformerBase):
     """
     Transformer for stores.
     """
-
-    def get_entity_type(self) -> Type[Message]:
-        return Store
-
     def parse_fn(self, csv_row: str) -> dict:
         """
         Parse CSV row string into dictionary.
