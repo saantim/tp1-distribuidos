@@ -2,18 +2,20 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
-from worker.base import WorkerBase, Session
+from worker.base import Session, WorkerBase
 from worker.packer import pack_entity_batch
-from dataclasses import dataclass, field
+
 
 @dataclass
 class SessionData:
     buffer: list[Message] = field(default_factory=list)
     received: int = 0
     passed: int = 0
+
 
 class FilterBase(WorkerBase, ABC):
 
@@ -27,7 +29,7 @@ class FilterBase(WorkerBase, ABC):
         output: MessageMiddlewareExchange,
         batch_size: int = 500,
     ):
-        super().__init__(instances, index, stage_name,downstream_worker_quantity, source, output)
+        super().__init__(instances, index, stage_name, downstream_worker_quantity, source, output)
         self.buffer_size = batch_size
 
     @abstractmethod

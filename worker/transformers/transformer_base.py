@@ -6,18 +6,20 @@ Transforms CSV rows into entities.
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Type
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
-from worker.base import WorkerBase, Session
+from worker.base import Session, WorkerBase
 from worker.packer import is_raw_batch, pack_entity_batch, unpack_raw_batch
-from dataclasses import dataclass, field
+
 
 @dataclass
 class SessionData:
     buffer: list[Message] = field(default_factory=list)
     transformed: int = 0
+
 
 class TransformerBase(WorkerBase, ABC):
     """
@@ -43,7 +45,7 @@ class TransformerBase(WorkerBase, ABC):
     def get_entity_type(self) -> Type[Message]:
         return RawMessage
 
-    def _on_entity_upstream(self, message:RawMessage, session: Session) -> None:
+    def _on_entity_upstream(self, message: RawMessage, session: Session) -> None:
         if is_raw_batch(message.raw_data):
             for csv_row in unpack_raw_batch(message.raw_data):
                 self._on_csv_row(csv_row, session)

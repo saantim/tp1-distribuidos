@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from typing import Iterator, List, Optional, Type
 
 from shared.entity import Message
-from shared.protocol import Batch, Header, Packet
+from shared.protocol import Batch, Header, Packet, PacketType
 from shared.utils import ByteReader, ByteWriter
-from shared.protocol import PacketType
+
 
 @dataclass
 class EntityBatch:

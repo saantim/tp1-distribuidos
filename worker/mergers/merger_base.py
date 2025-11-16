@@ -1,16 +1,18 @@
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Optional
 
 from shared.entity import Message
-from worker.base import WorkerBase, Session
+from worker.base import Session, WorkerBase
 from worker.packer import pack_entity_batch
-from dataclasses import dataclass
+
 
 @dataclass
 class SessionData:
     merged: Optional[Message] = None
     message_count: int = 0
+
 
 class MergerBase(WorkerBase, ABC):
     @abstractmethod

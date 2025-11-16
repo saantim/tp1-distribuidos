@@ -13,9 +13,8 @@ We only extract:
 """
 
 from datetime import datetime
-from typing import Type
 
-from shared.entity import Message, Transaction
+from shared.entity import Transaction
 from worker.transformers.transformer_base import TransformerBase
 
 

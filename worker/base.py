@@ -1,16 +1,16 @@
 import logging
 import threading
-import time
 import uuid
 from abc import ABC, abstractmethod
-from typing import Type, Optional, Any, Callable
+from typing import Any, Callable, Optional, Type
 
 from shared.entity import EOF, Message
 from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange, MessageMiddlewareQueue
-from shared.protocol import SESSION_ID, MESSAGE_ID
+from shared.protocol import MESSAGE_ID, SESSION_ID
 from shared.shutdown import ShutdownSignal
 from worker.packer import unpack_entity_batch
 from worker.types import EOFIntraExchange
+
 
 class Session:
     def __init__(self, session_id: uuid.UUID):
@@ -30,13 +30,16 @@ class Session:
     def get_eof_collected(self):
         return self._eof_collected
 
+
 class SessionManager:
-    def __init__(self,
-                 stage_name: str,
-                 on_start_of_session: Callable,
-                 on_end_of_session: Callable,
-                 instances: int,
-                 is_leader: bool):
+    def __init__(
+        self,
+        stage_name: str,
+        on_start_of_session: Callable,
+        on_end_of_session: Callable,
+        instances: int,
+        is_leader: bool,
+    ):
         self._sessions: dict[uuid.UUID, Session] = {}
         self._on_start_of_session = on_start_of_session
         self._on_end_of_session = on_end_of_session
@@ -61,7 +64,7 @@ class SessionManager:
         current_session = self._sessions.get(session_id, None)
         return current_session
 
-    def try_to_flush(self, session:Session) -> bool:
+    def try_to_flush(self, session: Session) -> bool:
         if self._is_flushable(session):
             self._on_end_of_session(session)
             self._sessions.pop(session.session_id, None)
@@ -113,8 +116,7 @@ class WorkerBase(ABC):
         self._upstream_thread.start()
 
         logging.info(
-            f"action: thread_start | stage: {self._stage_name} |"
-            f" data_thread: {self._upstream_thread.name} |"
+            f"action: thread_start | stage: {self._stage_name} |" f" data_thread: {self._upstream_thread.name} |"
         )
 
         # Wait for shutdown signal
@@ -156,23 +158,28 @@ class WorkerBase(ABC):
         logging.info(f"action: signal_received | stage: {self._stage_name} | signal: {_signum}")
         self.stop()
 
-    def _handle_eof(self, message: bytes, session :Session) -> bool:
+    def _handle_eof(self, message: bytes, session: Session) -> bool:
         if not EOF.is_type(message):
             return False
 
         eof = EOF.deserialize(message)
 
-        logging.info(f"action: receive_EOF | stage: {self._stage_name} | session: {session.session_id} | from: {self._source}")
+        logging.info(
+            f"action: receive_EOF | stage: {self._stage_name} | session: {session.session_id} | from: {self._source}"
+        )
         session.add_eof(eof.worker_id)
 
         if self._session_manager.try_to_flush(session):
             if self._leader:
                 self._output.send(
-                    EOF().serialize(), routing_key=self.COMMON_ROUTING_KEY, headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex}
+                    EOF().serialize(),
+                    routing_key=self.COMMON_ROUTING_KEY,
+                    headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
                 )
             else:
                 self._source.send(
-                    EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex}
+                    EOFIntraExchange(str(self._index)).serialize(),
+                    headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
                 )
 
         return True
@@ -189,14 +196,16 @@ class WorkerBase(ABC):
         except Exception as e:
             _ = e
             logging.exception(f"action: batch_process | stage: {self._stage_name}")
-            #channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            # channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     def _send_message(self, message: bytes, session_id: uuid.UUID, message_id: uuid.UUID):
         if isinstance(self._output, MessageMiddlewareQueue):
             self._output.send(message, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex})
         elif isinstance(self._output, MessageMiddlewareExchange):
             routing_key: str = str(message_id.int % self._downstream_worker_quantity)
-            self._output.send(message, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex})
+            self._output.send(
+                message, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex}
+            )
         else:
             raise TypeError(f"Unsupported output: {type(self._output)}")
 

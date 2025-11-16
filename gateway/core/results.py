@@ -73,8 +73,10 @@ class ResultCollector:
             is_final_data = properties.headers.get("FINAL") is not None
             if not is_final_data:
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-                logging.debug(f"action: ignore_eof | query: {query_id} |"
-                              f" session_id: {session_id} | gateway uses new protocol.")
+                logging.debug(
+                    f"action: ignore_eof | query: {query_id} |"
+                    f" session_id: {session_id} | gateway uses new protocol."
+                )
                 return
 
             if not session:

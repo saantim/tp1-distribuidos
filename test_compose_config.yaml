@@ -7,47 +7,47 @@ settings:
     min: 3
     full: 0
 
-# Transformers: parsean los CSVs crudos
 transformers:
-
   transactions:
     module: "transaction"
     replicas: 3
-    input:
-      queue: "raw_transactions_batches"
+    input: "raw_transactions_batches"
     output:
-      queue: "transactions_source"
+      - name: "transactions_source"
+        downstream_stage: "q_testing_filter_amount"
+        downstream_workers: 4
 
-# Queries del sistema
 queries:
   q_testing:
-    description: "Filtrar transacciones por año → hora → monto"
+    description: "Filter transactions by amount → year → hour"
     enabled: true
     stages:
-
       filter_amount:
         type: "filter"
         module: "amount"
         replicas: 4
-        input:
-          queue: "transactions_source"
+        input: "transactions_source"
         output:
-          queue: "q1.filtered_amount"
+          - name: "q1.filtered_amount"
+            downstream_stage: "q_testing_filter_year"
+            downstream_workers: 5
 
       filter_year:
         type: "filter"
         module: "year"
         replicas: 5
-        input:
-          queue: "q1.filtered_amount"
+        input: "q1.filtered_amount"
         output:
-          queue: "q1.filtered_year"
+          - name: "q1.filtered_year"
+            downstream_stage: "q_testing_filter_hour"
+            downstream_workers: 1
 
       filter_hour:
         type: "filter"
         module: "hour"
         replicas: 1
-        input:
-          queue: "q1.filtered_year"
+        input: "q1.filtered_year"
         output:
-          queue: "q1.filtered_hour"
+          - name: "q1.filtered_hour"
+            downstream_stage: "gateway"
+            downstream_workers: 1

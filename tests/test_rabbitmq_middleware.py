@@ -12,7 +12,7 @@ from shared.middleware.rabbit_mq import (
 @pytest.mark.usefixtures("rabbitmq_service")
 class TestRabbitMQMiddlewareSimple:
     def test_queue_work_1_to_1(self, rabbitmq_host):
-        queue_name = f"test_queue_1_to_1"
+        queue_name = "test_queue_1_to_1"
 
         sender = MessageMiddlewareQueueMQ(rabbitmq_host, queue_name)
         receiver = MessageMiddlewareQueueMQ(rabbitmq_host, queue_name)
@@ -38,7 +38,7 @@ class TestRabbitMQMiddlewareSimple:
 
     def test_queue_work_1_to_n(self, rabbitmq_host):
         queue_name = "test_queue_1_to_n"
-        msgs = [b"testing" for _ in range(500)]
+        _ = [b"testing" for _ in range(500)]
 
         sender = MessageMiddlewareQueueMQ(rabbitmq_host, queue_name)
         c1 = MessageMiddlewareQueueMQ(rabbitmq_host, queue_name)
@@ -76,10 +76,8 @@ class TestRabbitMQMiddlewareSimple:
         assert result_1 == [b"first_message"]
         assert result_2 == [b"second_message"]
 
-
-
     def test_exchange_1_to_1(self, rabbitmq_host):
-        exchange = f"test_exchange_1_to_1"
+        exchange = "test_exchange_1_to_1"
         rk = "rk1"
 
         receiver = MessageMiddlewareExchangeRMQ(rabbitmq_host, exchange, [rk])
@@ -113,7 +111,7 @@ class TestRabbitMQMiddlewareSimple:
         assert result == [b"testing"]
 
     def test_exchange_1_to_n(self, rabbitmq_host):
-        exchange = f"test_exchange_1_to_n"
+        exchange = "test_exchange_1_to_n"
         rk = "rk1"
 
         r1 = MessageMiddlewareExchangeRMQ(rabbitmq_host, exchange, [rk])

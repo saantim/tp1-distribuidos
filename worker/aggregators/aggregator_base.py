@@ -1,18 +1,19 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Optional
 
 from shared.entity import Message
-from shared.middleware.interface import MessageMiddlewareExchange
+from worker.base import Session, WorkerBase
 from worker.packer import pack_entity_batch
-from dataclasses import dataclass
-from worker.base import WorkerBase, Session
+
 
 @dataclass
 class SessionData:
     aggregated: Optional[Message] = None
     message_count: int = 0
+
 
 class AggregatorBase(WorkerBase, ABC):
     def _start_of_session(self, session: Session):

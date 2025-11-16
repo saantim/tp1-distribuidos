@@ -8,6 +8,7 @@ Returns the routing key as a string.
 """
 
 import hashlib
+
 from shared.entity import Message, Transaction
 
 

@@ -1,18 +1,18 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from typing import Optional
+from dataclasses import dataclass, field
 
 from shared.entity import Message
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
-from shared.protocol import SESSION_ID
-from worker.base import WorkerBase, Session
-from dataclasses import dataclass, field
+from shared.middleware.interface import MessageMiddlewareExchange
+from worker.base import Session, WorkerBase
+
 
 @dataclass
 class SessionData:
     result: list[Message] = field(default_factory=list)
     message_count: int = 0
+
 
 class SinkBase(WorkerBase, ABC):
     """
@@ -45,7 +45,8 @@ class SinkBase(WorkerBase, ABC):
             # TODO: Modificar gateway para que no necesite el FINAL:true y tome en su lugar el EOF.
             self._send_message(formatted_results, session_id=session.session_id, message_id=uuid.uuid4())
             logging.info(
-                f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session.session_id}")
+                f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session.session_id}"
+            )
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data: SessionData = session.get_storage()

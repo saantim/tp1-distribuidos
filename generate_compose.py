@@ -12,7 +12,9 @@ def load_config(config_file="compose_config.yaml"):
         return yaml.safe_load(f)
 
 
-def create_worker_service(name, worker_type, replica_id, total_replicas, stage_name, module, input_exchange, outputs, enricher=None):
+def create_worker_service(
+    name, worker_type, replica_id, total_replicas, stage_name, module, input_exchange, outputs, enricher=None
+):
     """Create a worker service definition"""
 
     # Entrypoint mapping

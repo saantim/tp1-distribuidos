@@ -26,11 +26,7 @@ def build_input_exchange(exchange_name: str, stage_name: str, replica_id: int) -
         MessageMiddlewareExchangeRMQ configured with routing keys
     """
     routing_keys = ["common", f"{stage_name}_{replica_id}"]
-    return MessageMiddlewareExchangeRMQ(
-        host=RABBITMQ_HOST,
-        exchange_name=exchange_name,
-        route_keys=routing_keys
-    )
+    return MessageMiddlewareExchangeRMQ(host=RABBITMQ_HOST, exchange_name=exchange_name, route_keys=routing_keys)
 
 
 def build_queue(queue_name: str) -> MessageMiddlewareQueueMQ:
@@ -63,9 +59,7 @@ def build_output_exchanges(outputs_json: str) -> List[MessageMiddlewareExchangeR
         exchange_name = output["name"]
         exchanges.append(
             MessageMiddlewareExchangeRMQ(
-                host=RABBITMQ_HOST,
-                exchange_name=exchange_name,
-                route_keys=[]  # Routing keys provided at send time
+                host=RABBITMQ_HOST, exchange_name=exchange_name, route_keys=[]  # Routing keys provided at send time
             )
         )
 
@@ -83,11 +77,7 @@ def build_enricher_input(enricher_exchange: str) -> MessageMiddlewareExchangeRMQ
     Returns:
         MessageMiddlewareExchangeRMQ configured for broadcast
     """
-    return MessageMiddlewareExchangeRMQ(
-        host=RABBITMQ_HOST,
-        exchange_name=enricher_exchange,
-        route_keys=["common"]
-    )
+    return MessageMiddlewareExchangeRMQ(host=RABBITMQ_HOST, exchange_name=enricher_exchange, route_keys=["common"])
 
 
 def parse_outputs_config(outputs_json: str) -> List[dict]:

@@ -70,9 +70,11 @@ class Message(ABC):
 class EOF(Message):
     pass
 
+
 @dataclass
 class RawMessage(Message):
     raw_data: bytes
+
 
 ItemId = NewType("ItemId", int)
 ItemName = NewType("ItemName", str)
