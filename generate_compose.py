@@ -12,7 +12,7 @@ def load_config(config_file="compose_config.yaml"):
         return yaml.safe_load(f)
 
 
-def create_worker_service(name, worker_type, replica_id, total_replicas, module, inputs, outputs, enricher=None):
+def create_worker_service(name, worker_type, replica_id, total_replicas, stage_name, module, input_exchange, outputs, enricher=None):
     """Create a worker service definition"""
 
     # Entrypoint mapping
@@ -36,124 +36,124 @@ def create_worker_service(name, worker_type, replica_id, total_replicas, module,
         "environment": {
             "REPLICA_ID": str(replica_id),
             "REPLICAS": str(total_replicas),
+            "STAGE_NAME": stage_name,
             "MODULE_NAME": module,
-            "FROM": json.dumps(inputs),
+            "FROM": input_exchange,
             "TO": json.dumps(outputs),
         },
     }
 
     if enricher:
-        service["environment"]["ENRICHER"] = json.dumps([enricher])
+        service["environment"]["ENRICHER"] = enricher
 
     return service
 
 
-def parse_connection(conn_config, replica_id=0, total_replicas=1):
-    """Parse a connection config into (type, name, strategy, routing_keys) tuple"""
-    if not conn_config:
-        return None
-
-    if "queue" in conn_config:
-        return "QUEUE", conn_config["queue"]
-    elif "queues" in conn_config:
-        return [("QUEUE", q) for q in conn_config["queues"]]
-    elif "exchange" in conn_config:
-        strategy = conn_config.get("strategy")
-        routing_keys = conn_config.get("routing_keys", [])
-        routing_keys_indexed = conn_config.get("routing_keys_indexed", False)
-
-        if routing_keys_indexed and strategy:
-            exchange_name = conn_config["exchange"]
-            base_name = exchange_name.rsplit("_", 1)[0] if "_" in exchange_name else exchange_name
-            routing_keys = [f"{base_name}_{replica_id}"]
-
-        if strategy and routing_keys:
-            return "EXCHANGE", conn_config["exchange"], strategy, routing_keys
-        else:
-            return "EXCHANGE", conn_config["exchange"]
-
-    return None
-
-
-def add_transformer_workers(services, name, transformer):
+def add_transformer_workers(services, name, transformer, stage_map):
     """Add transformer workers"""
-    for i in range(transformer["replicas"]):
-        worker_name = f"transformer_{name}_{i}" if transformer["replicas"] > 1 else f"transformer_{name}"
+    stage_name = f"transformer_{name}"
 
-        inputs = [parse_connection(transformer["input"])]
-        outputs = [parse_connection(transformer["output"])]
+    # Validate outputs
+    validate_outputs(stage_name, transformer.get("output", []), stage_map)
+
+    for i in range(transformer["replicas"]):
+        worker_name = f"{stage_name}_{i}" if transformer["replicas"] > 1 else stage_name
 
         services[worker_name] = create_worker_service(
             name=worker_name,
             worker_type="transformer",
             replica_id=i,
             total_replicas=transformer["replicas"],
+            stage_name=stage_name,
             module=transformer["module"],
-            inputs=inputs,
-            outputs=outputs,
+            input_exchange=transformer["input"],
+            outputs=transformer["output"],
         )
 
 
-def resolve_routing_keys(conn_config, query_config):
-    """Resuelve routing_keys_from para generar automáticamente los routing keys"""
-    if not conn_config or "routing_keys_from" not in conn_config:
-        return conn_config
-
-    # Buscar el stage referenciado
-    target_stage = conn_config["routing_keys_from"]
-    if target_stage in query_config.get("stages", {}):
-        target_replicas = query_config["stages"][target_stage]["replicas"]
-        # Generar routing keys basándose en el exchange name
-        exchange_name = conn_config["exchange"]
-        base_name = exchange_name.rsplit("_", 1)[0] if "_" in exchange_name else exchange_name
-        conn_config["routing_keys"] = [f"{base_name}_{i}" for i in range(target_replicas)]
-        del conn_config["routing_keys_from"]
-
-    return conn_config
-
-
-def add_stage_workers(services, query_name, stage_name, stage, query_config):
+def add_stage_workers(services, query_name, stage_name, stage, query_config, stage_map):
     """Add workers for a query stage"""
+    full_stage_name = f"{query_name}_{stage_name}"
+
+    # Validate outputs
+    validate_outputs(full_stage_name, stage.get("output", []), stage_map)
+
     for i in range(stage["replicas"]):
-        full_name = f"{query_name}_{stage_name}"
-        worker_name = f"{full_name}_{i}" if stage["replicas"] > 1 else full_name
-
-        # Resolver routing_keys automáticos
-        if stage.get("output"):
-            stage["output"] = resolve_routing_keys(stage["output"], query_config)
-        if stage.get("input"):
-            stage["input"] = resolve_routing_keys(stage["input"], query_config)
-
-        # Parse inputs (con replica_id para routing_keys_indexed)
-        input_conn = parse_connection(stage.get("input"), i, stage["replicas"])
-        inputs = [input_conn] if isinstance(input_conn, tuple) else input_conn
-
-        # Parse outputs
-        output_conn = parse_connection(stage.get("output"), i, stage["replicas"])
-        outputs = []
-        if output_conn:
-            outputs = [output_conn] if isinstance(output_conn, tuple) else output_conn
-
-        # Parse enricher
-        enricher = None
-        if stage.get("enricher"):
-            enricher = parse_connection(stage["enricher"], i, stage["replicas"])
+        worker_name = f"{full_stage_name}_{i}" if stage["replicas"] > 1 else full_stage_name
 
         services[worker_name] = create_worker_service(
             name=worker_name,
             worker_type=stage["type"],
             replica_id=i,
             total_replicas=stage["replicas"],
+            stage_name=full_stage_name,
             module=stage["module"],
-            inputs=inputs,
-            outputs=outputs,
-            enricher=enricher,
+            input_exchange=stage.get("input"),
+            outputs=stage.get("output", []),
+            enricher=stage.get("enricher"),
         )
+
+
+def build_stage_replica_map(config):
+    """Build a map of stage_name -> replica_count for validation"""
+    stage_map = {}
+
+    # Add transformers
+    for name, transformer in config.get("transformers", {}).items():
+        stage_name = f"transformer_{name}"
+        stage_map[stage_name] = transformer["replicas"]
+
+    # Add query stages
+    for query_name, query in config.get("queries", {}).items():
+        if not query.get("enabled", True):
+            continue
+        for stage_name, stage in query.get("stages", {}).items():
+            full_stage_name = f"{query_name}_{stage_name}"
+            stage_map[full_stage_name] = stage["replicas"]
+
+    return stage_map
+
+
+def validate_outputs(stage_name, outputs, stage_map):
+    """Validate that downstream_workers matches actual downstream stage replicas"""
+    if not outputs:
+        return
+
+    for output in outputs:
+        # Skip broadcast outputs (they don't need downstream_stage/downstream_workers)
+        if output.get("routing_fn") == "broadcast":
+            continue
+
+        downstream_stage = output.get("downstream_stage")
+        downstream_workers = output.get("downstream_workers")
+
+        if not downstream_stage or downstream_workers is None:
+            raise ValueError(
+                f"Stage '{stage_name}': Output '{output['name']}' missing 'downstream_stage' or 'downstream_workers'"
+            )
+
+        # Check if downstream stage exists
+        if downstream_stage not in stage_map and downstream_stage != "gateway":
+            raise ValueError(
+                f"Stage '{stage_name}': Unknown downstream_stage '{downstream_stage}' in output '{output['name']}'"
+            )
+
+        # Validate worker count (skip gateway)
+        if downstream_stage != "gateway":
+            actual_replicas = stage_map[downstream_stage]
+            if downstream_workers != actual_replicas:
+                raise ValueError(
+                    f"Stage '{stage_name}': Output '{output['name']}' has downstream_workers={downstream_workers}, "
+                    f"but stage '{downstream_stage}' has {actual_replicas} replicas"
+                )
 
 
 def generate_compose(config):
     """Generate docker-compose services from config"""
     services = {}
+
+    # Build stage replica map for validation
+    stage_map = build_stage_replica_map(config)
 
     # Add RabbitMQ
     rmq = config["settings"]["rabbitmq"]
@@ -217,7 +217,7 @@ def generate_compose(config):
 
     # Add transformers
     for name, transformer in config.get("transformers", {}).items():
-        add_transformer_workers(services, name, transformer)
+        add_transformer_workers(services, name, transformer, stage_map)
 
     # Add query stages
     for query_name, query in config.get("queries", {}).items():
@@ -225,7 +225,7 @@ def generate_compose(config):
             continue
 
         for stage_name, stage in query.get("stages", {}).items():
-            add_stage_workers(services, query_name, stage_name, stage, query)
+            add_stage_workers(services, query_name, stage_name, stage, query, stage_map)
 
     # Build complete compose
     compose = {

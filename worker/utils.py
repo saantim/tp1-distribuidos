@@ -1,85 +1,103 @@
+"""
+Worker utility functions for building middleware connections.
+"""
+
 import json
 from typing import List
 
-from shared.middleware.interface import MessageMiddleware
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
 
 
-MIDDLEWARE_HOST = "MIDDLEWARE_HOST"
-
-FROM_TYPE = "FROM_TYPE"
-FROM = "FROM"
-FROM_STRATEGY = "FROM_STRATEGY"
-
-TO_TYPE = "TO_TYPE"
-TO = "TO"
-TO_STRATEGY = "TO_STRATEGY"
-
-ENRICHER_TYPE = "ENRICHER_TYPE"
-ENRICHER = "ENRICHER"
-ENRICHER_STRATEGY = "ENRICHER_STRATEGY"
-
-QUEUE_TYPE = "QUEUE"
-EXCHANGE_TYPE = "EXCHANGE"
-
-FANOUT_STRATEGY = "FANOUT"
-SHARDING_STRATEGY = "SHARDING"
+RABBITMQ_HOST = "rabbitmq"
 
 
-def build_middlewares_list(middlewares: str) -> List[MessageMiddleware]:
-    middlewares_list = json.loads(middlewares)
-    result = []
-    host = "rabbitmq"
-
-    for middleware in middlewares_list:
-        m_type = middleware[0]
-        if m_type == "QUEUE":
-            result.append(MessageMiddlewareQueueMQ(host=host, queue_name=middleware[1]))
-        else:
-            result.append(
-                MessageMiddlewareExchangeRMQ(host=host, exchange_name=middleware[1], route_keys=middleware[3])
-            )
-    return result
-
-
-def build_enricher_middlewares(sources: str, enricher_module) -> tuple[MessageMiddleware, MessageMiddleware]:
+def build_input_exchange(exchange_name: str, stage_name: str, replica_id: int) -> MessageMiddlewareExchangeRMQ:
     """
-    Construye source y waiting_queue para enrichers.
-
-    Enrichers necesitan dos colas:
-    - Main queue: donde llegan mensajes a enriquecer
-    - Waiting queue: donde se ponen mensajes si enricher data no está listo
-
-    La waiting queue tiene TTL y dead-letter a main queue para reintentar
-    automáticamente después del TTL.
+    Build input exchange that subscribes to:
+    - "common" (for broadcasts)
+    - "{stage_name}_{replica_id}" (for targeted routing)
 
     Args:
-        sources: JSON string del env var FROM
-        enricher_module: Módulo del enricher (para leer DEFAULT_WAITING_TTL_MS)
+        exchange_name: Name of the exchange to consume from
+        stage_name: Full stage name (e.g., "q1_filter_hour")
+        replica_id: This worker's replica index
 
     Returns:
-        (source_queue, waiting_queue) tuple de MessageMiddleware
+        MessageMiddlewareExchangeRMQ configured with routing keys
     """
-    source_list = build_middlewares_list(sources)
-    source_queue = source_list[0]
-
-    if not hasattr(source_queue, "_queue_name"):
-        raise ValueError("Enricher source must be a queue, not an exchange")
-
-    main_queue_name = source_queue._queue_name
-    waiting_queue_name = f"{main_queue_name}.waiting"
-
-    ttl_ms = getattr(enricher_module.Enricher, "DEFAULT_WAITING_TTL_MS", 5000)
-
-    source = MessageMiddlewareQueueMQ(host="rabbitmq", queue_name=main_queue_name)
-    waiting_queue = MessageMiddlewareQueueMQ(
-        host="rabbitmq",
-        queue_name=waiting_queue_name,
-        arguments={
-            "x-message-ttl": ttl_ms,
-            "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": main_queue_name,
-        },
+    routing_keys = ["common", f"{stage_name}_{replica_id}"]
+    return MessageMiddlewareExchangeRMQ(
+        host=RABBITMQ_HOST,
+        exchange_name=exchange_name,
+        route_keys=routing_keys
     )
 
-    return source, waiting_queue
+
+def build_queue(queue_name: str) -> MessageMiddlewareQueueMQ:
+    """
+    Build a simple queue middleware (for transformers input and sinks output).
+
+    Args:
+        queue_name: Name of the queue
+
+    Returns:
+        MessageMiddlewareQueueMQ
+    """
+    return MessageMiddlewareQueueMQ(host=RABBITMQ_HOST, queue_name=queue_name)
+
+
+def build_output_exchanges(outputs_json: str) -> List[MessageMiddlewareExchangeRMQ]:
+    """
+    Build output exchanges from JSON config.
+
+    Args:
+        outputs_json: JSON string with list of output configs
+
+    Returns:
+        List of MessageMiddlewareExchangeRMQ (one per output)
+    """
+    outputs_config = json.loads(outputs_json)
+    exchanges = []
+
+    for output in outputs_config:
+        exchange_name = output["name"]
+        exchanges.append(
+            MessageMiddlewareExchangeRMQ(
+                host=RABBITMQ_HOST,
+                exchange_name=exchange_name,
+                route_keys=[]  # Routing keys provided at send time
+            )
+        )
+
+    return exchanges
+
+
+def build_enricher_input(enricher_exchange: str) -> MessageMiddlewareExchangeRMQ:
+    """
+    Build enricher input exchange (subscribes to broadcast data).
+    Enrichers always subscribe to "common" for broadcast enrichment data.
+
+    Args:
+        enricher_exchange: Name of the enrichment data exchange
+
+    Returns:
+        MessageMiddlewareExchangeRMQ configured for broadcast
+    """
+    return MessageMiddlewareExchangeRMQ(
+        host=RABBITMQ_HOST,
+        exchange_name=enricher_exchange,
+        route_keys=["common"]
+    )
+
+
+def parse_outputs_config(outputs_json: str) -> List[dict]:
+    """
+    Parse outputs JSON config.
+
+    Args:
+        outputs_json: JSON string with list of output configs
+
+    Returns:
+        List of output config dicts
+    """
+    return json.loads(outputs_json)
