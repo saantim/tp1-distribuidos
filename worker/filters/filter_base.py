@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
-from worker.packer import pack_entity_batch
 
 
 @dataclass
@@ -24,12 +23,11 @@ class FilterBase(WorkerBase, ABC):
         instances: int,
         index: int,
         stage_name: str,
-        downstream_worker_quantity: int,
         source: MessageMiddlewareExchange,
-        output: MessageMiddlewareExchange,
+        outputs: list,
         batch_size: int = 500,
     ):
-        super().__init__(instances, index, stage_name, downstream_worker_quantity, source, output)
+        super().__init__(instances, index, stage_name, source, outputs)
         self.buffer_size = batch_size
 
     @abstractmethod
@@ -64,7 +62,7 @@ class FilterBase(WorkerBase, ABC):
             )
 
     def _flush_buffer(self, session: Session) -> None:
-        """Flush buffer to all queues"""
+        """Flush buffer and send messages"""
         session_data: SessionData = session.get_storage()
-        packed: bytes = pack_entity_batch(session_data.buffer)
-        self._send_message(message=packed, session_id=session.session_id, message_id=uuid.uuid4())
+        if session_data.buffer:
+            self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())

@@ -9,7 +9,7 @@ import time
 from typing import cast
 from uuid import UUID
 
-from shared.entity import EOF, RawMessage
+from shared.entity import EOF
 from shared.network import Network, NetworkError
 from shared.protocol import AckPacket, Batch, ErrorPacket, PacketType, SESSION_ID
 from shared.shutdown import ShutdownSignal
@@ -136,7 +136,7 @@ class ClientHandler:
                             f"entity_type: {batch.entity_type.name}"
                         )
                     else:
-                        publisher.send(RawMessage(batch.serialize()), headers=headers)
+                        publisher.send(batch.serialize(), headers=headers)
                         batch_count += 1
 
                         if batch_count % 100 == 0:

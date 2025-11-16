@@ -2,14 +2,14 @@ import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, List, Optional, Type
 
-from shared.entity import EOF, Message
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange, MessageMiddlewareQueue
+from shared.entity import EOF, Message, WorkerEOF
+from shared.middleware.interface import MessageMiddlewareExchange
 from shared.protocol import MESSAGE_ID, SESSION_ID
 from shared.shutdown import ShutdownSignal
-from worker.packer import unpack_entity_batch
-from worker.types import EOFIntraExchange
+from worker.output import WorkerOutput
+from worker.packer import pack_entity_batch, unpack_entity_batch
 
 
 class Session:
@@ -55,6 +55,7 @@ class SessionManager:
             format=f"{self.__class__.__name__} - %(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+        logging.getLogger("pika").setLevel(logging.WARNING)
 
     def get_or_initialize(self, session_id: uuid.UUID) -> Session:
         if session_id not in self._sessions:
@@ -63,6 +64,8 @@ class SessionManager:
             logging.info(f"action: create session | stage: {self._stage_name}")
         current_session = self._sessions.get(session_id, None)
         return current_session
+
+    # TODO: AGREGAR METODO QUE PERMITE CERRAR SESSION LUEGO DE FLUSH.
 
     def try_to_flush(self, session: Session) -> bool:
         if self._is_flushable(session):
@@ -83,18 +86,16 @@ class WorkerBase(ABC):
         instances: int,
         index: int,
         stage_name: str,
-        downstream_worker_quantity: int,
         source: MessageMiddlewareExchange,
-        output: MessageMiddleware,
+        outputs: List[WorkerOutput],
     ):
         self._stage_name: str = stage_name
         self._instances: int = instances
         self._index: int = index
         self._leader: bool = index == 0
         self._source: MessageMiddlewareExchange = source
-        self._output: MessageMiddleware = output
+        self._outputs: List[WorkerOutput] = outputs
         self._upstream_thread = None
-        self._downstream_worker_quantity = downstream_worker_quantity
         self._shutdown_event = threading.Event()
         self._shutdown_handler = ShutdownSignal(self._shutdown)
         self._session_manager = SessionManager(
@@ -159,29 +160,42 @@ class WorkerBase(ABC):
         self.stop()
 
     def _handle_eof(self, message: bytes, session: Session) -> bool:
+
+        if WorkerEOF.is_type(message):
+            worker_eof = WorkerEOF.deserialize(message)
+            logging.info(
+                f"action: receive_WorkerEOF | stage: {self._stage_name} | session: {session.session_id} |"
+                f" from: {worker_eof.worker_id}"
+            )
+            session.add_eof(worker_eof.worker_id)
+
+            if self._session_manager.try_to_flush(session):
+                eof_bytes = EOF().serialize()
+                for output in self._outputs:
+                    output.exchange.send(
+                        eof_bytes,
+                        routing_key=self.COMMON_ROUTING_KEY,
+                        headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
+                    )
+            return True
+
         if not EOF.is_type(message):
             return False
 
-        eof = EOF.deserialize(message)
+        EOF.deserialize(message)
+        logging.info(f"action: receive_EOF_from_upstream | stage: {self._stage_name} | session: {session.session_id}")
 
-        logging.info(
-            f"action: receive_EOF | stage: {self._stage_name} | session: {session.session_id} | from: {self._source}"
+        if self._leader:
+            session.add_eof(str(self._index))
+            return True
+
+        leader_routing_key = f"{self._stage_name}_0"
+        worker_eof_bytes = WorkerEOF(worker_id=str(self._index)).serialize()
+        self._source.send(
+            worker_eof_bytes,
+            routing_key=leader_routing_key,
+            headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
         )
-        session.add_eof(eof.worker_id)
-
-        if self._session_manager.try_to_flush(session):
-            if self._leader:
-                self._output.send(
-                    EOF().serialize(),
-                    routing_key=self.COMMON_ROUTING_KEY,
-                    headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
-                )
-            else:
-                self._source.send(
-                    EOFIntraExchange(str(self._index)).serialize(),
-                    headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
-                )
-
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
@@ -198,16 +212,36 @@ class WorkerBase(ABC):
             logging.exception(f"action: batch_process | stage: {self._stage_name}")
             # channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
-    def _send_message(self, message: bytes, session_id: uuid.UUID, message_id: uuid.UUID):
-        if isinstance(self._output, MessageMiddlewareQueue):
-            self._output.send(message, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex})
-        elif isinstance(self._output, MessageMiddlewareExchange):
-            routing_key: str = str(message_id.int % self._downstream_worker_quantity)
-            self._output.send(
-                message, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex}
-            )
-        else:
-            raise TypeError(f"Unsupported output: {type(self._output)}")
+    def _send_message(self, messages: List[Message], session_id: uuid.UUID, message_id: uuid.UUID):
+        """
+        Send messages to all outputs with appropriate routing.
+
+        Args:
+            messages: List of messages to send
+            session_id: Session UUID
+            message_id: Message UUID (used for default routing)
+        """
+        if not messages:
+            return
+
+        # TODO: Si la performance no esta del todo bien, optimizar para no hacer doble-for en casos
+        #    que ya sabemos a donde va el mensaje batcheado completo (default y common)
+
+        for output in self._outputs:
+
+            buffers: dict[str, List[Message]] = {}
+
+            for message in messages:
+                routing_key = output.get_routing_key(message, message_id.int)
+                if routing_key not in buffers:
+                    buffers[routing_key] = []
+                buffers[routing_key].append(message)
+
+            for routing_key, msg_batch in buffers.items():
+                packed = pack_entity_batch(msg_batch)
+                output.exchange.send(
+                    packed, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex}
+                )
 
     @abstractmethod
     def _end_of_session(self, session: Session):

@@ -26,7 +26,12 @@ def build_input_exchange(exchange_name: str, stage_name: str, replica_id: int) -
         MessageMiddlewareExchangeRMQ configured with routing keys
     """
     routing_keys = ["common", f"{stage_name}_{replica_id}"]
-    return MessageMiddlewareExchangeRMQ(host=RABBITMQ_HOST, exchange_name=exchange_name, route_keys=routing_keys)
+    return MessageMiddlewareExchangeRMQ(
+        host=RABBITMQ_HOST,
+        exchange_name=exchange_name,
+        route_keys=routing_keys,
+        queue_name=f"queue_{stage_name}_{replica_id}",
+    )
 
 
 def build_queue(queue_name: str) -> MessageMiddlewareQueueMQ:
