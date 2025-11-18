@@ -42,3 +42,15 @@ def tx_router(message: Message, downstream_stage: str, downstream_workers: int, 
     digest = hashlib.sha256(key).hexdigest()
     worker_index = int(digest, 16) % downstream_workers
     return f"{downstream_stage}_{worker_index}"
+
+
+def by_stage_name(message: Message, downstream_stage: str, downstream_workers: int, message_id_int: int) -> str:
+    """
+    Stage name routing.
+    Uses downstream_stage directly as the routing key.
+    Useful for routing to specific stages/components by name without indexing.
+
+    Example: For sinks, exchange="results", downstream_stage="q1" -> routing_key="q1"
+    Gateway subscribes to "results" exchange with routing keys ["q1", "q2", "q3", "q4"].
+    """
+    return downstream_stage

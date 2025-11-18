@@ -10,9 +10,9 @@ from dataclasses import dataclass, field
 from typing import Type
 
 from shared.entity import Message, RawMessage
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
+from shared.middleware.interface import MessageMiddleware
 from worker.base import Session, WorkerBase
-from worker.packer import is_raw_batch, pack_entity_batch, unpack_raw_batch
+from worker.packer import is_raw_batch, unpack_raw_batch
 
 
 @dataclass
@@ -33,14 +33,11 @@ class TransformerBase(WorkerBase, ABC):
         index: int,
         stage_name: str,
         source: MessageMiddleware,
-        output: list[MessageMiddleware],
-        intra_exchange: MessageMiddlewareExchange,
+        outputs: list,
         batch_size: int = 500,
     ):
-        super().__init__(instances, index, stage_name, source, output, intra_exchange)
+        super().__init__(instances, index, stage_name, source, outputs)
         self.buffer_size = batch_size
-        self._buffer_per_session: dict[uuid.UUID, list[Message]] = {}
-        self._transformed_per_session: dict[uuid.UUID, int] = {}
 
     def get_entity_type(self) -> Type[Message]:
         return RawMessage
@@ -78,8 +75,7 @@ class TransformerBase(WorkerBase, ABC):
         if not session_data.buffer:
             return
 
-        packed: bytes = pack_entity_batch(session_data.buffer)
-        self._send_message(message=packed, session_id=session.session_id, message_id=uuid.uuid4())
+        self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())
         session_data.buffer.clear()
 
     def _on_csv_row(self, csv_row: str, session: Session) -> None:

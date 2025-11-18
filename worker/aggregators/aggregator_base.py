@@ -6,7 +6,6 @@ from typing import Optional
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
-from worker.packer import pack_entity_batch
 
 
 @dataclass
@@ -25,8 +24,7 @@ class AggregatorBase(WorkerBase, ABC):
         if session_data.aggregated is None:
             return
 
-        final = pack_entity_batch([session_data.aggregated])
-        self._send_message(message=final, session_id=session.session_id, message_id=uuid.uuid4())
+        self._send_message(messages=[session_data.aggregated], session_id=session.session_id, message_id=uuid.uuid4())
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data: SessionData = session.get_storage()

@@ -5,7 +5,6 @@ from typing import Optional
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
-from worker.packer import pack_entity_batch
 
 
 @dataclass
@@ -25,8 +24,7 @@ class MergerBase(WorkerBase, ABC):
     def _end_of_session(self, session: Session):
         session_data: SessionData = session.get_storage()
         if session_data.merged is not None:
-            packed: bytes = pack_entity_batch([session_data.merged])
-            self._send_message(message=packed, session_id=session.session_id, message_id=uuid.uuid4())
+            self._send_message(messages=[session_data.merged], session_id=session.session_id, message_id=uuid.uuid4())
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data: SessionData = session.get_storage()

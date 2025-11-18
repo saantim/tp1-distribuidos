@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import Iterator, List, Optional, Type
 
-from shared.entity import Message
+from shared.entity import Message, RawMessage
 from shared.protocol import Batch, Header, Packet, PacketType
 from shared.utils import ByteReader, ByteWriter
 
@@ -137,6 +137,11 @@ def unpack_entity_batch(body: bytes, entity_class: Type[Message]) -> Iterator[Me
     Yields:
         Deserialized Message entities
     """
+
+    if entity_class == RawMessage:
+        yield RawMessage(raw_data=body)
+        return
+
     try:
         entity_batch = EntityBatch.deserialize(body)
 

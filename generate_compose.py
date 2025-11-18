@@ -134,14 +134,15 @@ def validate_outputs(stage_name, outputs, stage_map):
                 f"Stage '{stage_name}': Output '{output['name']}' missing 'downstream_stage' or 'downstream_workers'"
             )
 
-        # Check if downstream stage exists
-        if downstream_stage not in stage_map and downstream_stage != "gateway":
+        # Check if downstream stage exists (allow query names like "q1", "q2", etc. for sinks)
+        is_query_name = downstream_stage in ["q1", "q2", "q3", "q4"]
+        if downstream_stage not in stage_map and downstream_stage != "gateway" and not is_query_name:
             raise ValueError(
                 f"Stage '{stage_name}': Unknown downstream_stage '{downstream_stage}' in output '{output['name']}'"
             )
 
-        # Validate worker count (skip gateway)
-        if downstream_stage != "gateway":
+        # Validate worker count (skip gateway and query names)
+        if downstream_stage != "gateway" and not is_query_name:
             actual_replicas = stage_map[downstream_stage]
             if downstream_workers != actual_replicas:
                 raise ValueError(

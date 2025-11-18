@@ -8,30 +8,30 @@ settings:
     full: 0
 
 transformers:
-  menu_items:
-    module: "menu"
-    replicas: 1
-    input: "raw_menu_items_batches"
-    output:
-      - name: "menu_items_source"
-        routing_fn: "broadcast"
+  # menu_items:
+  #   module: "menu"
+  #   replicas: 1
+  #   input: "raw_menu_items_batches"
+  #   output:
+  #     - name: "menu_items_source"
+  #       routing_fn: "broadcast"
 
-  stores:
-    module: "store"
-    replicas: 1
-    input: "raw_stores_batches"
-    output:
-      - name: "stores_source"
-        routing_fn: "broadcast"
+  # stores:
+  #   module: "store"
+  #   replicas: 1
+  #   input: "raw_stores_batches"
+  #   output:
+  #     - name: "stores_source"
+  #       routing_fn: "broadcast"
 
-  users:
-    module: "user"
-    replicas: 3
-    input: "raw_users_batches"
-    output:
-      - name: "users_source"
-        downstream_stage: "q4_enrich_users"
-        downstream_workers: 3
+  # users:
+  #   module: "user"
+  #   replicas: 3
+  #   input: "raw_users_batches"
+  #   output:
+  #     - name: "users_source"
+  #       downstream_stage: "q4_enrich_users"
+  #       downstream_workers: 3
 
   transactions:
     module: "transaction"
@@ -42,14 +42,14 @@ transformers:
         downstream_stage: "q1_filter_year"
         downstream_workers: 6
 
-  transaction_items:
-    module: "transaction_item"
-    replicas: 8
-    input: "raw_transaction_items_batches"
-    output:
-      - name: "transaction_items_source"
-        downstream_stage: "q2_filter_items"
-        downstream_workers: 5
+  # transaction_items:
+  #   module: "transaction_item"
+  #   replicas: 8
+  #   input: "raw_transaction_items_batches"
+  #   output:
+  #     - name: "transaction_items_source"
+  #       downstream_stage: "q2_filter_items"
+  #       downstream_workers: 5
 
 queries:
   q1:
@@ -65,10 +65,10 @@ queries:
           - name: "q1.filtered_year"
             downstream_stage: "q1_filter_hour"
             downstream_workers: 6
-          - name: "q4.filtered_year"
-            downstream_stage: "q4_aggregate_users"
-            downstream_workers: 5
-            routing_fn: "tx_router"
+          # - name: "q4.filtered_year"
+          #   downstream_stage: "q4_aggregate_users"
+          #   downstream_workers: 5
+          #   routing_fn: "tx_router"
 
       filter_hour:
         type: "filter"
@@ -79,9 +79,9 @@ queries:
           - name: "q1.filtered_hour"
             downstream_stage: "q1_filter_amount"
             downstream_workers: 4
-          - name: "q3.filtered_hour"
-            downstream_stage: "q3_aggregate_semester"
-            downstream_workers: 3
+          # - name: "q3.filtered_hour"
+          #   downstream_stage: "q3_aggregate_semester"
+          #   downstream_workers: 3
 
       filter_amount:
         type: "filter"
@@ -99,13 +99,14 @@ queries:
         replicas: 1
         input: "q1.filtered_amount"
         output:
-          - name: "results_q1"
-            downstream_stage: "gateway"
+          - name: "results"
+            downstream_stage: "q1"
             downstream_workers: 1
+            routing_fn: "by_stage_name"
 
   q2:
     description: "Filter items → aggregate by period → enrich with menu"
-    enabled: true
+    enabled: false
     stages:
       filter_items:
         type: "filter"
@@ -154,13 +155,14 @@ queries:
         replicas: 1
         input: "q2.enriched_items"
         output:
-          - name: "results_q2"
-            downstream_stage: "gateway"
+          - name: "results"
+            downstream_stage: "q2"
             downstream_workers: 1
+            routing_fn: "by_stage_name"
 
   q3:
     description: "Aggregate by semester/store → enrich with store data"
-    enabled: true
+    enabled: false
     stages:
       aggregate_semester:
         type: "aggregator"
@@ -199,13 +201,14 @@ queries:
         replicas: 1
         input: "q3.enriched_stores"
         output:
-          - name: "results_q3"
-            downstream_stage: "gateway"
+          - name: "results"
+            downstream_stage: "q3"
             downstream_workers: 1
+            routing_fn: "by_stage_name"
 
   q4:
     description: "Route → aggregate by user → enrich → merge top-3 → enrich with store"
-    enabled: true
+    enabled: false
     stages:
       aggregate_users:
         type: "aggregator"
@@ -254,6 +257,7 @@ queries:
         replicas: 1
         input: "q4.enriched_stores"
         output:
-          - name: "results_q4"
-            downstream_stage: "gateway"
+          - name: "results"
+            downstream_stage: "q4"
             downstream_workers: 1
+            routing_fn: "by_stage_name"

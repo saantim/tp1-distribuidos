@@ -72,8 +72,20 @@ class EOF(Message):
 
 
 @dataclass
+class WorkerEOF(Message):
+    worker_id: str
+
+
+@dataclass
 class RawMessage(Message):
     raw_data: bytes
+
+    def serialize(self) -> bytes:
+        return self.raw_data
+
+    @classmethod
+    def deserialize(cls, payload: bytes):
+        return cls(raw_data=payload)
 
 
 ItemId = NewType("ItemId", int)
