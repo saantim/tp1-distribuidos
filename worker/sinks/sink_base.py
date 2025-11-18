@@ -45,6 +45,7 @@ class SinkBase(WorkerBase, ABC):
             logging.info(
                 f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session.session_id}"
             )
+            session_data.result.clear()
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data: SessionData = session.get_storage()

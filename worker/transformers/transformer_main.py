@@ -3,7 +3,7 @@ import logging
 import os
 
 from worker.output import WorkerOutput
-from worker.utils import build_output_exchanges, build_queue, parse_outputs_config
+from worker.utils import build_input_exchange, build_output_exchanges, parse_outputs_config
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     transformer_id: int = int(os.getenv("REPLICA_ID"))
     stage_name: str = os.getenv("STAGE_NAME")
     module_name: str = os.getenv("MODULE_NAME")
-    input_queue: str = os.getenv("FROM")
+    input_exchange: str = os.getenv("FROM")
     outputs_json: str = os.getenv("TO")
 
     transformer_module = importlib.import_module(module_name)
@@ -22,8 +22,7 @@ def main():
     if not hasattr(transformer_module, "Transformer"):
         raise AttributeError(f"Module {module_name} must have a 'Transformer' class")
 
-    # Build input (transformers consume from queues)
-    source = build_queue(input_queue)
+    source = build_input_exchange(input_exchange, stage_name, transformer_id)
 
     # Build outputs
     exchanges = build_output_exchanges(outputs_json)

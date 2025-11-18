@@ -119,11 +119,11 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
 class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
     """RabbitMQ direct-exchange middleware built on Pika's BlockingConnection."""
 
-    def __init__(self, host: str, exchange_name: str, route_keys: list[str], queue_name: str = None) -> None:
+    def __init__(self, host: str, exchange_name: str, route_keys: list[str] = None, queue_name: str = None) -> None:
         super().__init__(host, exchange_name, route_keys)
         self._host: str = host
         self._exchange_name: str = exchange_name
-        self._route_keys: list[str] = route_keys
+        self._route_keys: list[str] = route_keys if route_keys is not None else []
         self._queue_name: str = queue_name
         self._local = threading.local()
         self._should_stop = False  # Shared across threads
@@ -157,7 +157,7 @@ class MessageMiddlewareExchangeRMQ(MessageMiddlewareExchange):
             self._should_stop = False  # Reset flag at start
 
             if self._queue_name:
-                self._local.channel.queue_declare(queue=self._queue_name, durable=True)
+                self._local.channel.queue_declare(queue=self._queue_name)
                 queue_name = self._queue_name
             else:
                 result = self._local.channel.queue_declare(queue="")

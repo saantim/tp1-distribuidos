@@ -61,7 +61,7 @@ class SessionManager:
         if session_id not in self._sessions:
             self._sessions[session_id] = Session(session_id)
             self._on_start_of_session(self._sessions[session_id])
-            logging.info(f"action: create session | stage: {self._stage_name}")
+            logging.info(f"action: create_session | stage: {self._stage_name} | session_id: {session_id}")
         current_session = self._sessions.get(session_id, None)
         return current_session
 
@@ -161,41 +161,40 @@ class WorkerBase(ABC):
 
     def _handle_eof(self, message: bytes, session: Session) -> bool:
 
+        if not WorkerEOF.is_type(message) and not EOF.is_type(message):
+            return False
+
         if WorkerEOF.is_type(message):
             worker_eof = WorkerEOF.deserialize(message)
+            session.add_eof(worker_eof.worker_id)
             logging.info(
                 f"action: receive_WorkerEOF | stage: {self._stage_name} | session: {session.session_id} |"
-                f" from: {worker_eof.worker_id}"
+                f" from: {worker_eof.worker_id} |"
+                f" collected: {session.get_eof_collected()}"
             )
-            session.add_eof(worker_eof.worker_id)
+        else:
+            session.add_eof(str(self._index))
+            logging.info(f"action: receive_UpstreamEOF | stage: {self._stage_name} | session: {session.session_id}")
 
-            if self._session_manager.try_to_flush(session):
-                eof_bytes = EOF().serialize()
+        if self._session_manager.try_to_flush(session):
+            if self._leader:
                 for output in self._outputs:
                     output.exchange.send(
-                        eof_bytes,
+                        EOF().serialize(),
                         routing_key=self.COMMON_ROUTING_KEY,
                         headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
                     )
-            return True
+                    logging.info(f"action: sent_DownstreamEOF | stage: {self._stage_name} | to: {output}")
+            else:
+                leader_routing_key = f"{self._stage_name}_0"
+                worker_eof_bytes = WorkerEOF(worker_id=str(self._index)).serialize()
+                self._source.send(
+                    worker_eof_bytes,
+                    routing_key=leader_routing_key,
+                    headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
+                )
+                logging.info(f"action: sent_WorkerEOF | stage: {self._stage_name} | to: {leader_routing_key}")
 
-        if not EOF.is_type(message):
-            return False
-
-        EOF.deserialize(message)
-        logging.info(f"action: receive_EOF_from_upstream | stage: {self._stage_name} | session: {session.session_id}")
-
-        if self._leader:
-            session.add_eof(str(self._index))
-            return True
-
-        leader_routing_key = f"{self._stage_name}_0"
-        worker_eof_bytes = WorkerEOF(worker_id=str(self._index)).serialize()
-        self._source.send(
-            worker_eof_bytes,
-            routing_key=leader_routing_key,
-            headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
-        )
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:

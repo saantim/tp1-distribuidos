@@ -30,7 +30,7 @@ def build_input_exchange(exchange_name: str, stage_name: str, replica_id: int) -
         host=RABBITMQ_HOST,
         exchange_name=exchange_name,
         route_keys=routing_keys,
-        queue_name=f"queue_{stage_name}_{replica_id}",
+        queue_name=f"{stage_name}_{replica_id}",
     )
 
 

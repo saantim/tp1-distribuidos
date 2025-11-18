@@ -66,3 +66,4 @@ class FilterBase(WorkerBase, ABC):
         session_data: SessionData = session.get_storage()
         if session_data.buffer:
             self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())
+            session_data.buffer.clear()

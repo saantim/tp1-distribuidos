@@ -49,6 +49,7 @@ class ResultCollector:
             host=self.middleware_host,
             exchange_name=self.EXCHANGE_NAME,
             route_keys=self.query_keys,
+            queue_name=self.EXCHANGE_NAME,
         )
 
         def on_message(channel, method, properties, body):

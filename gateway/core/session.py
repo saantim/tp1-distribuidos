@@ -18,12 +18,12 @@ class SessionData:
     )
     files_eof_received: Set[str] = field(default_factory=set)
 
-    queries_expected: Set[str] = field(default_factory=lambda: {"Q1", "Q2", "Q3", "Q4"})
+    queries_expected: Set[str] = field(default_factory=lambda: {"Q1"})
     query_results_received: Set[str] = field(default_factory=set)
 
     results: list = field(default_factory=list)  # [(query_id, body), ...]
 
-    def all_eofs_received(self) -> bool:
+    def all_file_eofs_received(self) -> bool:
         """Check if all file EOFs have been received."""
         return self.files_eof_received == self.files_expected
 
@@ -37,6 +37,8 @@ class SessionManager:
     Manages multiple concurrent client sessions.
     Thread-safe for concurrent access.
     """
+
+    # TODO: Es necesario el lock ahora que trabajamos con exchanges?
 
     def __init__(self):
         self.sessions: Dict[UUID, SessionData] = {}
