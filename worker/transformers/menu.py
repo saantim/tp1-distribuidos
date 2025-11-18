@@ -9,9 +9,7 @@ We only extract:
 - item_name
 """
 
-from typing import Type
-
-from shared.entity import MenuItem, Message
+from shared.entity import MenuItem
 from worker.transformers.transformer_base import TransformerBase
 
 
@@ -19,9 +17,6 @@ class Transformer(TransformerBase):
     """
     Transformer for menu items.
     """
-
-    def get_entity_type(self) -> Type[Message]:
-        return MenuItem
 
     def parse_fn(self, csv_row: str) -> dict:
         """

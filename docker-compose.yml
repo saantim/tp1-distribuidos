@@ -60,10 +60,11 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
       MODULE_NAME: transaction
-      FROM: '[["QUEUE", "raw_transactions_batches"]]'
-      TO: '[["QUEUE", "transactions_source"]]'
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
   transformer_transactions_1:
     container_name: transformer_transactions_1
     image: transformer_worker
@@ -78,10 +79,11 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
       MODULE_NAME: transaction
-      FROM: '[["QUEUE", "raw_transactions_batches"]]'
-      TO: '[["QUEUE", "transactions_source"]]'
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
   transformer_transactions_2:
     container_name: transformer_transactions_2
     image: transformer_worker
@@ -96,12 +98,51 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
       MODULE_NAME: transaction
-      FROM: '[["QUEUE", "raw_transactions_batches"]]'
-      TO: '[["QUEUE", "transactions_source"]]'
-  q_testing_filter_amount_0:
-    container_name: q_testing_filter_amount_0
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+  transformer_transactions_3:
+    container_name: transformer_transactions_3
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+  transformer_transactions_4:
+    container_name: transformer_transactions_4
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+  q1_filter_year_0:
+    container_name: q1_filter_year_0
     image: filter_worker
     build:
       context: .
@@ -114,12 +155,13 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '4'
-      MODULE_NAME: amount
-      FROM: '[["QUEUE", "transactions_source"]]'
-      TO: '[["QUEUE", "q1.filtered_amount"]]'
-  q_testing_filter_amount_1:
-    container_name: q_testing_filter_amount_1
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_year
+      MODULE_NAME: year
+      FROM: transactions_source
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+  q1_filter_year_1:
+    container_name: q1_filter_year_1
     image: filter_worker
     build:
       context: .
@@ -132,12 +174,13 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '4'
-      MODULE_NAME: amount
-      FROM: '[["QUEUE", "transactions_source"]]'
-      TO: '[["QUEUE", "q1.filtered_amount"]]'
-  q_testing_filter_amount_2:
-    container_name: q_testing_filter_amount_2
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_year
+      MODULE_NAME: year
+      FROM: transactions_source
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+  q1_filter_year_2:
+    container_name: q1_filter_year_2
     image: filter_worker
     build:
       context: .
@@ -150,12 +193,13 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '4'
-      MODULE_NAME: amount
-      FROM: '[["QUEUE", "transactions_source"]]'
-      TO: '[["QUEUE", "q1.filtered_amount"]]'
-  q_testing_filter_amount_3:
-    container_name: q_testing_filter_amount_3
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_year
+      MODULE_NAME: year
+      FROM: transactions_source
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+  q1_filter_year_3:
+    container_name: q1_filter_year_3
     image: filter_worker
     build:
       context: .
@@ -168,84 +212,13 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '3'
-      REPLICAS: '4'
-      MODULE_NAME: amount
-      FROM: '[["QUEUE", "transactions_source"]]'
-      TO: '[["QUEUE", "q1.filtered_amount"]]'
-  q_testing_filter_year_0:
-    container_name: q_testing_filter_year_0
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '5'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_year
       MODULE_NAME: year
-      FROM: '[["QUEUE", "q1.filtered_amount"]]'
-      TO: '[["QUEUE", "q1.filtered_year"]]'
-  q_testing_filter_year_1:
-    container_name: q_testing_filter_year_1
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      REPLICA_ID: '1'
-      REPLICAS: '5'
-      MODULE_NAME: year
-      FROM: '[["QUEUE", "q1.filtered_amount"]]'
-      TO: '[["QUEUE", "q1.filtered_year"]]'
-  q_testing_filter_year_2:
-    container_name: q_testing_filter_year_2
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      REPLICA_ID: '2'
-      REPLICAS: '5'
-      MODULE_NAME: year
-      FROM: '[["QUEUE", "q1.filtered_amount"]]'
-      TO: '[["QUEUE", "q1.filtered_year"]]'
-  q_testing_filter_year_3:
-    container_name: q_testing_filter_year_3
-    image: filter_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    environment:
-      REPLICA_ID: '3'
-      REPLICAS: '5'
-      MODULE_NAME: year
-      FROM: '[["QUEUE", "q1.filtered_amount"]]'
-      TO: '[["QUEUE", "q1.filtered_year"]]'
-  q_testing_filter_year_4:
-    container_name: q_testing_filter_year_4
+      FROM: transactions_source
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+  q1_filter_year_4:
+    container_name: q1_filter_year_4
     image: filter_worker
     build:
       context: .
@@ -258,12 +231,32 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '4'
-      REPLICAS: '5'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_year
       MODULE_NAME: year
-      FROM: '[["QUEUE", "q1.filtered_amount"]]'
-      TO: '[["QUEUE", "q1.filtered_year"]]'
-  q_testing_filter_hour:
-    container_name: q_testing_filter_hour
+      FROM: transactions_source
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+  q1_filter_year_5:
+    container_name: q1_filter_year_5
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '5'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_year
+      MODULE_NAME: year
+      FROM: transactions_source
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+  q1_filter_hour_0:
+    container_name: q1_filter_hour_0
     image: filter_worker
     build:
       context: .
@@ -276,10 +269,201 @@ services:
         condition: service_healthy
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '1'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
-      FROM: '[["QUEUE", "q1.filtered_year"]]'
-      TO: '[["QUEUE", "q1.filtered_hour"]]'
+      FROM: q1.filtered_year
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+  q1_filter_hour_1:
+    container_name: q1_filter_hour_1
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_hour
+      MODULE_NAME: hour
+      FROM: q1.filtered_year
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+  q1_filter_hour_2:
+    container_name: q1_filter_hour_2
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_hour
+      MODULE_NAME: hour
+      FROM: q1.filtered_year
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+  q1_filter_hour_3:
+    container_name: q1_filter_hour_3
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_hour
+      MODULE_NAME: hour
+      FROM: q1.filtered_year
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+  q1_filter_hour_4:
+    container_name: q1_filter_hour_4
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_hour
+      MODULE_NAME: hour
+      FROM: q1.filtered_year
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+  q1_filter_hour_5:
+    container_name: q1_filter_hour_5
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '5'
+      REPLICAS: '6'
+      STAGE_NAME: q1_filter_hour
+      MODULE_NAME: hour
+      FROM: q1.filtered_year
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+  q1_filter_amount_0:
+    container_name: q1_filter_amount_0
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '4'
+      STAGE_NAME: q1_filter_amount
+      MODULE_NAME: amount
+      FROM: q1.filtered_hour
+      TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
+  q1_filter_amount_1:
+    container_name: q1_filter_amount_1
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '4'
+      STAGE_NAME: q1_filter_amount
+      MODULE_NAME: amount
+      FROM: q1.filtered_hour
+      TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
+  q1_filter_amount_2:
+    container_name: q1_filter_amount_2
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '4'
+      STAGE_NAME: q1_filter_amount
+      MODULE_NAME: amount
+      FROM: q1.filtered_hour
+      TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
+  q1_filter_amount_3:
+    container_name: q1_filter_amount_3
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filters/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '4'
+      STAGE_NAME: q1_filter_amount
+      MODULE_NAME: amount
+      FROM: q1.filtered_hour
+      TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
+  q1_sink:
+    container_name: q1_sink
+    image: sink_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q1_sink
+      MODULE_NAME: sink_q1
+      FROM: q1.filtered_amount
+      TO: '[{"name": "results", "downstream_stage": "q1", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
 volumes:
   rabbitmq-volume: null
 networks:

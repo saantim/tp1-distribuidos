@@ -24,11 +24,14 @@ def initialize_config():
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
 
-        config_params["stores"] = os.getenv("STORES_QUEUE", config["QUEUES"]["STORES"])
-        config_params["users"] = os.getenv("USERS_QUEUE", config["QUEUES"]["USERS"])
-        config_params["transactions"] = os.getenv("TRANSACTIONS_QUEUE", config["QUEUES"]["TRANSACTIONS"])
-        config_params["transaction_items"] = os.getenv("TRANSACTION_ITEMS_QUEUE", config["QUEUES"]["TRANSACTION_ITEMS"])
-        config_params["menu_items"] = os.getenv("MENU_ITEMS_QUEUE", config["QUEUES"]["MENU_ITEMS"])
+        # TODO: Parsear de compose_config.yaml
+        config_params["stores"] = os.getenv("STORES_QUEUE", config["EXCHANGES"]["STORES"])
+        config_params["users"] = os.getenv("USERS_QUEUE", config["EXCHANGES"]["USERS"])
+        config_params["transactions"] = os.getenv("TRANSACTIONS_QUEUE", config["EXCHANGES"]["TRANSACTIONS"])
+        config_params["transaction_items"] = os.getenv(
+            "TRANSACTION_ITEMS_QUEUE", config["EXCHANGES"]["TRANSACTION_ITEMS"]
+        )
+        config_params["menu_items"] = os.getenv("MENU_ITEMS_QUEUE", config["EXCHANGES"]["MENU_ITEMS"])
 
     except KeyError as e:
         raise KeyError(f"Key was not found. Error: {e}. Aborting gateway")
@@ -59,7 +62,7 @@ def main():
     logging_level = config_params["logging_level"]
     middleware_host = config_params["middleware_host"]
 
-    batch_queues = {
+    batch_exchanges = {
         "STORE": config_params["stores"],
         "USER": config_params["users"],
         "TRANSACTION": config_params["transactions"],
@@ -78,7 +81,7 @@ def main():
 
     try:
         shutdown_signal = ShutdownSignal()
-        server = Server(port, listen_backlog, middleware_host, batch_queues, shutdown_signal)
+        server = Server(port, listen_backlog, middleware_host, batch_exchanges, shutdown_signal)
 
         logging.info(f"action: start_gateway | port: {port}")
         server.run()

@@ -1,7 +1,8 @@
 import subprocess
 import time
-import pytest
+
 import pika
+import pytest
 
 
 def _run_docker_command(*args):
@@ -16,13 +17,19 @@ def rabbitmq_service():
     _run_docker_command("rm", "-f", container_name)
 
     run_cmd = [
-        "run", "-d",
-        "--name", container_name,
-        "-p", "5672:5672",
-        "-p", "15672:15672",
-        "-e", "RABBITMQ_DEFAULT_USER=admin",
-        "-e", "RABBITMQ_DEFAULT_PASS=admin",
-        "rabbitmq:3-management"
+        "run",
+        "-d",
+        "--name",
+        container_name,
+        "-p",
+        "5672:5672",
+        "-p",
+        "15672:15672",
+        "-e",
+        "RABBITMQ_DEFAULT_USER=admin",
+        "-e",
+        "RABBITMQ_DEFAULT_PASS=admin",
+        "rabbitmq:3-management",
     ]
 
     result = _run_docker_command(*run_cmd)

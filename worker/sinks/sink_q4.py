@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Type
 
-from shared.entity import Message
+from shared.entity import Message, RawMessage
 from worker.sinks.sink_base import SinkBase
 from worker.types import UserPurchasesByStore
 
@@ -17,13 +17,13 @@ class Sink(SinkBase):
     def get_entity_type(self) -> Type[Message]:
         return UserPurchasesByStore
 
-    def format_fn(self, results_collected: list[UserPurchasesByStore]) -> bytes:
+    def format_fn(self, results_collected: list[UserPurchasesByStore]) -> RawMessage:
         """
         Format Query 4 results for batch output.
         Receives all enriched Top3 data
         """
         if not results_collected:
-            return b""
+            return RawMessage(b"")
 
         try:
             formatted_rows = []
@@ -46,8 +46,8 @@ class Sink(SinkBase):
                 "results": formatted_rows,
             }
 
-            return json.dumps(output, indent=2).encode("utf-8")
+            return RawMessage(json.dumps(output, indent=2).encode("utf-8"))
 
         except Exception as e:
             logging.error(f"Error formatting Q3 results: {e}", exc_info=True)
-            return b""
+            return RawMessage(b"")

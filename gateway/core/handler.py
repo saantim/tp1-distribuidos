@@ -6,12 +6,14 @@ now supports multi-client sessions.
 
 import logging
 import time
+import uuid
 from typing import cast
 from uuid import UUID
 
 from shared.entity import EOF
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from shared.network import Network, NetworkError
-from shared.protocol import AckPacket, Batch, ErrorPacket, PacketType, SESSION_ID
+from shared.protocol import AckPacket, Batch, EntityType, ErrorPacket, MESSAGE_ID, PacketType, SESSION_ID
 from shared.shutdown import ShutdownSignal
 
 
@@ -115,6 +117,9 @@ class ClientHandler:
 
             if packet_type == PacketType.BATCH:
                 batch = cast(Batch, packet)
+                # TODO: QUITAR
+                if batch.entity_type != EntityType.TRANSACTION:
+                    continue
                 try:
                     publisher = self.publishers.get(batch.entity_type)
                     if not publisher:
@@ -126,7 +131,7 @@ class ClientHandler:
                         break
 
                     if batch.eof:
-                        publisher.send(EOF().serialize(), headers=headers)
+                        self._route_batch_packet(EOF().serialize(), publisher, headers, eof=True)
                         eof_count += 1
 
                         self.session_manager.track_eof_received(self.session_id, batch.entity_type.name)
@@ -136,7 +141,7 @@ class ClientHandler:
                             f"entity_type: {batch.entity_type.name}"
                         )
                     else:
-                        publisher.send(batch.serialize(), headers=headers)
+                        self._route_batch_packet(batch.serialize(), publisher, headers)
                         batch_count += 1
 
                         if batch_count % 100 == 0:
@@ -157,6 +162,13 @@ class ClientHandler:
                 )
                 self._send_error_packet(400, f"unexpected packet type: {packet_type}")
                 break
+
+    def _route_batch_packet(self, batch: bytes, exchange: MessageMiddlewareExchangeRMQ, headers, eof=False):
+
+        batch_id = uuid.uuid4()
+        index = batch_id.int % 5
+        key = "transformer_transactions" + "_" + str(index) if not eof else "common"
+        exchange.send(batch, key, headers | {MESSAGE_ID: batch_id.hex})
 
     def _send_ack_packet(self):
         """Send ACK packet to client."""

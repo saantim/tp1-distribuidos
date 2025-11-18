@@ -9,6 +9,7 @@ from .utils import ByteReader, ByteWriter
 
 
 SESSION_ID = "session_id"
+MESSAGE_ID = "message_id"
 
 
 class PacketType(IntEnum):

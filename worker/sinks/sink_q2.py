@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Type
 
-from shared.entity import Message
+from shared.entity import Message, RawMessage
 from worker.sinks.sink_base import SinkBase
 from worker.types import TransactionItemByPeriod
 
@@ -17,7 +17,7 @@ class Sink(SinkBase):
     def get_entity_type(self) -> Type[Message]:
         return TransactionItemByPeriod
 
-    def format_fn(self, results_collected: list[TransactionItemByPeriod]) -> bytes:
+    def format_fn(self, results_collected: list[TransactionItemByPeriod]) -> RawMessage:
         """
         Format Query 2 results for batch output.
         Receives all enriched period aggregations, formats as JSON.
@@ -29,7 +29,7 @@ class Sink(SinkBase):
             JSON-encoded array of period results
         """
         if not results_collected:
-            return b""
+            return RawMessage(b"")
 
         try:
             formatted_periods = []
@@ -72,8 +72,8 @@ class Sink(SinkBase):
 
             output = {"query": "Q2", "description": "Top products per period (2024-2025)", "results": formatted_periods}
 
-            return json.dumps(output, indent=2).encode("utf-8")
+            return RawMessage(json.dumps(output, indent=2).encode("utf-8"))
 
         except Exception as e:
             logging.error(f"Error formatting Q2 results: {e}", exc_info=True)
-            return b""
+            return RawMessage(b"")

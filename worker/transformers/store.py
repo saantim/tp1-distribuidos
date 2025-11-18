@@ -9,9 +9,7 @@ We only extract:
 - store_name
 """
 
-from typing import Type
-
-from shared.entity import Message, Store
+from shared.entity import Store
 from worker.transformers.transformer_base import TransformerBase
 
 
@@ -19,9 +17,6 @@ class Transformer(TransformerBase):
     """
     Transformer for stores.
     """
-
-    def get_entity_type(self) -> Type[Message]:
-        return Store
 
     def parse_fn(self, csv_row: str) -> dict:
         """

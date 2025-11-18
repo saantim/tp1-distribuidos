@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Type
 
-from shared.entity import Message
+from shared.entity import Message, RawMessage
 from worker.sinks.sink_base import SinkBase
 from worker.types import SemesterTPVByStore
 
@@ -17,7 +17,7 @@ class Sink(SinkBase):
     def get_entity_type(self) -> Type[Message]:
         return SemesterTPVByStore
 
-    def format_fn(self, results_collected: list[SemesterTPVByStore]) -> bytes:
+    def format_fn(self, results_collected: list[SemesterTPVByStore]) -> RawMessage:
         """
         Format Query 3 results for batch output.
         Receives all enriched semester TPV data, formats as JSON array.
@@ -29,7 +29,7 @@ class Sink(SinkBase):
             JSON-encoded array of semester/store/TPV rows
         """
         if not results_collected:
-            return b""
+            return RawMessage(b"")
 
         try:
             formatted_rows = []
@@ -59,8 +59,8 @@ class Sink(SinkBase):
                 "results": formatted_rows,
             }
 
-            return json.dumps(output, indent=2).encode("utf-8")
+            return RawMessage(json.dumps(output, indent=2).encode("utf-8"))
 
         except Exception as e:
             logging.error(f"Error formatting Q3 results: {e}", exc_info=True)
-            return b""
+            return RawMessage(b"")

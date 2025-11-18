@@ -6,13 +6,19 @@ Transforms CSV rows into entities.
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Type
 
-from shared.entity import Message
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
-from shared.protocol import SESSION_ID
-from worker.base import WorkerBase
-from worker.packer import is_raw_batch, pack_entity_batch, unpack_raw_batch
+from shared.entity import Message, RawMessage
+from shared.middleware.interface import MessageMiddleware
+from worker.base import Session, WorkerBase
+from worker.packer import is_raw_batch, unpack_raw_batch
+
+
+@dataclass
+class SessionData:
+    buffer: list[Message] = field(default_factory=list)
+    transformed: int = 0
 
 
 class TransformerBase(WorkerBase, ABC):
@@ -27,57 +33,52 @@ class TransformerBase(WorkerBase, ABC):
         index: int,
         stage_name: str,
         source: MessageMiddleware,
-        output: list[MessageMiddleware],
-        intra_exchange: MessageMiddlewareExchange,
+        outputs: list,
         batch_size: int = 500,
     ):
-        super().__init__(instances, index, stage_name, source, output, intra_exchange)
+        super().__init__(instances, index, stage_name, source, outputs)
         self.buffer_size = batch_size
-        self._buffer_per_session: dict[uuid.UUID, list[Message]] = {}
-        self._transformed_per_session: dict[uuid.UUID, int] = {}
 
-    def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
+    def get_entity_type(self) -> Type[Message]:
+        return RawMessage
+
+    def _on_entity_upstream(self, message: RawMessage, session: Session) -> None:
+        if is_raw_batch(message.raw_data):
+            for csv_row in unpack_raw_batch(message.raw_data):
+                self._on_csv_row(csv_row, session)
+            return
+
+        logging.warning(
+            f"action: unknown_message |"
+            f" stage: {self._stage_name} | message not EOF or Batch | session_id: {session.session_id}"
+        )
+
+    def _start_of_session(self, session: Session):
+        session.set_storage(SessionData())
+
+    def _end_of_session(self, session: Session):
         """
-        Override to handle both EOF messages and raw Batch packets.
-
-        Args:
-            channel: RabbitMQ channel
-            method: Delivery method
-            properties: Message properties
-            body: Message bytes (either EOF or raw Batch packet)
+        Called when session ends (after receiving EOF from all upstream workers).
+        Flush remaining buffered entities.
         """
-        with self._session_lock:
-            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        session_data: SessionData = session.get_storage()
+        self._flush_buffer(session)
+        logging.info(
+            f"action: end_of_session | stage: {self._stage_name} |"
+            f" "
+            f"total_transformed: {session_data.transformed} | session_id: {session.session_id}"
+        )
 
-            if session_id not in self._active_sessions and session_id not in self._finished_sessions:
-                self._active_sessions.add(session_id)
-                self._eof_collected_by_session[session_id] = set()
-                self._start_of_session(session_id)
+    def _flush_buffer(self, session: Session) -> None:
+        """Flush buffer to all output queues."""
+        session_data: SessionData = session.get_storage()
+        if not session_data.buffer:
+            return
 
-            try:
-                if self._handle_eof(body, session_id):
-                    channel.basic_ack(delivery_tag=method.delivery_tag)
-                    return
+        self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())
+        session_data.buffer.clear()
 
-                if is_raw_batch(body):
-                    for csv_row in unpack_raw_batch(body):
-                        self._on_csv_row(csv_row, session_id)
-                    channel.basic_ack(delivery_tag=method.delivery_tag)
-                    return
-
-                logging.warning(
-                    f"action: unknown_message |"
-                    f" stage: {self._stage_name} | message not EOF or Batch | session_id: {session_id}"
-                )
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
-            except Exception as e:
-                logging.exception(
-                    f"action: batch_process | stage: {self._stage_name} |" f" error: {str(e)} | session_id: {session_id}"
-                )
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
-    def _on_csv_row(self, csv_row: str, session_id: uuid.UUID) -> None:
+    def _on_csv_row(self, csv_row: str, session: Session) -> None:
         """
         Process a single CSV row.
 
@@ -85,71 +86,37 @@ class TransformerBase(WorkerBase, ABC):
             csv_row: CSV row as string
         """
         try:
+            session_data: SessionData = session.get_storage()
             row_dict = self.parse_fn(csv_row)
             entity = self.create_fn(row_dict)
 
-            self._transformed_per_session[session_id] += 1
-            self._buffer_per_session[session_id].append(entity)
+            session_data.transformed += 1
+            session_data.buffer.append(entity)
 
-            if len(self._buffer_per_session[session_id]) >= self.buffer_size:
-                self._flush_buffer(session_id)
+            if len(session_data.buffer) >= self.buffer_size:
+                self._flush_buffer(session)
 
-            if self._transformed_per_session[session_id] % 100000 == 0:
+            if session_data.transformed % 100000 == 0:
                 logging.info(
                     f"[{self._stage_name}] checkpoint:"
-                    f" transformed={self._transformed_per_session[session_id]}"
-                    f" session_id={session_id}"
+                    f" transformed={session_data.transformed}, "
+                    f" session_id={session.session_id}"
                 )
 
         except ValueError as e:
             logging.warning(
                 f"action: transform_entity | stage: {self._stage_name} | "
                 f"error: {str(e)} |"
-                f" csv_row: {csv_row} | session_id: {session_id}"
+                f" csv_row: {csv_row} | session_id: {session.session_id}"
             )
             raise e
         except Exception as e:
             logging.error(
                 f"action: transform_entity | stage: {self._stage_name} |"
                 f" "
-                f"error: {str(e)} | session_id: {session_id}"
+                f"error: {str(e)} | session_id: {session.session_id}"
             )
             raise e
-
-    def _on_entity_upstream(self, body, session_id: uuid.UUID) -> None:
-        """
-        Not used in transformers - we override _on_message_upstream instead.
-        This is here to satisfy the abstract method requirement.
-        """
-        pass
-
-    def _start_of_session(self, session_id: uuid.UUID):
-        self._buffer_per_session[session_id] = []
-        self._transformed_per_session[session_id] = 0
-
-    def _end_of_session(self, session_id: uuid.UUID):
-        """
-        Called when session ends (after receiving EOF from all upstream workers).
-        Flush remaining buffered entities.
-        """
-        self._flush_buffer(session_id)
-        transformed = self._transformed_per_session[session_id]
-        logging.info(
-            f"action: end_of_session | stage: {self._stage_name} |"
-            f" "
-            f"total_transformed: {transformed} | session_id: {session_id}"
-        )
-        self._transformed_per_session.pop(session_id)
-
-    def _flush_buffer(self, session_id: uuid.UUID) -> None:
-        """Flush buffer to all output queues."""
-        if not self._buffer_per_session[session_id]:
-            return
-
-        packed: bytes = pack_entity_batch(self._buffer_per_session[session_id])
-        for output in self._output:
-            output.send(packed, headers={SESSION_ID: session_id.hex})
-        self._buffer_per_session[session_id].clear()
 
     @abstractmethod
     def parse_fn(self, csv_row: str) -> dict:
@@ -177,15 +144,5 @@ class TransformerBase(WorkerBase, ABC):
 
         Returns:
             Entity instance
-        """
-        pass
-
-    @abstractmethod
-    def get_entity_type(self) -> Type[Message]:
-        """
-        Returns the entity type produced by this transformer.
-
-        Returns:
-            Entity class type
         """
         pass
