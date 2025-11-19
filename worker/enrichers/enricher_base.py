@@ -61,7 +61,9 @@ class EnricherBase(WorkerBase, ABC):
             try:
                 if EOF.is_type(body):
                     self._consume_session_queue(session_id)
-                    logging.info(f"action: enricher_data_ready | stage: {self._stage_name} | " f"session: {session_id}")
+                    logging.info(
+                        f"action: enricher_data_ready | stage: {self._stage_name} | session: {session_id.hex[:8]}"
+                    )
                     channel.basic_ack(delivery_tag=method.delivery_tag)
                     return
 
@@ -73,7 +75,8 @@ class EnricherBase(WorkerBase, ABC):
 
             except Exception as e:
                 logging.error(
-                    f"action: enricher_msg_error | stage: {self._stage_name} | " f"session: {session_id} | error: {e}"
+                    f"action: enricher_msg_error | stage: {self._stage_name} | "
+                    f"session: {session_id.hex[:8]} | error: {e}"
                 )
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
@@ -95,7 +98,7 @@ class EnricherBase(WorkerBase, ABC):
 
     def _start_of_session(self, session_id: uuid.UUID):
         """Hook cuando una nueva sesión comienza."""
-        logging.info(f"action: session_start | stage: {self._stage_name} | " f"session: {session_id}")
+        logging.info(f"action: session_start | stage: {self._stage_name} | session: {session_id.hex[:8]}")
         self._buffer_per_session[session_id] = []
         self._enriched_count_per_session[session_id] = 0
         self._queue_per_session[session_id] = self._get_session_queue(session_id)
@@ -113,7 +116,8 @@ class EnricherBase(WorkerBase, ABC):
         self._queue_per_session.pop(session_id, None)
 
         logging.info(
-            f"action: session_end | stage: {self._stage_name} |" f" session: {session_id} | final_count: {final_count}"
+            f"action: session_end | stage: {self._stage_name} | "
+            f"session: {session_id.hex[:8]} | final_count: {final_count}"
         )
 
     def _flush_buffer(self, session_id: uuid.UUID) -> None:
@@ -131,7 +135,9 @@ class EnricherBase(WorkerBase, ABC):
         count = len(buffer)
         self._enriched_count_per_session[session_id] += count
 
-        logging.info(f"action: flush_buffer | stage: {self._stage_name} | session: {session_id} | count: {count}")
+        logging.info(
+            f"action: flush_buffer | stage: {self._stage_name} | session: {session_id.hex[:8]} | count: {count}"
+        )
 
         self._buffer_per_session[session_id].clear()
 

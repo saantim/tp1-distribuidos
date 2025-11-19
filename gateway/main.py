@@ -6,14 +6,11 @@ import os
 
 from core.server import Server
 
+from shared.config_parser import parse_gateway_config
 from shared.shutdown import ShutdownSignal
 
 
 def initialize_config():
-    """
-    parse env variables or config file to find program config params.
-    throws KeyError if param not found, ValueError if parsing fails.
-    """
     config = configparser.ConfigParser(os.environ)
     config.read("config.ini")
 
@@ -23,15 +20,6 @@ def initialize_config():
         config_params["listen_backlog"] = int(os.getenv("LISTEN_BACKLOG", config["DEFAULT"]["LISTEN_BACKLOG"]))
         config_params["logging_level"] = os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"])
         config_params["middleware_host"] = os.getenv("MIDDLEWARE_HOST", config["MIDDLEWARE"]["MIDDLEWARE_HOST"])
-
-        # TODO: Parsear de compose_config.yaml
-        config_params["stores"] = os.getenv("STORES_QUEUE", config["EXCHANGES"]["STORES"])
-        config_params["users"] = os.getenv("USERS_QUEUE", config["EXCHANGES"]["USERS"])
-        config_params["transactions"] = os.getenv("TRANSACTIONS_QUEUE", config["EXCHANGES"]["TRANSACTIONS"])
-        config_params["transaction_items"] = os.getenv(
-            "TRANSACTION_ITEMS_QUEUE", config["EXCHANGES"]["TRANSACTION_ITEMS"]
-        )
-        config_params["menu_items"] = os.getenv("MENU_ITEMS_QUEUE", config["EXCHANGES"]["MENU_ITEMS"])
 
     except KeyError as e:
         raise KeyError(f"Key was not found. Error: {e}. Aborting gateway")
@@ -62,26 +50,46 @@ def main():
     logging_level = config_params["logging_level"]
     middleware_host = config_params["middleware_host"]
 
-    batch_exchanges = {
-        "STORE": config_params["stores"],
-        "USER": config_params["users"],
-        "TRANSACTION": config_params["transactions"],
-        "TRANSACTION_ITEM": config_params["transaction_items"],
-        "MENU_ITEM": config_params["menu_items"],
-    }
-
     initialize_log(logging_level)
     logging.getLogger("pika").setLevel(logging.WARNING)
+
+    try:
+        gateway_config = parse_gateway_config()
+    except (FileNotFoundError, ValueError) as e:
+        logging.error(f"action: parse_config | result: fail | error: {e}")
+        return
+
+    batch_exchanges = {}
+    transformer_configs = {}
+
+    for entity_type, config in gateway_config["transformers"].items():
+        batch_exchanges[entity_type.name] = config["exchange"]
+        transformer_configs[entity_type] = {
+            "exchange": config["exchange"],
+            "downstream_stage": config["downstream_stage"],
+            "replicas": config["replicas"],
+        }
+
+    enabled_queries = gateway_config["enabled_queries"]
 
     logging.debug(
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
-        f"logging_level: {logging_level} | middleware_host: {middleware_host}"
+        f"logging_level: {logging_level} | middleware_host: {middleware_host} | "
+        f"transformers: {len(transformer_configs)} | queries: {enabled_queries}"
     )
 
     try:
         shutdown_signal = ShutdownSignal()
-        server = Server(port, listen_backlog, middleware_host, batch_exchanges, shutdown_signal)
+        server = Server(
+            port,
+            listen_backlog,
+            middleware_host,
+            batch_exchanges,
+            transformer_configs,
+            enabled_queries,
+            shutdown_signal,
+        )
 
         logging.info(f"action: start_gateway | port: {port}")
         server.run()

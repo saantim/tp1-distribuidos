@@ -49,8 +49,8 @@ class TransformerBase(WorkerBase, ABC):
             return
 
         logging.warning(
-            f"action: unknown_message |"
-            f" stage: {self._stage_name} | message not EOF or Batch | session_id: {session.session_id}"
+            f"action: unknown_message | stage: {self._stage_name} | "
+            f"message not EOF or Batch | session: {session.session_id.hex[:8]}"
         )
 
     def _start_of_session(self, session: Session):
@@ -64,9 +64,8 @@ class TransformerBase(WorkerBase, ABC):
         session_data: SessionData = session.get_storage()
         self._flush_buffer(session)
         logging.info(
-            f"action: end_of_session | stage: {self._stage_name} |"
-            f" "
-            f"total_transformed: {session_data.transformed} | session_id: {session.session_id}"
+            f"action: end_of_session | stage: {self._stage_name} | "
+            f"total_transformed: {session_data.transformed} | session_id: {session.session_id.hex[:8]}"
         )
 
     def _flush_buffer(self, session: Session) -> None:
@@ -98,23 +97,20 @@ class TransformerBase(WorkerBase, ABC):
 
             if session_data.transformed % 100000 == 0:
                 logging.info(
-                    f"[{self._stage_name}] checkpoint:"
-                    f" transformed={session_data.transformed}, "
-                    f" session_id={session.session_id}"
+                    f"[{self._stage_name}] {session_data.transformed//1000}k transformed | "
+                    f"session: {session.session_id.hex[:8]}"
                 )
 
         except ValueError as e:
             logging.warning(
                 f"action: transform_entity | stage: {self._stage_name} | "
-                f"error: {str(e)} |"
-                f" csv_row: {csv_row} | session_id: {session.session_id}"
+                f"error: {str(e)} | csv_row: {csv_row} | session: {session.session_id.hex[:8]}"
             )
             raise e
         except Exception as e:
             logging.error(
-                f"action: transform_entity | stage: {self._stage_name} |"
-                f" "
-                f"error: {str(e)} | session_id: {session.session_id}"
+                f"action: transform_entity | stage: {self._stage_name} | "
+                f"error: {str(e)} | session: {session.session_id.hex[:8]}"
             )
             raise e
 

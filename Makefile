@@ -56,25 +56,25 @@ logs-q4:
 .PHONY: logs-q4
 
 gen_min:
-	python3 .kaggle/build_expected.py --dataset min
+	python3.13 .kaggle/build_expected.py --dataset min
 .PHONY: gen_min
 
 gen_full:
-	python3 .kaggle/build_expected.py --dataset full
+	python3.13 .kaggle/build_expected.py --dataset full
 .PHONY: gen_full
 
 valid_min:
 	@ARGS="--dataset min"; \
 	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
-	python3 .kaggle/validation.py $$ARGS
+	python3.13 .kaggle/validation.py $$ARGS
 .PHONY: valid_min
 
 valid_full:
 	@ARGS="--dataset full"; \
 	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
-	python3 .kaggle/validation.py $$ARGS
+	python3.13 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
 
 test_count_eof:
