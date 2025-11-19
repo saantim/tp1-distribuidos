@@ -1,22 +1,28 @@
+import json
 import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
-from typing import Any, Callable, List, Optional, Type
-
+from pathlib import Path
+from typing import Any, Callable, List, Optional, Type, Union
 from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
 from shared.protocol import MESSAGE_ID, SESSION_ID
 from shared.shutdown import ShutdownSignal
 from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
+from pydantic import BaseModel
 
 
-class Session:
-    def __init__(self, session_id: uuid.UUID):
-        self.session_id = session_id
-        self._storage: Optional[Any] = None
-        self._eof_collected: set[str] = set()
+class Session(BaseModel):
+    session_id: uuid.UUID
+    storage: Optional[Any] = None
+    eof_collected: set[str] = set()
+
+    def __init__(self, session_id: uuid.UUID, **data):
+        super().__init__(session_id=session_id, **data)
+        self._storage = None
+        self._eof_collected = set()
 
     def get_storage(self) -> Optional[Any]:
         return self._storage
@@ -31,21 +37,32 @@ class Session:
         return self._eof_collected
 
 
-class SessionManager:
+class SessionManager(BaseModel):
+    stage_name: str
+    _on_start_of_session: Callable[[Session], None]
+    _on_end_of_session: Callable[[Session], None]
+    instances: int
+    is_leader: bool
+    sessions: dict[uuid.UUID, Session] = {}
+    
     def __init__(
         self,
         stage_name: str,
-        on_start_of_session: Callable,
-        on_end_of_session: Callable,
+        on_start_of_session: Callable[[Session], None],
+        on_end_of_session: Callable[[Session], None],
         instances: int,
         is_leader: bool,
+        **data
     ):
-        self._sessions: dict[uuid.UUID, Session] = {}
+        super().__init__(
+            stage_name=stage_name,
+            instances=instances,
+            is_leader=is_leader,
+            **data
+        )
         self._on_start_of_session = on_start_of_session
         self._on_end_of_session = on_end_of_session
-        self._stage_name = stage_name
-        self._instances = instances
-        self._is_leader = is_leader
+        self._sessions = {}
         self._setup_logging()
 
     def _setup_logging(self):
@@ -76,6 +93,38 @@ class SessionManager:
 
     def _is_flushable(self, session: Session) -> bool:
         return len(session.get_eof_collected()) >= (self._instances if self._is_leader else 1)
+        
+    def save_sessions(self, path: Union[str, Path]) -> None:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        sessions_data = {}
+        for session_id, session in self.sessions.items():
+            session_dict = session.model_dump()
+            session_dict['session_id'] = str(session_dict['session_id'])
+            if 'eof_collected' in session_dict and isinstance(session_dict['eof_collected'], set):
+                session_dict['eof_collected'] = list(session_dict['eof_collected'])
+            sessions_data[str(session_id)] = session_dict
+        
+        with open(path, 'w') as f:
+            json.dump(sessions_data, f, indent=2)
+    
+    def load_sessions(self, path: Union[str, Path]) -> None:
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"No se encontró el archivo de sesiones: {path}")
+            
+        with open(path, 'r') as f:
+            sessions_data = json.load(f)
+        
+        self.sessions.clear()
+        
+        for session_id_str, session_data in sessions_data.items():
+            session_data['session_id'] = uuid.UUID(session_id_str)
+            if 'eof_collected' in session_data and isinstance(session_data['eof_collected'], list):
+                session_data['eof_collected'] = set(session_data['eof_collected'])
+            session = Session(**session_data)
+            self.sessions[session_data['session_id']] = session
 
 
 class WorkerBase(ABC):
