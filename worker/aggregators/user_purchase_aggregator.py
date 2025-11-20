@@ -2,9 +2,8 @@ import uuid
 from typing import cast, Optional, Type
 
 from shared.entity import Message, StoreName, Transaction
-from shared.protocol import SESSION_ID
 from worker.aggregators.aggregator_base import AggregatorBase
-from worker.packer import pack_entity_batch
+from worker.base import Session
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 
@@ -32,13 +31,13 @@ class Aggregator(AggregatorBase):
         aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id].purchases += 1
         return aggregated
 
-    def _end_of_session(self, session_id: uuid.UUID):
-        aggregated = self._aggregated_per_session[session_id]
+    def _end_of_session(self, session: Session):
+        session_data = session.get_storage()
+        aggregated = session_data.aggregated
+
         if aggregated is not None:
             aggregated = self._truncate_top_3(cast(UserPurchasesByStore, aggregated))
-            final = pack_entity_batch([aggregated])
-            for output in self._output:
-                output.send(final, headers={SESSION_ID: session_id.hex})
+            self._send_message(messages=[aggregated], session_id=session.session_id, message_id=uuid.uuid4())
 
     @staticmethod
     def _truncate_top_3(aggregated: UserPurchasesByStore) -> UserPurchasesByStore:
