@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import tempfile
 import threading
 import uuid
 from abc import ABC, abstractmethod
@@ -93,11 +95,11 @@ class SessionManager(BaseModel):
 
     def _is_flushable(self, session: Session) -> bool:
         return len(session.get_eof_collected()) >= (self._instances if self._is_leader else 1)
-        
+
     def save_sessions(self, path: Union[str, Path]) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         sessions_data = {}
         for session_id, session in self.sessions.items():
             session_dict = session.model_dump()
@@ -105,10 +107,36 @@ class SessionManager(BaseModel):
             if 'eof_collected' in session_dict and isinstance(session_dict['eof_collected'], set):
                 session_dict['eof_collected'] = list(session_dict['eof_collected'])
             sessions_data[str(session_id)] = session_dict
-        
-        with open(path, 'w') as f:
-            json.dump(sessions_data, f, indent=2)
-    
+
+        serialized = json.dumps(sessions_data, indent=2)
+
+        dir_name = str(path.parent)
+        tmp_fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=dir_name)
+        logging.info(f"[save_sessions] Generating temp file: {tmp_path}")
+
+        try:
+            with os.fdopen(tmp_fd, "w") as tmp_file:
+                tmp_file.write(serialized)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())
+
+            dir_fd = os.open(dir_name, os.O_DIRECTORY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+
+            os.replace(tmp_path, path)
+            logging.info(f"[save_sessions] Atomic replace in: {path}")
+
+        except Exception:
+            logging.error(f"[save_sessions] Something went wrong! Trying to remove temp file: {tmp_path} — {e}")
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def load_sessions(self, path: Union[str, Path]) -> None:
         path = Path(path)
         if not path.exists():
