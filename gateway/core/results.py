@@ -8,10 +8,11 @@ from uuid import UUID
 
 from gateway.core.session import SessionData
 from shared.entity import EOF
-from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ, MessageMiddlewareQueueMQ
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from shared.network import Network, NetworkError
 from shared.protocol import ResultPacket, SESSION_ID
 from shared.shutdown import ShutdownSignal
+from shared.utils import unpack_result_batch
 
 
 class ResultCollector:
@@ -22,14 +23,11 @@ class ResultCollector:
 
     EXCHANGE_NAME = "results"
 
-    def __init__(self, middleware_host: str, session_manager, shutdown_signal: ShutdownSignal):
+    def __init__(self, middleware_host: str, session_manager, enabled_queries: list, shutdown_signal: ShutdownSignal):
         self.middleware_host = middleware_host
         self.session_manager = session_manager
         self.shutdown_signal = shutdown_signal
-
-        # For now, only Q1 is enabled
-        self.query_keys = ["q1"]
-
+        self.query_keys = enabled_queries
         self._listener_thread = None
 
     def start(self):
@@ -45,10 +43,11 @@ class ResultCollector:
 
     def _listen_exchange(self):
         """Listen to results exchange and route messages to correct sessions."""
+        route_keys = self.query_keys + ["common"]
         exchange = MessageMiddlewareExchangeRMQ(
             host=self.middleware_host,
             exchange_name=self.EXCHANGE_NAME,
-            route_keys=self.query_keys,
+            route_keys=route_keys,
             queue_name=self.EXCHANGE_NAME,
         )
 
@@ -75,29 +74,42 @@ class ResultCollector:
 
             if not session:
                 logging.warning(
-                    f"action: result_unknown_session | query: {query_id} | "
+                    f"action: result_unknown_session | routing_key: {query_id} | "
                     f"session_id: {session_id} | result: session_closed"
                 )
                 channel.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
-            # Store result and send to client
-            self.session_manager.add_result(session_id, query_id.upper(), body)
+            is_eof = EOF.is_type(body)
+
+            if query_id == "common" and is_eof:
+                self.session_manager.increment_query_eof(session_id)
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+
+                if self.session_manager.is_session_complete(session_id):
+                    logging.info(f"action: session_complete | session_id: {session_id}")
+                    self.session_manager.close_session(session_id)
+                return
+
+            unpacked_results = unpack_result_batch(body)
+
+            if not unpacked_results:
+                logging.warning(f"action: empty_result_batch | session_id: {session_id} | query: {query_id}")
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+                return
 
             try:
                 network = Network(session.socket, self.shutdown_signal)
 
-                result_packet = ResultPacket(query_id.upper(), body)
-                network.send_packet(result_packet)
+                for result_data in unpacked_results:
+                    self.session_manager.add_result(session_id, query_id.upper(), result_data)
+
+                    result_packet = ResultPacket(query_id.upper(), result_data)
+                    network.send_packet(result_packet)
 
                 eof_packet = ResultPacket(query_id.upper(), EOF().serialize())
                 network.send_packet(eof_packet)
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-
-                if self.session_manager.is_session_complete(session_id):
-                    logging.info(f"action: session_results_complete | session_id: {session_id}")
-                    # Close session after 5 seconds to ensure everything is sent
-                    threading.Timer(5.0, self.session_manager.close_session, args=[session_id]).start()
 
             except NetworkError as err:
                 logging.warning(
@@ -115,79 +127,4 @@ class ResultCollector:
             try:
                 exchange.close()
             except Exception:
-                pass
-
-    def _listen_to_queue(self, query_id: str, queue_name: str):
-        """Listen to a specific query result queue and route to correct session."""
-        queue = MessageMiddlewareQueueMQ(self.middleware_host, queue_name)
-
-        def on_message(channel, method, properties, body):
-            if self.shutdown_signal.should_shutdown():
-                queue.stop_consuming()
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                return
-
-            session_id = None
-            if properties.headers:
-                session_id = properties.headers.get(SESSION_ID)
-
-            if not session_id:
-                logging.error(f"action: result_no_session | query: {query_id} | " f"result: dropping_message")
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                return
-
-            session_id = UUID(hex=session_id)
-            session: SessionData = self.session_manager.get_session(session_id)
-
-            is_final_data = properties.headers.get("FINAL") is not None
-            if not is_final_data:
-                channel.basic_ack(delivery_tag=method.delivery_tag)
-                logging.debug(
-                    f"action: ignore_eof | query: {query_id} |"
-                    f" session_id: {session_id} | gateway uses new protocol."
-                )
-                return
-
-            if not session:
-                logging.warning(
-                    f"action: result_unknown_session | query: {query_id} | "
-                    f"session_id: {session_id} | result: session_closed"
-                )
-                channel.basic_ack(delivery_tag=method.delivery_tag)
-                return
-
-            self.session_manager.add_result(session_id, query_id, body)
-
-            try:
-                network = Network(session.socket, self.shutdown_signal)
-
-                result_packet = ResultPacket(query_id, body)
-                network.send_packet(result_packet)
-
-                eof_packet = ResultPacket(query_id, EOF().serialize())
-                network.send_packet(eof_packet)
-                channel.basic_ack(delivery_tag=method.delivery_tag)
-
-                if self.session_manager.is_session_complete(session_id):
-                    logging.info(f"action: session_results_complete | session_id: {session_id}")
-                    # todo: ver de mejorar esto, cerramos luego de 5 segundo para que se envie todo.
-                    threading.Timer(5.0, self.session_manager.close_session, args=[session_id]).start()
-
-            except NetworkError as err:
-                logging.warning(
-                    f"action: result_send_fail | session_id: {session_id} | " f"query: {query_id} | error: {err}"
-                )
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-                self.session_manager.close_session(session_id)
-
-        try:
-            logging.info(f"action: start_listening | query: {query_id} | queue: {queue_name}")
-            queue.start_consuming(on_message)
-        except Exception as e:
-            logging.error(f"action: result_listener_error | query: {query_id} | error: {e}")
-        finally:
-            try:
-                queue.close()
-            except Exception as e:
-                _ = e
                 pass

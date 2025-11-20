@@ -67,3 +67,7 @@ class WorkerOutput:
             Routing key as string
         """
         return self.routing_function(message, self.downstream_stage, self.downstream_workers, message_id_int)
+
+    def __repr__(self) -> str:
+        """Clean representation for logging."""
+        return f"WorkerOutput(name={self.name}, downstream={self.downstream_stage}, workers={self.downstream_workers})"

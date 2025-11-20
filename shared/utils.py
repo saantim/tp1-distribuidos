@@ -141,3 +141,31 @@ class ByteReader:
         length = self.read_uint8()
         string_bytes = self.read_bytes(length)
         return string_bytes.decode("utf-8")
+
+
+def unpack_result_batch(data: bytes) -> List[bytes]:
+    """
+    Unpacks EntityBatch format into list of raw entity bytes.
+
+    EntityBatch format:
+    - entity_count: uint32
+    - For each entity:
+      - entity_length: uint32
+      - entity_bytes: variable length
+
+    Args:
+        data: Serialized EntityBatch bytes
+
+    Returns:
+        List of raw entity bytes
+    """
+    reader = ByteReader(data)
+    entity_count = reader.read_uint32()
+    entities = []
+
+    for _ in range(entity_count):
+        entity_length = reader.read_uint32()
+        entity_bytes = reader.read_bytes(entity_length)
+        entities.append(entity_bytes)
+
+    return entities

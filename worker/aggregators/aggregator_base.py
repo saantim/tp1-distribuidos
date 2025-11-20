@@ -31,7 +31,10 @@ class AggregatorBase(WorkerBase, ABC):
         session_data.aggregated = self.aggregator_fn(session_data.aggregated, message)
         session_data.message_count += 1
         if session_data.message_count % 100000 == 0:
-            logging.info(f"Aggregated {session_data.message_count} messages | session: {session.session_id}")
+            logging.info(
+                f"[{self._stage_name}] {session_data.message_count//1000}k aggregated | "
+                f"session: {session.session_id.hex[:8]}"
+            )
 
     @abstractmethod
     def aggregator_fn(self, aggregated: Optional[Message], message: Message) -> Message:

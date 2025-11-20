@@ -39,8 +39,8 @@ class FilterBase(WorkerBase, ABC):
     def _end_of_session(self, session: Session):
         session_data: SessionData = session.get_storage()
         logging.info(
-            f"[{self._stage_name}] end_of_session: received_per_session={session_data.received},"
-            f" pass={session_data.passed} session_id={session.session_id}"
+            f"[{self._stage_name}] end_of_session: received_per_session={session_data.received}, "
+            f"pass={session_data.passed} session_id={session.session_id.hex[:8]}"
         )
         self._flush_buffer(session)
 
@@ -57,8 +57,8 @@ class FilterBase(WorkerBase, ABC):
 
         if session_data.received % 100000 == 0:
             logging.info(
-                f"[{self._stage_name}] checkpoint: received_per_session={session_data.received},"
-                f" pass={session_data.passed} session_id={session.session_id}"
+                f"[{self._stage_name}] {session_data.received//1000}k: pass={session_data.passed} | "
+                f"session: {session.session_id.hex[:8]}"
             )
 
     def _flush_buffer(self, session: Session) -> None:

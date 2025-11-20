@@ -18,18 +18,16 @@ class SessionData:
     )
     files_eof_received: Set[str] = field(default_factory=set)
 
-    queries_expected: Set[str] = field(default_factory=lambda: {"Q1"})
-    query_results_received: Set[str] = field(default_factory=set)
+    queries_expected: Set[str] = field(default_factory=set)
+    query_eofs_count: int = 0
 
-    results: list = field(default_factory=list)  # [(query_id, body), ...]
+    results: list = field(default_factory=list)  # [(query_id, body), ...] - kept for future resilience
 
     def all_file_eofs_received(self) -> bool:
-        """Check if all file EOFs have been received."""
         return self.files_eof_received == self.files_expected
 
-    def all_results_received(self) -> bool:
-        """Check if all query results have been received."""
-        return self.query_results_received == self.queries_expected
+    def all_query_eofs_received(self) -> bool:
+        return self.query_eofs_count >= len(self.queries_expected)
 
 
 class SessionManager:
@@ -38,10 +36,9 @@ class SessionManager:
     Thread-safe for concurrent access.
     """
 
-    # TODO: Es necesario el lock ahora que trabajamos con exchanges?
-
-    def __init__(self):
+    def __init__(self, enabled_queries: list[str]):
         self.sessions: Dict[UUID, SessionData] = {}
+        self.enabled_queries = {q.upper() for q in enabled_queries}
         self._lock = threading.Lock()
 
     def create_session(self, client_socket: socket, client_address) -> UUID:
@@ -49,7 +46,12 @@ class SessionManager:
         session_id = uuid4()
 
         with self._lock:
-            session_info = SessionData(id=session_id, socket=client_socket, client_address=client_address)
+            session_info = SessionData(
+                id=session_id,
+                socket=client_socket,
+                client_address=client_address,
+                queries_expected=self.enabled_queries.copy(),
+            )
             self.sessions[session_id] = session_info
 
         logging.info(f"action: session_created | session_id: {session_id} | " f"client: {client_address}")
@@ -73,25 +75,34 @@ class SessionManager:
                 )
 
     def add_result(self, session_id: UUID, query_id: str, result_body: bytes):
-        """Add a query result for a session."""
+        """Add a query result for a session (stored for future resilience)."""
         with self._lock:
             session = self.sessions.get(session_id)
             if session:
                 session.results.append((query_id, result_body))
-                session.query_results_received.add(query_id)
                 logging.info(
-                    f"action: query_complete | session_id: {session_id} | "
+                    f"action: query_result | session_id: {session_id} | "
                     f"query: {query_id} | "
-                    f"size: {len(result_body)} | "
-                    f"progress: {len(session.query_results_received)}/{len(session.queries_expected)}"
+                    f"size: {len(result_body)} bytes"
+                )
+
+    def increment_query_eof(self, session_id: UUID):
+        """Increment EOF counter for session."""
+        with self._lock:
+            session = self.sessions.get(session_id)
+            if session:
+                session.query_eofs_count += 1
+                logging.info(
+                    f"action: query_eof_received | session_id: {session_id} | "
+                    f"progress: {session.query_eofs_count}/{len(session.queries_expected)}"
                 )
 
     def is_session_complete(self, session_id: UUID) -> bool:
-        """Check if session has received all results."""
+        """Check if session has received all query EOFs."""
         session = self.get_session(session_id)
         if not session:
             return False
-        return session.all_results_received()
+        return session.all_query_eofs_received()
 
     def close_session(self, session_id: UUID):
         """Close and cleanup session."""
