@@ -55,6 +55,11 @@ logs-q4:
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|transformer_stores|transformer_users|q4_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q4
 
+logs-health:
+	clear
+	@docker compose -f docker-compose.yml logs -f health_checker
+.PHONY: logs-health
+
 gen_min:
 	python3.13 .kaggle/build_expected.py --dataset min
 .PHONY: gen_min

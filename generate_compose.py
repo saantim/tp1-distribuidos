@@ -210,6 +210,7 @@ def generate_compose(config):
             "build": {"context": ".", "dockerfile": "./health_checker/Dockerfile"},
             "entrypoint": "python main.py",
             "networks": ["coffee"],
+            "restart": "on-failure",
             "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
             "environment": {
                 "PORT": str(health_checker_config["port"]),
