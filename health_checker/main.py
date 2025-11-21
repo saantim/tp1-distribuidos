@@ -14,7 +14,6 @@ def initialize_config():
         "port": int(os.getenv("PORT", config["DEFAULT"]["PORT"])),
         "check_interval": float(os.getenv("CHECK_INTERVAL", config["DEFAULT"]["CHECK_INTERVAL"])),
         "timeout_threshold": float(os.getenv("TIMEOUT_THRESHOLD", config["DEFAULT"]["TIMEOUT_THRESHOLD"])),
-        "pool_size": int(os.getenv("POOL_SIZE", config["DEFAULT"]["POOL_SIZE"])),
         "logging_level": os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"]),
     }
 
@@ -33,7 +32,7 @@ def main():
 
     logging.info(
         f"action: config | port: {config['port']} | check_interval: {config['check_interval']} | "
-        f"timeout_threshold: {config['timeout_threshold']} | pool_size: {config['pool_size']}"
+        f"timeout_threshold: {config['timeout_threshold']}"
     )
 
     shutdown_signal = ShutdownSignal()
@@ -41,7 +40,6 @@ def main():
         port=config["port"],
         check_interval=config["check_interval"],
         timeout_threshold=config["timeout_threshold"],
-        pool_size=config["pool_size"],
         shutdown_signal=shutdown_signal,
     )
 

@@ -61,7 +61,7 @@ logs-q4:
 
 logs-health:
 	clear
-	@docker compose -f docker-compose.yml logs -f health_checker
+	@docker compose -f docker-compose.yml ps --services | grep -E '^health_checker_' | xargs -r docker compose -f docker-compose.yml logs -f
 .PHONY: logs-health
 
 gen_min:

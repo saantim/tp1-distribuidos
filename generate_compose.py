@@ -39,7 +39,9 @@ def create_worker_service(
     depends_on = {"rabbitmq": {"condition": "service_healthy"}}
 
     if health_checker_config:
-        depends_on["health_checker"] = {"condition": "service_started"}
+        hc_replicas = health_checker_config.get("replicas", 1)
+        for i in range(hc_replicas):
+            depends_on[f"health_checker_{i}"] = {"condition": "service_started"}
 
     service = {
         "container_name": name,
@@ -62,7 +64,8 @@ def create_worker_service(
         service["environment"]["ENRICHER"] = enricher
 
     if health_checker_config:
-        service["environment"]["HEALTH_CHECKER_HOST"] = "health_checker"
+        hc_replicas = health_checker_config.get("replicas", 1)
+        service["environment"]["HEALTH_CHECKER_REPLICAS"] = str(hc_replicas)
         service["environment"]["HEALTH_CHECKER_PORT"] = str(health_checker_config["port"])
         service["environment"]["HEARTBEAT_INTERVAL"] = str(health_checker_config["heartbeat_interval"])
 
@@ -210,20 +213,24 @@ def generate_compose(config):
     }
 
     if health_checker_enabled:
-        services["health_checker"] = {
-            "container_name": "health_checker",
-            "build": {"context": ".", "dockerfile": "./health_checker/Dockerfile"},
-            "entrypoint": "python main.py",
-            "networks": ["coffee"],
-            "restart": "on-failure",
-            "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
-            "environment": {
-                "PORT": str(health_checker_config["port"]),
-                "CHECK_INTERVAL": str(health_checker_config["check_interval"]),
-                "TIMEOUT_THRESHOLD": str(health_checker_config["timeout_threshold"]),
-                "POOL_SIZE": str(health_checker_config.get("pool_size", 4)),
-            },
-        }
+        hc_replicas = health_checker_config.get("replicas", 1)
+        for i in range(hc_replicas):
+            hc_name = f"health_checker_{i}"
+            services[hc_name] = {
+                "container_name": hc_name,
+                "build": {"context": ".", "dockerfile": "./health_checker/Dockerfile"},
+                "entrypoint": "python main.py",
+                "networks": ["coffee"],
+                "restart": "on-failure",
+                "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
+                "environment": {
+                    "REPLICA_ID": str(i),
+                    "REPLICAS": str(hc_replicas),
+                    "PORT": str(health_checker_config["port"]),
+                    "CHECK_INTERVAL": str(health_checker_config["check_interval"]),
+                    "TIMEOUT_THRESHOLD": str(health_checker_config["timeout_threshold"]),
+                },
+            }
 
     # Add Client
     clients = config["settings"]["clients"]
