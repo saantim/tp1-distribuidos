@@ -54,14 +54,13 @@ class HealthChecker:
     def _setup_server_socket(self):
         """Setup and bind server socket."""
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind(("", self.port))
-        self.server_socket.listen(100)
+        self.server_socket.listen(50)
         logging.info(f"action: health_checker_start | result: success | port: {self.port}")
 
     def _start_health_check_loop(self):
         """Start background thread for checking dead workers."""
-        self.health_check_thread = threading.Thread(target=self._health_check_loop, daemon=True)
+        self.health_check_thread = threading.Thread(target=self._health_check_loop, daemon=False)
         self.health_check_thread.start()
 
     def _health_check_loop(self):
