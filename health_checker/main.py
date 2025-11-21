@@ -2,8 +2,7 @@ import configparser
 import logging
 import os
 
-from server import HealthChecker
-
+from health_checker.server import HealthChecker
 from shared.shutdown import ShutdownSignal
 
 

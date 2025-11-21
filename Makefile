@@ -14,8 +14,12 @@ multi_client_test: docker-compose-down build_test_compose
 .PHONY: multi_client_test
 
 docker-compose-up: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d --build --force-recreate
+	docker compose -f docker-compose.yml up -d --build
 .PHONY: docker-compose-up
+
+docker-compose-rebuild: clean_res generate-compose
+	docker compose -f docker-compose.yml up -d --build --force-recreate
+.PHONY: docker-compose-rebuild
 
 docker-compose-down:
 	docker compose -f docker-compose.yml down -v

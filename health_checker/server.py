@@ -8,12 +8,11 @@ import subprocess
 import threading
 import time
 
+from health_checker.pool import ThreadPool
+from health_checker.registry import WorkerRegistry
 from shared.network import Network, NetworkError
 from shared.protocol import HeartbeatPacket
 from shared.shutdown import ShutdownSignal
-
-from .pool import ThreadPool
-from .registry import WorkerRegistry
 
 
 class HealthChecker:
@@ -67,6 +66,8 @@ class HealthChecker:
         """Periodically check for dead workers and revive them."""
         while not self.shutdown_signal.should_shutdown():
             time.sleep(self.check_interval)
+            if self.shutdown_signal.should_shutdown():
+                break
             dead_workers = self.registry.get_dead_workers(self.timeout_threshold)
             for worker in dead_workers:
                 self._revive_worker(worker.container_name)

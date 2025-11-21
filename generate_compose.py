@@ -36,13 +36,18 @@ def create_worker_service(
         "transformer": "python /worker/transformers/transformer_main.py",
     }
 
+    depends_on = {"rabbitmq": {"condition": "service_healthy"}}
+
+    if health_checker_config:
+        depends_on["health_checker"] = {"condition": "service_started"}
+
     service = {
         "container_name": name,
         "image": f"{worker_type}_worker",
         "build": {"context": ".", "dockerfile": "./worker/Dockerfile"},
         "entrypoint": entrypoints[worker_type],
         "networks": ["coffee"],
-        "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
+        "depends_on": depends_on,
         "environment": {
             "REPLICA_ID": str(replica_id),
             "REPLICAS": str(total_replicas),
