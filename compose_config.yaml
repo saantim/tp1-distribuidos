@@ -6,6 +6,13 @@ settings:
   clients:
     min: 3
     full: 0
+  health_checker:
+    enabled: true
+    port: 9090
+    heartbeat_interval: 5
+    check_interval: 10
+    timeout_threshold: 15
+    pool_size: 4
 
 transformers:
   menu_items:
