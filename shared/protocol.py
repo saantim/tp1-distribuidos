@@ -255,9 +255,8 @@ class SessionIdPacket(Packet):
 class HeartbeatPacket(Packet):
     """Heartbeat packet sent from workers to health checker."""
 
-    def __init__(self, stage_name: str, worker_id: int, timestamp: float):
-        self.stage_name = stage_name
-        self.worker_id = worker_id
+    def __init__(self, container_name: str, timestamp: float):
+        self.container_name = container_name
         self.timestamp = timestamp
 
     def get_message_type(self) -> int:
@@ -265,15 +264,13 @@ class HeartbeatPacket(Packet):
 
     def serialize_payload(self) -> bytes:
         writer = ByteWriter()
-        writer.write_string(self.stage_name)
-        writer.write_uint32(self.worker_id)
+        writer.write_string(self.container_name)
         writer.write_float64(self.timestamp)
         return writer.get_bytes()
 
     @classmethod
     def deserialize_payload(cls, data: bytes) -> "HeartbeatPacket":
         reader = ByteReader(data)
-        stage_name = reader.read_string()
-        worker_id = reader.read_uint32()
+        container_name = reader.read_string()
         timestamp = reader.read_float64()
-        return cls(stage_name, worker_id, timestamp)
+        return cls(container_name, timestamp)
