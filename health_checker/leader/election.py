@@ -8,13 +8,13 @@ incomplete state from immediately taking leadership.
 
 import logging
 
-from health_checker.registry.peer import PeerRegistry
+from health_checker.registry import Registry
 
 
 class LeaderElection:
     """Determines which health checker is the leader."""
 
-    def __init__(self, my_id: int, peer_registry: PeerRegistry, peer_timeout: float):
+    def __init__(self, my_id: int, peer_registry: Registry, peer_timeout: float):
         self._my_id = my_id
         self._peer_registry = peer_registry
         self._peer_timeout = peer_timeout
@@ -22,7 +22,8 @@ class LeaderElection:
 
     def am_i_leader(self) -> bool:
         """Check if this HC is the current leader."""
-        alive_ids = self._peer_registry.get_alive_ids(self._peer_timeout)
+        alive_peers = self._peer_registry.get_alive(self._peer_timeout)
+        alive_ids = [int(peer_id) for peer_id in alive_peers]
         alive_ids.append(self._my_id)
 
         if self._current_leader is not None and self._current_leader in alive_ids:

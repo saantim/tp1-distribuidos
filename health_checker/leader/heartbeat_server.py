@@ -4,7 +4,7 @@ import logging
 import socket
 import threading
 
-from health_checker.registry.peer import PeerRegistry
+from health_checker.registry import Registry
 from shared.network import Network, NetworkError
 from shared.protocol import HCHeartbeatPacket
 
@@ -16,7 +16,7 @@ class HeartbeatServer:
         self,
         my_id: int,
         port: int,
-        peer_registry: PeerRegistry,
+        peer_registry: Registry,
         shutdown_event: threading.Event,
     ):
         self._my_id = my_id
@@ -85,7 +85,7 @@ class HeartbeatServer:
                 if packet is None:
                     break
                 if isinstance(packet, HCHeartbeatPacket):
-                    self._peer_registry.update(packet.hc_id, packet.timestamp)
+                    self._peer_registry.update(str(packet.hc_id), packet.timestamp)
         except (NetworkError, socket.timeout, Exception):
             pass
         finally:
