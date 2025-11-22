@@ -11,6 +11,13 @@ settings:
     containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
     kill_interval: 10
     logging_level: DEBUG
+  health_checker:
+    enabled: true
+    replicas: 1
+    port: 9090
+    heartbeat_interval: 5
+    check_interval: 10
+    timeout_threshold: 15
 
 transformers:
   menu_items:

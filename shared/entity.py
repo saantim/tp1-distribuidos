@@ -77,6 +77,12 @@ class WorkerEOF(Message):
 
 
 @dataclass
+class Heartbeat(Message):
+    container_name: str
+    timestamp: float
+
+
+@dataclass
 class RawMessage(Message):
     raw_data: bytes
 
