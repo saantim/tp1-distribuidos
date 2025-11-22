@@ -6,7 +6,6 @@ import logging
 import socket
 import subprocess
 import threading
-import time
 
 from health_checker.registry import WorkerRegistry
 from shared.entity import Heartbeat
@@ -34,6 +33,7 @@ class HealthChecker:
         self.timeout_threshold = timeout_threshold
         self.shutdown_signal = shutdown_signal
         self.registry = WorkerRegistry()
+        self.registered_workers: set[str] = set()
         self.socket = None
         self.health_check_thread = None
 
@@ -62,10 +62,7 @@ class HealthChecker:
 
     def _health_check_loop(self):
         """Periodically check for dead workers and revive them."""
-        while not self.shutdown_signal.should_shutdown():
-            time.sleep(self.check_interval)
-            if self.shutdown_signal.should_shutdown():
-                break
+        while not self.shutdown_signal.wait(timeout=self.check_interval):
             dead_workers = self.registry.get_dead_workers(self.timeout_threshold)
             for worker in dead_workers:
                 self._revive_worker(worker.container_name)
@@ -105,7 +102,11 @@ class HealthChecker:
     def _handle_heartbeat(self, data: bytes):
         try:
             heartbeat = Heartbeat.deserialize(data)
+            is_new = heartbeat.container_name not in self.registered_workers
             self.registry.update(heartbeat.container_name, heartbeat.timestamp)
+            if is_new:
+                self.registered_workers.add(heartbeat.container_name)
+                logging.info(f"action: worker_registered | container: {heartbeat.container_name}")
         except Exception as e:
             logging.warning(f"action: heartbeat_parse_error | error: {e}")
 
