@@ -161,16 +161,16 @@ class SessionManager:
     def _is_flushable(self, session: Session) -> bool:
         return len(session.get_eof_collected()) >= (self._instances if self._is_leader else 1)
 
-    def save_sessions(self, path: Union[str, Path] = './sessions/save') -> None:
+    def save_sessions(self, path: Union[str, Path] = './sessions/saves') -> None:
         for session in self._sessions.values():
             session.save(path)
 
-    def save_session(self, session_id: uuid.UUID, path: Union[str, Path] = './sessions/save') -> None:
+    def save_session(self, session_id: uuid.UUID, path: Union[str, Path] = './sessions/saves') -> None:
         session = self._sessions.get(session_id, None)
         if session:
             session.save(path)
 
-    def load_sessions(self, path: Union[str, Path] = './sessions/save') -> None:
+    def load_sessions(self, path: Union[str, Path] = './sessions/saves') -> None:
         path = Path(path)
         if not path.exists():
             logging.info(f"[SessionManager] No sessions directory found at: {path}")
@@ -356,7 +356,7 @@ class WorkerBase(ABC):
                 )
 
     def _try_to_load_sessions(self):
-        self._session_manager.load_sessions(self._stage_name)
+        self._session_manager.load_sessions()
 
     @abstractmethod
     def _end_of_session(self, session: Session):

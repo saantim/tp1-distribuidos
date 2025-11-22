@@ -34,6 +34,7 @@ def create_worker_service(
         "build": {"context": ".", "dockerfile": "./worker/Dockerfile"},
         "entrypoint": entrypoints[worker_type],
         "networks": ["coffee"],
+        "volumes": ["./.saved_sessions:/sessions"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
         "environment": {
             "REPLICA_ID": str(replica_id),
