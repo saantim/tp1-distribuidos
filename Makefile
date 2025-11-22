@@ -34,6 +34,11 @@ logs-client:
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(client_|gateway)' | xargs -r docker compose -f docker-compose.yml logs -f
 .PHONY: logs-client
 
+logs-chaos-monkey:
+	clear
+	@docker compose -f docker-compose.yml logs chaos_monkey -f
+.PHONY: logs-client
+
 logs-qtest:
 	clear
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|q_testing_)' | xargs docker compose -f docker-compose.yml logs -f

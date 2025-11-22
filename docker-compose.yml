@@ -31,6 +31,15 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+  chaos_monkey:
+    container_name: chaos_monkey
+    build:
+      context: .
+      dockerfile: ./chaos_monkey/Dockerfile
+    environment:
+      CONTAINERS_EXCLUDED: chaos_monkey,rabbitmq,client_min,client_full
+      KILL_INTERVAL: 10.0
+      LOGGING_LEVEL: DEBUG
   health_checker_0:
     container_name: health_checker_0
     build:
