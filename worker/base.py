@@ -179,15 +179,21 @@ class SessionManager:
             raise NotADirectoryError(f"El path de sesiones no es un directorio: {path}")
 
         self._sessions.clear()
-
+        session_ids: set[str] = set()
         for session_file in path.glob("*.json"):
-            session_id_str = session_file.stem
+            session_ids.add(session_file.stem)
+        tmp_dir = path / "tmp"
+        if tmp_dir.exists():
+            for tmp_file in tmp_dir.glob("*.json"):
+                session_ids.add(tmp_file.stem)
+
+        for session_id_str in session_ids:
             try:
                 session = Session.load(session_id_str, path)
                 if session:
                     self._sessions[session.session_id] = session
             except Exception as e:
-                logging.debug(f"[SessionManager] Ignorando sesión inválida {session_file}: {e}")
+                logging.debug(f"[SessionManager] Ignorando sesión inválida {session_id_str}: {e}")
 
 
 class WorkerBase(ABC):
