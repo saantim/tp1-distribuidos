@@ -8,11 +8,11 @@ settings:
     full: 0
   health_checker:
     enabled: true
+    replicas: 1
     port: 9090
     heartbeat_interval: 5
     check_interval: 10
     timeout_threshold: 15
-    pool_size: 4
 
 transformers:
   menu_items:

@@ -31,8 +31,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-  health_checker:
-    container_name: health_checker
+  health_checker_0:
+    container_name: health_checker_0
     build:
       context: .
       dockerfile: ./health_checker/Dockerfile
@@ -43,10 +43,11 @@ services:
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock
     environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
       PORT: '9090'
       CHECK_INTERVAL: '10'
       TIMEOUT_THRESHOLD: '15'
-      POOL_SIZE: '4'
   client_min:
     build:
       context: .
@@ -74,7 +75,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -83,7 +84,7 @@ services:
       MODULE_NAME: menu
       FROM: raw_menu_items_batches
       TO: '[{"name": "menu_items_source", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_stores:
@@ -98,7 +99,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -107,7 +108,7 @@ services:
       MODULE_NAME: store
       FROM: raw_stores_batches
       TO: '[{"name": "stores_source", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_users_0:
@@ -122,7 +123,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -131,7 +132,7 @@ services:
       MODULE_NAME: user
       FROM: raw_users_batches
       TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_users_1:
@@ -146,7 +147,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -155,7 +156,7 @@ services:
       MODULE_NAME: user
       FROM: raw_users_batches
       TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_users_2:
@@ -170,7 +171,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -179,7 +180,7 @@ services:
       MODULE_NAME: user
       FROM: raw_users_batches
       TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transactions_0:
@@ -194,7 +195,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -203,7 +204,7 @@ services:
       MODULE_NAME: transaction
       FROM: raw_transactions_batches
       TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transactions_1:
@@ -218,7 +219,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -227,7 +228,7 @@ services:
       MODULE_NAME: transaction
       FROM: raw_transactions_batches
       TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transactions_2:
@@ -242,7 +243,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -251,7 +252,7 @@ services:
       MODULE_NAME: transaction
       FROM: raw_transactions_batches
       TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transactions_3:
@@ -266,7 +267,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -275,7 +276,7 @@ services:
       MODULE_NAME: transaction
       FROM: raw_transactions_batches
       TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transactions_4:
@@ -290,7 +291,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -299,7 +300,7 @@ services:
       MODULE_NAME: transaction
       FROM: raw_transactions_batches
       TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_0:
@@ -314,7 +315,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -323,7 +324,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_1:
@@ -338,7 +339,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -347,7 +348,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_2:
@@ -362,7 +363,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -371,7 +372,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_3:
@@ -386,7 +387,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -395,7 +396,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_4:
@@ -410,7 +411,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -419,7 +420,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_5:
@@ -434,7 +435,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '5'
@@ -443,7 +444,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_6:
@@ -458,7 +459,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '6'
@@ -467,7 +468,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   transformer_transaction_items_7:
@@ -482,7 +483,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '7'
@@ -491,7 +492,7 @@ services:
       MODULE_NAME: transaction_item
       FROM: raw_transaction_items_batches
       TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_year_0:
@@ -506,7 +507,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -515,7 +516,7 @@ services:
       MODULE_NAME: year
       FROM: transactions_source
       TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_year_1:
@@ -530,7 +531,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -539,7 +540,7 @@ services:
       MODULE_NAME: year
       FROM: transactions_source
       TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_year_2:
@@ -554,7 +555,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -563,7 +564,7 @@ services:
       MODULE_NAME: year
       FROM: transactions_source
       TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_year_3:
@@ -578,7 +579,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -587,7 +588,7 @@ services:
       MODULE_NAME: year
       FROM: transactions_source
       TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_year_4:
@@ -602,7 +603,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -611,7 +612,7 @@ services:
       MODULE_NAME: year
       FROM: transactions_source
       TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_year_5:
@@ -626,7 +627,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '5'
@@ -635,7 +636,7 @@ services:
       MODULE_NAME: year
       FROM: transactions_source
       TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_hour_0:
@@ -650,7 +651,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -659,7 +660,7 @@ services:
       MODULE_NAME: hour
       FROM: q1.filtered_year
       TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_hour_1:
@@ -674,7 +675,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -683,7 +684,7 @@ services:
       MODULE_NAME: hour
       FROM: q1.filtered_year
       TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_hour_2:
@@ -698,7 +699,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -707,7 +708,7 @@ services:
       MODULE_NAME: hour
       FROM: q1.filtered_year
       TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_hour_3:
@@ -722,7 +723,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -731,7 +732,7 @@ services:
       MODULE_NAME: hour
       FROM: q1.filtered_year
       TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_hour_4:
@@ -746,7 +747,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -755,7 +756,7 @@ services:
       MODULE_NAME: hour
       FROM: q1.filtered_year
       TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_hour_5:
@@ -770,7 +771,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '5'
@@ -779,7 +780,7 @@ services:
       MODULE_NAME: hour
       FROM: q1.filtered_year
       TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_amount_0:
@@ -794,7 +795,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -803,7 +804,7 @@ services:
       MODULE_NAME: amount
       FROM: q1.filtered_hour
       TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_amount_1:
@@ -818,7 +819,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -827,7 +828,7 @@ services:
       MODULE_NAME: amount
       FROM: q1.filtered_hour
       TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_amount_2:
@@ -842,7 +843,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -851,7 +852,7 @@ services:
       MODULE_NAME: amount
       FROM: q1.filtered_hour
       TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_filter_amount_3:
@@ -866,7 +867,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -875,7 +876,7 @@ services:
       MODULE_NAME: amount
       FROM: q1.filtered_hour
       TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q1_sink:
@@ -890,7 +891,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -899,7 +900,7 @@ services:
       MODULE_NAME: sink_q1
       FROM: q1.filtered_amount
       TO: '[{"name": "results", "downstream_stage": "q1", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_filter_items_0:
@@ -914,7 +915,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -923,7 +924,7 @@ services:
       MODULE_NAME: item_year
       FROM: transaction_items_source
       TO: '[{"name": "q2.filtered_items", "downstream_stage": "q2_aggregate_period", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_filter_items_1:
@@ -938,7 +939,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -947,7 +948,7 @@ services:
       MODULE_NAME: item_year
       FROM: transaction_items_source
       TO: '[{"name": "q2.filtered_items", "downstream_stage": "q2_aggregate_period", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_filter_items_2:
@@ -962,7 +963,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -971,7 +972,7 @@ services:
       MODULE_NAME: item_year
       FROM: transaction_items_source
       TO: '[{"name": "q2.filtered_items", "downstream_stage": "q2_aggregate_period", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_filter_items_3:
@@ -986,7 +987,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -995,7 +996,7 @@ services:
       MODULE_NAME: item_year
       FROM: transaction_items_source
       TO: '[{"name": "q2.filtered_items", "downstream_stage": "q2_aggregate_period", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_filter_items_4:
@@ -1010,7 +1011,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -1019,7 +1020,7 @@ services:
       MODULE_NAME: item_year
       FROM: transaction_items_source
       TO: '[{"name": "q2.filtered_items", "downstream_stage": "q2_aggregate_period", "downstream_workers": 5}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_aggregate_period_0:
@@ -1034,7 +1035,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1043,7 +1044,7 @@ services:
       MODULE_NAME: period_agg
       FROM: q2.filtered_items
       TO: '[{"name": "q2.aggregated_period", "downstream_stage": "q2_merge_period", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_aggregate_period_1:
@@ -1058,7 +1059,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -1067,7 +1068,7 @@ services:
       MODULE_NAME: period_agg
       FROM: q2.filtered_items
       TO: '[{"name": "q2.aggregated_period", "downstream_stage": "q2_merge_period", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_aggregate_period_2:
@@ -1082,7 +1083,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -1091,7 +1092,7 @@ services:
       MODULE_NAME: period_agg
       FROM: q2.filtered_items
       TO: '[{"name": "q2.aggregated_period", "downstream_stage": "q2_merge_period", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_aggregate_period_3:
@@ -1106,7 +1107,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -1115,7 +1116,7 @@ services:
       MODULE_NAME: period_agg
       FROM: q2.filtered_items
       TO: '[{"name": "q2.aggregated_period", "downstream_stage": "q2_merge_period", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_aggregate_period_4:
@@ -1130,7 +1131,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -1139,7 +1140,7 @@ services:
       MODULE_NAME: period_agg
       FROM: q2.filtered_items
       TO: '[{"name": "q2.aggregated_period", "downstream_stage": "q2_merge_period", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_merge_period:
@@ -1154,7 +1155,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1163,7 +1164,7 @@ services:
       MODULE_NAME: period_merge
       FROM: q2.aggregated_period
       TO: '[{"name": "q2.merged_period", "downstream_stage": "q2_enrich_items", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_enrich_items:
@@ -1178,7 +1179,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1188,7 +1189,7 @@ services:
       FROM: q2.merged_period
       TO: '[{"name": "q2.enriched_items", "downstream_stage": "q2_sink", "downstream_workers": 1}]'
       ENRICHER: menu_items_source
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q2_sink:
@@ -1203,7 +1204,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1212,7 +1213,7 @@ services:
       MODULE_NAME: sink_q2
       FROM: q2.enriched_items
       TO: '[{"name": "results", "downstream_stage": "q2", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q3_aggregate_semester_0:
@@ -1227,7 +1228,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1236,7 +1237,7 @@ services:
       MODULE_NAME: semester_agg
       FROM: q3.filtered_hour
       TO: '[{"name": "q3.aggregated_semester", "downstream_stage": "q3_merge_semester", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q3_aggregate_semester_1:
@@ -1251,7 +1252,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -1260,7 +1261,7 @@ services:
       MODULE_NAME: semester_agg
       FROM: q3.filtered_hour
       TO: '[{"name": "q3.aggregated_semester", "downstream_stage": "q3_merge_semester", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q3_aggregate_semester_2:
@@ -1275,7 +1276,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -1284,7 +1285,7 @@ services:
       MODULE_NAME: semester_agg
       FROM: q3.filtered_hour
       TO: '[{"name": "q3.aggregated_semester", "downstream_stage": "q3_merge_semester", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q3_merge_semester:
@@ -1299,7 +1300,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1308,7 +1309,7 @@ services:
       MODULE_NAME: semester_merge
       FROM: q3.aggregated_semester
       TO: '[{"name": "q3.merged_semester", "downstream_stage": "q3_enrich_stores", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q3_enrich_stores:
@@ -1323,7 +1324,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1333,7 +1334,7 @@ services:
       FROM: q3.merged_semester
       TO: '[{"name": "q3.enriched_stores", "downstream_stage": "q3_sink", "downstream_workers": 1}]'
       ENRICHER: stores_source
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q3_sink:
@@ -1348,7 +1349,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1357,7 +1358,7 @@ services:
       MODULE_NAME: sink_q3
       FROM: q3.enriched_stores
       TO: '[{"name": "results", "downstream_stage": "q3", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_aggregate_users_0:
@@ -1372,7 +1373,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1381,7 +1382,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       FROM: q4.filtered_year
       TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_aggregate_users_1:
@@ -1396,7 +1397,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -1405,7 +1406,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       FROM: q4.filtered_year
       TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_aggregate_users_2:
@@ -1420,7 +1421,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -1429,7 +1430,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       FROM: q4.filtered_year
       TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_aggregate_users_3:
@@ -1444,7 +1445,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '3'
@@ -1453,7 +1454,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       FROM: q4.filtered_year
       TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_aggregate_users_4:
@@ -1468,7 +1469,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '4'
@@ -1477,7 +1478,7 @@ services:
       MODULE_NAME: user_purchase_aggregator
       FROM: q4.filtered_year
       TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_enrich_users_0:
@@ -1492,7 +1493,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1502,7 +1503,7 @@ services:
       FROM: users_source
       TO: '[{"name": "q4.enriched_users", "downstream_stage": "q4_merge_top3", "downstream_workers": 1}]'
       ENRICHER: q4.aggregated_users
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_enrich_users_1:
@@ -1517,7 +1518,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '1'
@@ -1527,7 +1528,7 @@ services:
       FROM: users_source
       TO: '[{"name": "q4.enriched_users", "downstream_stage": "q4_merge_top3", "downstream_workers": 1}]'
       ENRICHER: q4.aggregated_users
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_enrich_users_2:
@@ -1542,7 +1543,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '2'
@@ -1552,7 +1553,7 @@ services:
       FROM: users_source
       TO: '[{"name": "q4.enriched_users", "downstream_stage": "q4_merge_top3", "downstream_workers": 1}]'
       ENRICHER: q4.aggregated_users
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_merge_top3:
@@ -1567,7 +1568,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1576,7 +1577,7 @@ services:
       MODULE_NAME: top_3
       FROM: q4.enriched_users
       TO: '[{"name": "q4.merged_top3", "downstream_stage": "q4_enrich_stores", "downstream_workers": 1}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_enrich_stores:
@@ -1591,7 +1592,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1601,7 +1602,7 @@ services:
       FROM: q4.merged_top3
       TO: '[{"name": "q4.enriched_stores", "downstream_stage": "q4_sink", "downstream_workers": 1}]'
       ENRICHER: stores_source
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
   q4_sink:
@@ -1616,7 +1617,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      health_checker:
+      health_checker_0:
         condition: service_started
     environment:
       REPLICA_ID: '0'
@@ -1625,7 +1626,7 @@ services:
       MODULE_NAME: sink_q4
       FROM: q4.enriched_stores
       TO: '[{"name": "results", "downstream_stage": "q4", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
-      HEALTH_CHECKER_HOST: health_checker
+      HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
 volumes:
