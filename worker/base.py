@@ -78,15 +78,6 @@ class Session(BaseModel):
 
     @classmethod
     def load(cls, session_id: Union[str, uuid.UUID], save_dir: Union[str, Path]) -> Optional['Session']:
-        """Load a session from disk.
-        
-        Args:
-            session_id: ID of the session to load
-            save_dir: Directory where sessions are saved
-            
-        Returns:
-            Loaded Session instance or None if not found
-        """
         save_dir = Path(save_dir)
         session_id = str(session_id)
         session_file = save_dir / f"{session_id}.json"
@@ -152,7 +143,7 @@ class SessionManager:
 
     def get_or_initialize(self, session_id: uuid.UUID) -> Session:
         if session_id not in self._sessions:
-            self._sessions[session_id] = Session(session_id)
+            self._sessions[session_id] = Session(session_id=session_id)
             self._on_start_of_session(self._sessions[session_id])
             logging.info(f"action: create_session | stage: {self._stage_name} | session_id: {session_id}")
         current_session = self._sessions.get(session_id, None)
@@ -170,54 +161,33 @@ class SessionManager:
     def _is_flushable(self, session: Session) -> bool:
         return len(session.get_eof_collected()) >= (self._instances if self._is_leader else 1)
 
-    def save_sessions(self, path: Union[str, Path]) -> None:
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
-        tmp_dir = path.parent / 'tmp'
-        tmp_dir.mkdir(exist_ok=True, mode=0o755)  # rwxr-xr-x permissions
-        
-        sessions_data = {
-            str(session_id): session.to_dict() for session_id, session in self.sessions.items()
-        }
-        serialized = json.dumps(sessions_data, indent=2)
+    def save_sessions(self, path: Union[str, Path] = './sessions/save') -> None:
+        for session in self._sessions.values():
+            session.save(path)
 
-        tmp_fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(tmp_dir))
-        logging.info(f"[save_sessions] Generating temp file: {tmp_path}")
+    def save_session(self, session_id: uuid.UUID, path: Union[str, Path] = './sessions/save') -> None:
+        session = self._sessions.get(session_id, None)
+        if session:
+            session.save(path)
 
-        try:
-            with os.fdopen(tmp_fd, "w") as tmp_file:
-                tmp_file.write(serialized)
-                tmp_file.flush()
-                os.fsync(tmp_file.fileno())
-
-            parent_dir = str(path.parent)
-            dir_fd = os.open(parent_dir, os.O_DIRECTORY)
-            try:
-                os.fsync(dir_fd)
-            finally:
-                os.close(dir_fd)
-
-            os.replace(tmp_path, path)
-            logging.info(f"[save_sessions] Atomic replace in: {path}")
-
-        except Exception as e:
-            logging.error(f"[save_sessions] Error saving sessions. Temporary file kept at: {tmp_path} - Error: {e}")
-            raise
-
-    def load_sessions(self, path: Union[str, Path]) -> None:
+    def load_sessions(self, path: Union[str, Path] = './sessions/save') -> None:
         path = Path(path)
         if not path.exists():
-            raise FileNotFoundError(f"No se encontró el archivo de sesiones: {path}")
-            
-        with open(path, 'r') as f:
-            sessions_data = json.load(f)
-        
-        self.sessions.clear()
-        
-        for session_id_str, session_data in sessions_data.items():
-            session = Session.from_dict(session_data)
-            self.sessions[session.session_id] = session
+            logging.info(f"[SessionManager] No sessions directory found at: {path}")
+            return
+        if not path.is_dir():
+            raise NotADirectoryError(f"El path de sesiones no es un directorio: {path}")
+
+        self._sessions.clear()
+
+        for session_file in path.glob("*.json"):
+            session_id_str = session_file.stem
+            try:
+                session = Session.load(session_id_str, path)
+                if session:
+                    self._sessions[session.session_id] = session
+            except Exception as e:
+                logging.debug(f"[SessionManager] Ignorando sesión inválida {session_file}: {e}")
 
 
 class WorkerBase(ABC):
@@ -347,7 +317,7 @@ class WorkerBase(ABC):
                 session.add_msg_received(properties.headers.get(MESSAGE_ID))
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
-            self._session_manager.save_sessions()
+            self._session_manager.save_session(session_id)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
