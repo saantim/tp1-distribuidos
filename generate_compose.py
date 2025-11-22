@@ -157,6 +157,8 @@ def generate_compose(config):
 
     # Build stage replica map for validation
     stage_map = build_stage_replica_map(config)
+    chaos_monkey_config = config["settings"].get("chaos_monkey")
+    chaos_monkey_enabled = chaos_monkey_config and chaos_monkey_config.get("enabled", False)
 
     # Add RabbitMQ
     rmq = config["settings"]["rabbitmq"]
@@ -189,6 +191,21 @@ def generate_compose(config):
         "networks": ["coffee"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
     }
+
+    if chaos_monkey_enabled:
+        services["chaos_monkey"] = {
+            "container_name": "chaos_monkey",
+            "build": {"context": ".", "dockerfile": "./chaos_monkey/Dockerfile"},
+            "entrypoint": "python main.py",
+            "networks": ["coffee"],
+            "restart": "on-failure",
+            "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
+            "environment": {
+                "CONTAINERS_EXCLUDED": str(chaos_monkey_config["containers_excluded"]),
+                "KILL_INTERVAL": float(chaos_monkey_config["kill_interval"]),
+                "LOGGING_LEVEL": str(chaos_monkey_config["logging_level"]),
+            },
+        }
 
     # Add Client
     clients = config["settings"]["clients"]
