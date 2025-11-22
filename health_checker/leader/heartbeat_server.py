@@ -1,29 +1,27 @@
-"""
-TCP server that receives heartbeats from other health checkers.
-"""
+"""TCP server that receives heartbeats from other health checkers."""
 
 import logging
 import socket
 import threading
 
-from health_checker.hc_registry import HCRegistry
+from health_checker.registry.peer import PeerRegistry
 from shared.network import Network, NetworkError
 from shared.protocol import HCHeartbeatPacket
 
 
-class HCHeartbeatServer:
-    """TCP server that receives heartbeats from other health checkers."""
+class HeartbeatServer:
+    """TCP server that receives heartbeats from peer health checkers."""
 
     def __init__(
         self,
         my_id: int,
         port: int,
-        hc_registry: HCRegistry,
+        peer_registry: PeerRegistry,
         shutdown_event: threading.Event,
     ):
         self._my_id = my_id
         self._port = port
-        self._hc_registry = hc_registry
+        self._peer_registry = peer_registry
         self._shutdown_event = shutdown_event
         self._socket = None
         self._accept_thread = None
@@ -39,7 +37,7 @@ class HCHeartbeatServer:
 
         self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
         self._accept_thread.start()
-        logging.info(f"action: hc_heartbeat_server_start | result: success | port: {self._port}")
+        logging.info(f"action: peer_heartbeat_server_start | result: success | port: {self._port}")
 
     def stop(self):
         """Stop the server and wait for all handler threads."""
@@ -56,13 +54,13 @@ class HCHeartbeatServer:
         for thread in threads_to_join:
             thread.join(timeout=1.0)
 
-        logging.info("action: hc_heartbeat_server_stop | result: success")
+        logging.info("action: peer_heartbeat_server_stop | result: success")
 
     def _accept_loop(self):
         """Accept incoming connections and spawn handlers."""
         while not self._shutdown_event.is_set():
             try:
-                conn, addr = self._socket.accept()
+                conn, _ = self._socket.accept()
                 handler = threading.Thread(
                     target=self._handle_connection,
                     args=(conn,),
@@ -87,7 +85,7 @@ class HCHeartbeatServer:
                 if packet is None:
                     break
                 if isinstance(packet, HCHeartbeatPacket):
-                    self._hc_registry.update(packet.hc_id, packet.timestamp)
+                    self._peer_registry.update(packet.hc_id, packet.timestamp)
         except (NetworkError, socket.timeout, Exception):
             pass
         finally:

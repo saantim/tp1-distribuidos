@@ -7,7 +7,7 @@ import socket
 import subprocess
 import threading
 
-from health_checker.worker_registry import WorkerRegistry
+from health_checker.registry.worker_registry import WorkerRegistry
 from shared.entity import Heartbeat
 from shared.shutdown import ShutdownSignal
 
