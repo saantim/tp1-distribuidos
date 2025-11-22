@@ -20,6 +20,7 @@ class PacketType(IntEnum):
     BATCH = 4
     SESSION_ID_PACKET = 5
     RESULT = 6
+    HC_HEARTBEAT = 7
 
 
 class EntityType(IntEnum):
@@ -86,6 +87,7 @@ class Packet(ABC):
             PacketType.RESULT: ResultPacket,
             PacketType.ACK: AckPacket,
             PacketType.ERROR: ErrorPacket,
+            PacketType.HC_HEARTBEAT: HCHeartbeatPacket,
         }
 
         packet_class = packet_classes.get(PacketType(header.message_type))
@@ -248,3 +250,27 @@ class SessionIdPacket(Packet):
         reader = ByteReader(data)
         session_id_int = reader.read_uint128()
         return cls(session_id_int)
+
+
+class HCHeartbeatPacket(Packet):
+    """Heartbeat packet sent between health checkers."""
+
+    def __init__(self, hc_id: int, timestamp: float):
+        self.hc_id = hc_id
+        self.timestamp = timestamp
+
+    def get_message_type(self) -> int:
+        return PacketType.HC_HEARTBEAT
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_uint32(self.hc_id)
+        writer.write_float64(self.timestamp)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "HCHeartbeatPacket":
+        reader = ByteReader(data)
+        hc_id = reader.read_uint32()
+        timestamp = reader.read_float64()
+        return cls(hc_id, timestamp)
