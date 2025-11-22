@@ -8,7 +8,7 @@ settings:
     full: 0
   chaos_monkey:
     enabled: true
-    containers_excluded: "chaos_monkey,rabbitmq,client_min,client_full"
+    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
     kill_interval: 10
     logging_level: DEBUG
 
