@@ -1,5 +1,10 @@
+import os
 import uuid
+import tempfile
+from pathlib import Path
+import json
 from worker.base import Session, SessionManager
+import pytest
 
 def test_session_serialization():
     session_id = uuid.uuid4()
@@ -165,3 +170,87 @@ def test_save_and_load_sessions(tmp_path):
     loaded_session2 = new_manager.sessions[session2_id]
     assert loaded_session2.storage == {"data": [4, 5, 6]}
     assert loaded_session2.eof_collected == {"worker1", "worker2"}
+
+def test_session_save_and_load(tmp_path):
+    """Test that a session can be saved and loaded correctly."""
+    save_dir = "./sessions"
+    
+    session_id = uuid.uuid4()
+    session = Session(session_id=session_id)
+    session.add_eof("worker1")
+    session.add_msg_received("msg1")
+    session.storage = {"data": [1, 2, 3], "data2": [1, 2, 3]}
+    session.save(save_dir)
+
+    session_file = Path(save_dir + f"/{session_id}.json")
+    assert session_file.exists()
+    loaded_session = Session.load(session_id, save_dir)
+    
+    assert loaded_session is not None
+    assert loaded_session.session_id == session.session_id
+    assert loaded_session.get_eof_collected() == {"worker1"}
+    assert loaded_session.is_msg_received("msg1")
+
+def test_session_load_nonexistent(tmp_path):
+    """Test loading a non-existent session returns None."""
+    non_existent_id = uuid.uuid4()
+    loaded = Session.load(non_existent_id, tmp_path)
+    assert loaded is None
+
+def test_session_save_atomicity(tmp_path):
+    """Test that session save is atomic (either fully saved or not at all)."""
+    session = Session(session_id=uuid.uuid4())
+    
+    # Create a read-only directory to force a save error
+    read_only_dir = tmp_path / "readonly"
+    read_only_dir.mkdir()
+    os.chmod(read_only_dir, 0o555)  # Read-only permissions
+    
+    # Try to save to read-only directory (should fail)
+    with pytest.raises(PermissionError):
+        session.save(read_only_dir)
+    
+    # Verify no session file was created
+    assert not any(read_only_dir.glob("*.json"))
+
+def test_session_load_from_tmp_on_crash(tmp_path):
+    """Test that a session can be recovered from tmp after a crash during save."""
+    session_id = uuid.uuid4()
+    save_dir = tmp_path / "sessions"
+    
+    # Create a session and save it
+    session = Session(session_id=session_id)
+    session.add_eof("worker1")
+    
+    # Manually create a tmp file as if a crash occurred during save
+    tmp_dir = save_dir / "tmp"
+    tmp_dir.mkdir(parents=True)
+    
+    # Create a temporary file with session data
+    tmp_file = tmp_dir / f"{session_id}.12345.tmp"
+    with open(tmp_file, 'w') as f:
+        json.dump(session.to_dict(), f)
+    
+    # Now try to load - should recover from tmp file
+    loaded = Session.load(session_id, save_dir)
+    
+    # Verify the session was loaded from tmp and moved to main dir
+    assert loaded is not None
+    assert loaded.session_id == session_id
+    assert loaded.get_eof_collected() == {"worker1"}
+    assert (save_dir / f"{session_id}.json").exists()
+    assert not tmp_file.exists()  # Should have been moved
+
+def test_session_save_load_with_storage(tmp_path):
+    """Test that session storage is properly saved and loaded."""
+    session = Session(session_id=uuid.uuid4())
+    test_storage = {"key1": "value1", "key2": [1, 2, 3]}
+    session.set_storage(test_storage)
+    
+    # Save and load
+    session.save(tmp_path)
+    loaded = Session.load(session.session_id, tmp_path)
+    
+    # Verify storage was preserved
+    assert loaded is not None
+    assert loaded.get_storage() == test_storage

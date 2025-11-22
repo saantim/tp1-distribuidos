@@ -7,6 +7,7 @@ import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Type, Union
+
 from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
 from shared.protocol import MESSAGE_ID, SESSION_ID
@@ -18,53 +19,126 @@ from pydantic import BaseModel
 
 class Session(BaseModel):
     session_id: uuid.UUID
-    storage: Optional[Any] = None
     eof_collected: set[str] = set()
-
-    def __init__(self, session_id: uuid.UUID, **data):
-        super().__init__(session_id=session_id, **data)
-        self._storage = None
-        self._eof_collected = set()
-
-    def get_storage(self) -> Optional[Any]:
-        return self._storage
+    msgs_received: set[str] = set()
+    storage: Optional[Any] = None
+    
+    def get_storage(self):
+        return self.storage
 
     def set_storage(self, storage: Any):
-        self._storage = storage
-
+        self.storage = storage
+        
     def add_eof(self, worker_id: str):
-        self._eof_collected.add(worker_id)
+        self.eof_collected.add(worker_id)
 
     def get_eof_collected(self):
-        return self._eof_collected
+        return self.eof_collected
+
+    def add_msg_received(self, msg_id: str):
+        self.msgs_received.add(msg_id)
+
+    def is_msg_received(self, msg_id: str):
+        return msg_id in self.msgs_received
+
+    def save(self, save_dir: str = './sessions/saves') -> None:
+        save_dir = Path(save_dir)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        tmp_dir = save_dir / 'tmp'
+        tmp_dir.mkdir(exist_ok=True, mode=0o755)
+
+        data = self.model_dump(mode="json")
+
+        serialized = json.dumps(data, indent=2)
+        session_file = save_dir / f"{self.session_id}.json"
+        tmp_path = tmp_dir / f"{self.session_id}.json"
+        
+        logging.info(f"[Session] Saving session to temp file: {tmp_path}")
+
+        try:
+            with open(tmp_path, 'w') as f:
+                f.write(serialized)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            dir_fd = os.open(str(save_dir), os.O_DIRECTORY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+            
+            os.replace(tmp_path, session_file)
+            logging.info(f"[Session] Session saved to: {session_file}")
+            
+        except Exception as e:
+            logging.error(f"[Session] Error saving session {self.session_id}. "
+                         f"Temp file kept at: {tmp_path} - Error: {e}")
+            raise
+
+    @classmethod
+    def load(cls, session_id: Union[str, uuid.UUID], save_dir: Union[str, Path]) -> Optional['Session']:
+        """Load a session from disk.
+        
+        Args:
+            session_id: ID of the session to load
+            save_dir: Directory where sessions are saved
+            
+        Returns:
+            Loaded Session instance or None if not found
+        """
+        save_dir = Path(save_dir)
+        session_id = str(session_id)
+        session_file = save_dir / f"{session_id}.json"
+        
+        if session_file.exists():
+            try:
+                with open(session_file, 'r') as f:
+                    data = json.load(f)
+                if 'eof_collected' in data:
+                    data['eof_collected'] = set(data['eof_collected'])
+                if 'msgs_received' in data:
+                    data['msgs_received'] = set(data['msgs_received'])
+                return cls(**data)
+            except Exception as e:
+                logging.error(f"[Session] Error loading session {session_id}: {e}")
+                return None
+
+        tmp_dir = save_dir / 'tmp'
+        if tmp_dir.exists():
+            for tmp_file in tmp_dir.glob(f"{session_id}.json"):
+                try:
+                    with open(tmp_file, 'r') as f:
+                        data = json.load(f)
+                    if 'eof_collected' in data:
+                        data['eof_collected'] = set(data['eof_collected'])
+                    if 'msgs_received' in data:
+                        data['msgs_received'] = set(data['msgs_received'])
+                    os.replace(tmp_file, session_file)
+                    return cls(**data)
+                except Exception as e:
+                    logging.debug(f"[Session] Ignoring invalid tmp file {tmp_file}: {e}")
+                    continue
+        
+        return None
 
 
-class SessionManager(BaseModel):
-    stage_name: str
-    _on_start_of_session: Callable[[Session], None]
-    _on_end_of_session: Callable[[Session], None]
-    instances: int
-    is_leader: bool
-    sessions: dict[uuid.UUID, Session] = {}
-    
+
+class SessionManager:
     def __init__(
         self,
         stage_name: str,
-        on_start_of_session: Callable[[Session], None],
-        on_end_of_session: Callable[[Session], None],
+        on_start_of_session: Callable,
+        on_end_of_session: Callable,
         instances: int,
         is_leader: bool,
-        **data
     ):
-        super().__init__(
-            stage_name=stage_name,
-            instances=instances,
-            is_leader=is_leader,
-            **data
-        )
+        self._sessions: dict[uuid.UUID, Session] = {}
         self._on_start_of_session = on_start_of_session
         self._on_end_of_session = on_end_of_session
-        self._sessions = {}
+        self._stage_name = stage_name
+        self._instances = instances
+        self._is_leader = is_leader
         self._setup_logging()
 
     def _setup_logging(self):
@@ -99,19 +173,16 @@ class SessionManager(BaseModel):
     def save_sessions(self, path: Union[str, Path]) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-
-        sessions_data = {}
-        for session_id, session in self.sessions.items():
-            session_dict = session.model_dump()
-            session_dict['session_id'] = str(session_dict['session_id'])
-            if 'eof_collected' in session_dict and isinstance(session_dict['eof_collected'], set):
-                session_dict['eof_collected'] = list(session_dict['eof_collected'])
-            sessions_data[str(session_id)] = session_dict
-
+        
+        tmp_dir = path.parent / 'tmp'
+        tmp_dir.mkdir(exist_ok=True, mode=0o755)  # rwxr-xr-x permissions
+        
+        sessions_data = {
+            str(session_id): session.to_dict() for session_id, session in self.sessions.items()
+        }
         serialized = json.dumps(sessions_data, indent=2)
 
-        dir_name = str(path.parent)
-        tmp_fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=dir_name)
+        tmp_fd, tmp_path = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(tmp_dir))
         logging.info(f"[save_sessions] Generating temp file: {tmp_path}")
 
         try:
@@ -120,7 +191,8 @@ class SessionManager(BaseModel):
                 tmp_file.flush()
                 os.fsync(tmp_file.fileno())
 
-            dir_fd = os.open(dir_name, os.O_DIRECTORY)
+            parent_dir = str(path.parent)
+            dir_fd = os.open(parent_dir, os.O_DIRECTORY)
             try:
                 os.fsync(dir_fd)
             finally:
@@ -129,12 +201,8 @@ class SessionManager(BaseModel):
             os.replace(tmp_path, path)
             logging.info(f"[save_sessions] Atomic replace in: {path}")
 
-        except Exception:
-            logging.error(f"[save_sessions] Something went wrong! Trying to remove temp file: {tmp_path} — {e}")
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+        except Exception as e:
+            logging.error(f"[save_sessions] Error saving sessions. Temporary file kept at: {tmp_path} - Error: {e}")
             raise
 
     def load_sessions(self, path: Union[str, Path]) -> None:
@@ -148,11 +216,8 @@ class SessionManager(BaseModel):
         self.sessions.clear()
         
         for session_id_str, session_data in sessions_data.items():
-            session_data['session_id'] = uuid.UUID(session_id_str)
-            if 'eof_collected' in session_data and isinstance(session_data['eof_collected'], list):
-                session_data['eof_collected'] = set(session_data['eof_collected'])
-            session = Session(**session_data)
-            self.sessions[session_data['session_id']] = session
+            session = Session.from_dict(session_data)
+            self.sessions[session.session_id] = session
 
 
 class WorkerBase(ABC):
@@ -190,7 +255,7 @@ class WorkerBase(ABC):
             name=f"{self._stage_name}_{self._index}_data_thread",
             daemon=False,
         )
-
+        self._try_to_load_sessions()
         self._upstream_thread.start()
 
         logging.info(
@@ -277,11 +342,12 @@ class WorkerBase(ABC):
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
         session: Session = self._session_manager.get_or_initialize(session_id)
-
         try:
-            if not self._handle_eof(body, session):
+            if not self._handle_eof(body, session) and not session.is_msg_received(properties.headers.get(MESSAGE_ID)):
+                session.add_msg_received(properties.headers.get(MESSAGE_ID))
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
+            self._session_manager.save_sessions()
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
@@ -318,6 +384,9 @@ class WorkerBase(ABC):
                 output.exchange.send(
                     packed, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex}
                 )
+
+    def _try_to_load_sessions(self):
+        self._session_manager.load_sessions(self._stage_name)
 
     @abstractmethod
     def _end_of_session(self, session: Session):
