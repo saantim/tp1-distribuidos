@@ -1,6 +1,6 @@
 """
 Health checker server that receives heartbeats and revives dead containers.
-Supports leader election for fault-tolerant operation with multiple replicas.
+Supports leader election via Bully algorithm for fault-tolerant operation.
 """
 
 import logging
@@ -8,9 +8,9 @@ import socket
 import subprocess
 import threading
 
-from health_checker.leader.election import LeaderElection
-from health_checker.leader.heartbeat_client import HeartbeatClient
-from health_checker.leader.heartbeat_server import HeartbeatServer
+from health_checker.leader.election import BullyElection
+from health_checker.leader.peer_client import PeerClient
+from health_checker.leader.peer_server import PeerServer
 from health_checker.registry import Registry
 from shared.entity import Heartbeat
 from shared.shutdown import ShutdownSignal
@@ -35,6 +35,8 @@ class HealthChecker:
         worker_timeout: float,
         peer_heartbeat_interval: float,
         peer_timeout: float,
+        election_timeout: float,
+        coordinator_timeout: float,
         persist_path: str | None,
         shutdown_signal: ShutdownSignal,
     ):
@@ -43,33 +45,59 @@ class HealthChecker:
         self._check_interval = check_interval
         self._shutdown_signal = shutdown_signal
 
-        # Worker tracking
         self._worker_port = worker_port
         self._worker_timeout = worker_timeout
         self._worker_registry = Registry(persist_path)
         self._worker_socket = None
         self._registered_workers: set[str] = set()
 
-        # Peer tracking (leader election)
         self._peer_port = peer_port
         self._peer_timeout = peer_timeout
         self._peer_registry = Registry()
-        self._leader_election = LeaderElection(replica_id, self._peer_registry, peer_timeout)
-        self._peer_heartbeat_server = HeartbeatServer(replica_id, peer_port, self._peer_registry, shutdown_signal.event)
-        self._peer_heartbeat_client = HeartbeatClient(
-            replica_id, replicas, peer_port, peer_heartbeat_interval, shutdown_signal.event
+
+        self._peer_client = PeerClient(
+            my_id=replica_id,
+            total_replicas=replicas,
+            port=peer_port,
+            heartbeat_interval=peer_heartbeat_interval,
+            shutdown_event=shutdown_signal.event,
         )
 
+        self._peer_server = PeerServer(
+            port=peer_port,
+            peer_registry=self._peer_registry,
+            shutdown_event=shutdown_signal.event,
+        )
+
+        self._election = BullyElection(
+            my_id=replica_id,
+            total_replicas=replicas,
+            election_timeout=election_timeout,
+            coordinator_timeout=coordinator_timeout,
+            send_election_fn=self._peer_client.send_election,
+            send_ok_fn=self._peer_client.send_ok,
+            send_coordinator_fn=self._peer_client.send_coordinator,
+        )
+
+        self._peer_server.set_election(self._election)
+        self._peer_server.set_on_election_received(self._peer_client.clear_connection)
+
         self._health_check_thread = None
+        self._leader_monitor_thread = None
 
     def run(self):
         """Start the health checker server."""
         try:
             self._worker_registry.load()
+            self._registered_workers = set(self._worker_registry.get_all().keys())
             self._setup_worker_socket()
-            self._peer_heartbeat_server.start()
-            self._peer_heartbeat_client.start()
+            self._peer_server.start()
+            self._peer_client.start()
             self._start_health_check_loop()
+            self._start_leader_monitor()
+
+            self._election.start_election()
+
             self._receive_worker_heartbeats()
         except Exception as e:
             logging.error(f"action: health_checker_run | result: fail | error: {e}")
@@ -91,12 +119,30 @@ class HealthChecker:
         self._health_check_thread = threading.Thread(target=self._health_check_loop, daemon=False)
         self._health_check_thread.start()
 
+    def _start_leader_monitor(self):
+        """Start background thread for monitoring leader liveness."""
+        self._leader_monitor_thread = threading.Thread(target=self._leader_monitor_loop, daemon=True)
+        self._leader_monitor_thread.start()
+
+    def _leader_monitor_loop(self):
+        """Monitor leader liveness and trigger election if leader dies."""
+        while not self._shutdown_signal.wait(timeout=self._peer_timeout):
+            current_leader = self._election.get_current_leader()
+
+            if current_leader is None or current_leader == self._replica_id:
+                continue
+
+            dead_peers = self._peer_registry.get_dead(self._peer_timeout)
+            if str(current_leader) in dead_peers:
+                logging.warning(f"action: leader_dead_detected | leader: {current_leader}")
+                self._election.start_election()
+
     def _health_check_loop(self):
         """Periodically check for dead containers and revive them if leader."""
         while not self._shutdown_signal.wait(timeout=self._check_interval):
             self._worker_registry.persist()
 
-            if not self._leader_election.am_i_leader():
+            if not self._election.am_i_leader():
                 continue
 
             for worker in self._worker_registry.get_dead(self._worker_timeout):
@@ -153,8 +199,8 @@ class HealthChecker:
         """Clean up resources on shutdown."""
         logging.info("action: health_checker_cleanup_start")
 
-        self._peer_heartbeat_client.stop()
-        self._peer_heartbeat_server.stop()
+        self._peer_client.stop()
+        self._peer_server.stop()
 
         if self._health_check_thread and self._health_check_thread.is_alive():
             self._health_check_thread.join(timeout=5.0)

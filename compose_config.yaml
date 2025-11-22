@@ -14,13 +14,18 @@ settings:
   health_checker:
     enabled: true
     replicas: 3
-    worker_port: 9090
-    worker_timeout: 15
-    worker_heartbeat_interval: 5
-    peer_port: 9091
-    peer_heartbeat_interval: 2
-    peer_timeout: 4
     check_interval: 10
+    worker:
+      port: 9090
+      timeout: 15
+      heartbeat_interval: 5
+    peer:
+      port: 9091
+      heartbeat_interval: 2
+      timeout: 4
+    election:
+      timeout: 3
+      coordinator_timeout: 5
 
 transformers:
   menu_items:
