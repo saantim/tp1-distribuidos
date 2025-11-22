@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import tempfile
 import threading
 import uuid
 from abc import ABC, abstractmethod
@@ -54,8 +53,6 @@ class Session(BaseModel):
         serialized = json.dumps(data, indent=2)
         session_file = save_dir / f"{self.session_id}.json"
         tmp_path = tmp_dir / f"{self.session_id}.json"
-        
-        logging.info(f"[Session] Saving session to temp file: {tmp_path}")
 
         try:
             with open(tmp_path, 'w') as f:
@@ -68,9 +65,7 @@ class Session(BaseModel):
                 os.fsync(dir_fd)
             finally:
                 os.close(dir_fd)
-            
             os.replace(tmp_path, session_file)
-            logging.info(f"[Session] Session saved to: {session_file}")
             
         except Exception as e:
             logging.error(f"[Session] Error saving session {self.session_id}. "
@@ -95,23 +90,6 @@ class Session(BaseModel):
             except Exception as e:
                 logging.error(f"[Session] Error loading session {session_id}: {e}")
                 return None
-
-        tmp_dir = save_dir / 'tmp'
-        if tmp_dir.exists():
-            for tmp_file in tmp_dir.glob(f"{session_id}.json"):
-                try:
-                    with open(tmp_file, 'r') as f:
-                        data = json.load(f)
-                    if 'eof_collected' in data:
-                        data['eof_collected'] = set(data['eof_collected'])
-                    if 'msgs_received' in data:
-                        data['msgs_received'] = set(data['msgs_received'])
-                    os.replace(tmp_file, session_file)
-                    return cls(**data)
-                except Exception as e:
-                    logging.debug(f"[Session] Ignoring invalid tmp file {tmp_file}: {e}")
-                    continue
-        
         return None
 
 
@@ -167,8 +145,8 @@ class SessionManager:
         for session in self._sessions.values():
             session.save(path)
 
-    def save_session(self, session_id: uuid.UUID, path: Union[str, Path] = './sessions/saves') -> None:
-        session = self._sessions.get(session_id, None)
+    def save_session(self, session: Session, path: Union[str, Path] = './sessions/saves') -> None:
+        session = self._sessions.get(session.session_id, None)
         if session:
             session.save(path)
 
@@ -180,18 +158,10 @@ class SessionManager:
         if not path.is_dir():
             raise NotADirectoryError(f"El path de sesiones no es un directorio: {path}")
 
-        self._sessions.clear()
-        self._load_sessions_from(path, path)
-
-        tmp_dir = path / "tmp"
-        if tmp_dir.exists():
-            self._load_sessions_from(tmp_dir, path)
-
-    def _load_sessions_from(self, scan_dir: Path, save_dir: Path) -> None:
-        for session_file in scan_dir.glob("*.json"):
+        for session_file in path.glob("*.json"):
             session_id_str = session_file.stem
             try:
-                session = Session.load(session_id_str, save_dir)
+                session = Session.load(session_id_str, path)
                 if session:
                     self._sessions[session.session_id] = session
             except Exception as e:
@@ -327,11 +297,15 @@ class WorkerBase(ABC):
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
         session: Session = self._session_manager.get_or_initialize(session_id)
         try:
-            if not self._handle_eof(body, session) and not session.is_msg_received(properties.headers.get(MESSAGE_ID)):
-                session.add_msg_received(properties.headers.get(MESSAGE_ID))
+            if session.is_msg_received(properties.headers.get(MESSAGE_ID)):
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+                logging.warning(f"action: received_Message | duplicated msg arrived! ")
+                return
+            session.add_msg_received(properties.headers.get(MESSAGE_ID))
+            if not self._handle_eof(body, session) :
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
-            self._session_manager.save_session(session_id)
+            self._session_manager.save_session(session)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
@@ -371,6 +345,7 @@ class WorkerBase(ABC):
 
     def _try_to_load_sessions(self):
         self._session_manager.load_sessions()
+        logging.info(f"action: load_sessions | stage: {self._stage_name}")
 
     @abstractmethod
     def _end_of_session(self, session: Session):
