@@ -8,6 +8,7 @@ from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
 from shared.protocol import MESSAGE_ID, SESSION_ID
 from shared.shutdown import ShutdownSignal
+from worker.heartbeat import build_container_name, HeartbeatSender
 from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
 
@@ -106,8 +107,12 @@ class WorkerBase(ABC):
             instances=self._instances,
             is_leader=self._leader,
         )
+        container_name = build_container_name(self._stage_name, self._index, self._instances)
+        self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
 
     def start(self):
+        self._heartbeat.start()
+
         self._upstream_thread = threading.Thread(
             target=self._source.start_consuming,
             args=[self._on_message_upstream],
@@ -136,6 +141,8 @@ class WorkerBase(ABC):
     def _cleanup(self):
         """Cleanup method that stops consuming and waits for threads."""
         logging.info(f"action: cleanup_start | stage: {self._stage_name}")
+
+        self._heartbeat.stop()
 
         try:
             self._source.stop_consuming()

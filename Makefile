@@ -14,8 +14,12 @@ multi_client_test: docker-compose-down build_test_compose
 .PHONY: multi_client_test
 
 docker-compose-up: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d --build --force-recreate
+	docker compose -f docker-compose.yml up -d --build
 .PHONY: docker-compose-up
+
+docker-compose-rebuild: clean_res generate-compose
+	docker compose -f docker-compose.yml up -d --build --force-recreate
+.PHONY: docker-compose-rebuild
 
 docker-compose-down:
 	docker compose -f docker-compose.yml down -v
@@ -54,6 +58,11 @@ logs-q4:
 	clear
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|transformer_stores|transformer_users|q4_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q4
+
+logs-health:
+	clear
+	@docker compose -f docker-compose.yml ps --services | grep -E '^health_checker_' | xargs -r docker compose -f docker-compose.yml logs -f
+.PHONY: logs-health
 
 gen_min:
 	python3.13 .kaggle/build_expected.py --dataset min
