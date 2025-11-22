@@ -9,7 +9,6 @@ import threading
 from typing import Optional
 
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
-from shared.protocol import EntityType
 from shared.shutdown import ShutdownSignal
 
 from .handler import ClientHandler
@@ -29,18 +28,22 @@ class Server:
         listen_backlog: int,
         middleware_host: str,
         batch_exchanges: dict,
+        transformer_configs: dict,
+        enabled_queries: list,
         shutdown_signal: ShutdownSignal,
     ):
         self.port = port
         self.middleware_host = middleware_host
         self.batch_exchanges = batch_exchanges
+        self.transformer_configs = transformer_configs
+        self.enabled_queries = enabled_queries
         self.shutdown_signal = shutdown_signal
         self.backlog = listen_backlog
         self.server_socket: Optional[socket.socket] = None
 
-        self.session_manager = SessionManager()
+        self.session_manager = SessionManager(enabled_queries)
         self.publishers = self._create_publishers()
-        self.result_collector = ResultCollector(middleware_host, self.session_manager, shutdown_signal)
+        self.result_collector = ResultCollector(middleware_host, self.session_manager, enabled_queries, shutdown_signal)
         self.client_threads = []
         self.client_threads_lock = threading.Lock()
 
@@ -80,7 +83,7 @@ class Server:
                 session_id = self.session_manager.create_session(client_socket, client_address)
                 client_thread = threading.Thread(
                     target=self._handle_client_thread,
-                    args=(client_socket, client_address, session_id, self.publishers),
+                    args=(client_socket, client_address, session_id),
                     name=f"client-{session_id}",
                     daemon=False,
                 )
@@ -95,11 +98,17 @@ class Server:
                 if not self.shutdown_signal.should_shutdown():
                     logging.error(f"action: accept_connection | result: fail | error: {e}")
 
-    def _handle_client_thread(self, client_socket, client_address, session_id, publishers):
+    def _handle_client_thread(self, client_socket, client_address, session_id):
         """Thread target for handling individual client."""
         try:
             handler = ClientHandler(
-                client_socket, client_address, session_id, publishers, self.session_manager, self.shutdown_signal
+                client_socket,
+                client_address,
+                session_id,
+                self.publishers,
+                self.transformer_configs,
+                self.session_manager,
+                self.shutdown_signal,
             )
             handler.handle_session()
 
@@ -107,26 +116,13 @@ class Server:
 
         except Exception as e:
             logging.exception(f"action: client_thread_error | session_id: {session_id} | error: {e}")
-        finally:
-            for publisher in publishers.values():
-                try:
-                    publisher.close()
-                except Exception:
-                    pass
 
     def _create_publishers(self) -> dict:
-        """Create middleware publishers for a client (thread-local connections)."""
-        return {
-            EntityType.STORE: MessageMiddlewareExchangeRMQ(self.middleware_host, self.batch_exchanges["STORE"]),
-            EntityType.USER: MessageMiddlewareExchangeRMQ(self.middleware_host, self.batch_exchanges["USER"]),
-            EntityType.TRANSACTION: MessageMiddlewareExchangeRMQ(
-                self.middleware_host, self.batch_exchanges["TRANSACTION"]
-            ),
-            EntityType.TRANSACTION_ITEM: MessageMiddlewareExchangeRMQ(
-                self.middleware_host, self.batch_exchanges["TRANSACTION_ITEM"]
-            ),
-            EntityType.MENU_ITEM: MessageMiddlewareExchangeRMQ(self.middleware_host, self.batch_exchanges["MENU_ITEM"]),
-        }
+        """Create middleware publishers from parsed config (thread-local connections)."""
+        publishers = {}
+        for entity_type, config in self.transformer_configs.items():
+            publishers[entity_type] = MessageMiddlewareExchangeRMQ(self.middleware_host, config["exchange"])
+        return publishers
 
     def _cleanup(self):
         """cleanup server resources and wait for client threads."""

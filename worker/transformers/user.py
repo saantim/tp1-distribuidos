@@ -10,9 +10,8 @@ We only extract:
 """
 
 from datetime import datetime
-from typing import Type
 
-from shared.entity import Message, User
+from shared.entity import User
 from worker.transformers.transformer_base import TransformerBase
 
 
@@ -20,9 +19,6 @@ class Transformer(TransformerBase):
     """
     Transformer for users.
     """
-
-    def get_entity_type(self) -> Type[Message]:
-        return User
 
     def parse_fn(self, csv_row: str) -> dict:
         """

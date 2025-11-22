@@ -43,7 +43,7 @@ class SinkBase(WorkerBase, ABC):
         if formatted_results:
             self._send_message(formatted_results, session_id=session.session_id, message_id=uuid.uuid4())
             logging.info(
-                f"action: sent_final_results | size: {len(formatted_results)} bytes | session: {session.session_id}"
+                f"action: sent_final_results | size: {len(formatted_results)} | session: {session.session_id.hex[:8]}"
             )
             session_data.result.clear()
 

@@ -14,8 +14,12 @@ multi_client_test: docker-compose-down build_test_compose
 .PHONY: multi_client_test
 
 docker-compose-up: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d --build --force-recreate
+	docker compose -f docker-compose.yml up -d --build
 .PHONY: docker-compose-up
+
+docker-compose-rebuild: clean_res generate-compose
+	docker compose -f docker-compose.yml up -d --build --force-recreate
+.PHONY: docker-compose-rebuild
 
 docker-compose-down:
 	docker compose -f docker-compose.yml down -v
@@ -28,6 +32,11 @@ docker-compose-logs:
 logs-client:
 	clear
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(client_|gateway)' | xargs -r docker compose -f docker-compose.yml logs -f
+.PHONY: logs-client
+
+logs-chaos-monkey:
+	clear
+	@docker compose -f docker-compose.yml logs chaos_monkey -f
 .PHONY: logs-client
 
 logs-qtest:
@@ -55,26 +64,31 @@ logs-q4:
 	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|transformer_stores|transformer_users|q4_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q4
 
+logs-health:
+	clear
+	@docker compose -f docker-compose.yml ps --services | grep -E '^health_checker_' | xargs -r docker compose -f docker-compose.yml logs -f
+.PHONY: logs-health
+
 gen_min:
-	python3 .kaggle/build_expected.py --dataset min
+	python3.13 .kaggle/build_expected.py --dataset min
 .PHONY: gen_min
 
 gen_full:
-	python3 .kaggle/build_expected.py --dataset full
+	python3.13 .kaggle/build_expected.py --dataset full
 .PHONY: gen_full
 
 valid_min:
 	@ARGS="--dataset min"; \
 	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
-	python3 .kaggle/validation.py $$ARGS
+	python3.13 .kaggle/validation.py $$ARGS
 .PHONY: valid_min
 
 valid_full:
 	@ARGS="--dataset full"; \
 	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
-	python3 .kaggle/validation.py $$ARGS
+	python3.13 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
 
 test_count_eof:

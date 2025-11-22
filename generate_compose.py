@@ -13,11 +13,19 @@ def load_config(config_file="compose_config.yaml"):
 
 
 def create_worker_service(
-    name, worker_type, replica_id, total_replicas, stage_name, module, input_exchange, outputs, enricher=None
+    name,
+    worker_type,
+    replica_id,
+    total_replicas,
+    stage_name,
+    module,
+    input_exchange,
+    outputs,
+    enricher=None,
+    health_checker_config=None,
 ):
     """Create a worker service definition"""
 
-    # Entrypoint mapping
     entrypoints = {
         "filter": "python /worker/filters/filter_main.py",
         "aggregator": "python /worker/aggregators/aggregator_main.py",
@@ -28,6 +36,13 @@ def create_worker_service(
         "transformer": "python /worker/transformers/transformer_main.py",
     }
 
+    depends_on = {"rabbitmq": {"condition": "service_healthy"}}
+
+    if health_checker_config:
+        hc_replicas = health_checker_config.get("replicas", 1)
+        for i in range(hc_replicas):
+            depends_on[f"health_checker_{i}"] = {"condition": "service_started"}
+
     service = {
         "container_name": name,
         "image": f"{worker_type}_worker",
@@ -35,7 +50,7 @@ def create_worker_service(
         "entrypoint": entrypoints[worker_type],
         "networks": ["coffee"],
         "volumes": ["./.saved_sessions:/sessions"],
-        "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
+        "depends_on": depends_on,
         "environment": {
             "REPLICA_ID": str(replica_id),
             "REPLICAS": str(total_replicas),
@@ -49,14 +64,19 @@ def create_worker_service(
     if enricher:
         service["environment"]["ENRICHER"] = enricher
 
+    if health_checker_config:
+        hc_replicas = health_checker_config.get("replicas", 1)
+        service["environment"]["HEALTH_CHECKER_REPLICAS"] = str(hc_replicas)
+        service["environment"]["HEALTH_CHECKER_PORT"] = str(health_checker_config["port"])
+        service["environment"]["HEARTBEAT_INTERVAL"] = str(health_checker_config["heartbeat_interval"])
+
     return service
 
 
-def add_transformer_workers(services, name, transformer, stage_map):
+def add_transformer_workers(services, name, transformer, stage_map, health_checker_config=None):
     """Add transformer workers"""
     stage_name = f"transformer_{name}"
 
-    # Validate outputs
     validate_outputs(stage_name, transformer.get("output", []), stage_map)
 
     for i in range(transformer["replicas"]):
@@ -71,14 +91,14 @@ def add_transformer_workers(services, name, transformer, stage_map):
             module=transformer["module"],
             input_exchange=transformer["input"],
             outputs=transformer["output"],
+            health_checker_config=health_checker_config,
         )
 
 
-def add_stage_workers(services, query_name, stage_name, stage, query_config, stage_map):
+def add_stage_workers(services, query_name, stage_name, stage, query_config, stage_map, health_checker_config=None):
     """Add workers for a query stage"""
     full_stage_name = f"{query_name}_{stage_name}"
 
-    # Validate outputs
     validate_outputs(full_stage_name, stage.get("output", []), stage_map)
 
     for i in range(stage["replicas"]):
@@ -94,6 +114,7 @@ def add_stage_workers(services, query_name, stage_name, stage, query_config, sta
             input_exchange=stage.get("input"),
             outputs=stage.get("output", []),
             enricher=stage.get("enricher"),
+            health_checker_config=health_checker_config,
         )
 
 
@@ -156,8 +177,13 @@ def generate_compose(config):
     """Generate docker-compose services from config"""
     services = {}
 
-    # Build stage replica map for validation
     stage_map = build_stage_replica_map(config)
+
+    chaos_monkey_config = config["settings"].get("chaos_monkey")
+    chaos_monkey_enabled = chaos_monkey_config and chaos_monkey_config.get("enabled", False)
+
+    health_checker_config = config["settings"].get("health_checker")
+    health_checker_enabled = health_checker_config and health_checker_config.get("enabled", False)
 
     # Add RabbitMQ
     rmq = config["settings"]["rabbitmq"]
@@ -191,6 +217,41 @@ def generate_compose(config):
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
     }
 
+    if chaos_monkey_enabled:
+        services["chaos_monkey"] = {
+            "container_name": "chaos_monkey",
+            "build": {"context": ".", "dockerfile": "./chaos_monkey/Dockerfile"},
+            "entrypoint": "python main.py",
+            "networks": ["coffee"],
+            "restart": "on-failure",
+            "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
+            "environment": {
+                "CONTAINERS_EXCLUDED": str(chaos_monkey_config["containers_excluded"]),
+                "KILL_INTERVAL": float(chaos_monkey_config["kill_interval"]),
+                "LOGGING_LEVEL": str(chaos_monkey_config["logging_level"]),
+            },
+        }
+
+    if health_checker_enabled:
+        hc_replicas = health_checker_config.get("replicas", 1)
+        for i in range(hc_replicas):
+            hc_name = f"health_checker_{i}"
+            services[hc_name] = {
+                "container_name": hc_name,
+                "build": {"context": ".", "dockerfile": "./health_checker/Dockerfile"},
+                "entrypoint": "python main.py",
+                "networks": ["coffee"],
+                "restart": "on-failure",
+                "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
+                "environment": {
+                    "REPLICA_ID": str(i),
+                    "REPLICAS": str(hc_replicas),
+                    "PORT": str(health_checker_config["port"]),
+                    "CHECK_INTERVAL": str(health_checker_config["check_interval"]),
+                    "TIMEOUT_THRESHOLD": str(health_checker_config["timeout_threshold"]),
+                },
+            }
+
     # Add Client
     clients = config["settings"]["clients"]
 
@@ -219,17 +280,17 @@ def generate_compose(config):
             "scale": int(amount_full),
         }
 
-    # Add transformers
-    for name, transformer in config.get("transformers", {}).items():
-        add_transformer_workers(services, name, transformer, stage_map)
+    hc_config = health_checker_config if health_checker_enabled else None
 
-    # Add query stages
+    for name, transformer in config.get("transformers", {}).items():
+        add_transformer_workers(services, name, transformer, stage_map, hc_config)
+
     for query_name, query in config.get("queries", {}).items():
         if not query.get("enabled", True):
             continue
 
         for stage_name, stage in query.get("stages", {}).items():
-            add_stage_workers(services, query_name, stage_name, stage, query, stage_map)
+            add_stage_workers(services, query_name, stage_name, stage, query, stage_map, hc_config)
 
     # Build complete compose
     compose = {

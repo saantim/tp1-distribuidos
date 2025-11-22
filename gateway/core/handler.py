@@ -29,6 +29,7 @@ class ClientHandler:
         client_address,
         session_id: UUID,
         publishers: dict,
+        transformer_configs: dict,
         session_manager,
         shutdown_signal: ShutdownSignal,
     ):
@@ -36,6 +37,7 @@ class ClientHandler:
         self.client_address = client_address
         self.session_id = session_id
         self.publishers = publishers
+        self.transformer_configs = transformer_configs
         self.session_manager = session_manager
         self.shutdown_signal = shutdown_signal
 
@@ -117,21 +119,27 @@ class ClientHandler:
 
             if packet_type == PacketType.BATCH:
                 batch = cast(Batch, packet)
-                # TODO: QUITAR
-                if batch.entity_type != EntityType.TRANSACTION:
-                    continue
                 try:
                     publisher = self.publishers.get(batch.entity_type)
                     if not publisher:
-                        logging.error(
+                        logging.debug(
                             f"action: route_batch | session_id: {self.session_id} | "
-                            f"result: no_publisher | entity_type: {batch.entity_type}"
+                            f"result: no_publisher | entity_type: {batch.entity_type.name} | "
+                            f"transformer disabled"
                         )
-                        self._send_error_packet(500, f"no publisher for entity type {batch.entity_type}")
-                        break
+                        continue
+
+                    transformer_config = self.transformer_configs.get(batch.entity_type)
+                    if not transformer_config:
+                        logging.debug(
+                            f"action: route_batch | session_id: {self.session_id} | "
+                            f"result: no_config | entity_type: {batch.entity_type.name} | "
+                            f"transformer disabled"
+                        )
+                        continue
 
                     if batch.eof:
-                        self._route_batch_packet(EOF().serialize(), publisher, headers, eof=True)
+                        self._route_batch_packet(EOF().serialize(), publisher, batch.entity_type, headers, eof=True)
                         eof_count += 1
 
                         self.session_manager.track_eof_received(self.session_id, batch.entity_type.name)
@@ -141,7 +149,7 @@ class ClientHandler:
                             f"entity_type: {batch.entity_type.name}"
                         )
                     else:
-                        self._route_batch_packet(batch.serialize(), publisher, headers)
+                        self._route_batch_packet(batch.serialize(), publisher, batch.entity_type, headers)
                         batch_count += 1
 
                         if batch_count % 100 == 0:
@@ -163,11 +171,18 @@ class ClientHandler:
                 self._send_error_packet(400, f"unexpected packet type: {packet_type}")
                 break
 
-    def _route_batch_packet(self, batch: bytes, exchange: MessageMiddlewareExchangeRMQ, headers, eof=False):
-
+    def _route_batch_packet(
+        self, batch: bytes, exchange: MessageMiddlewareExchangeRMQ, entity_type: EntityType, headers, eof=False
+    ):
         batch_id = uuid.uuid4()
-        index = batch_id.int % 5
-        key = "transformer_transactions" + "_" + str(index) if not eof else "common"
+
+        if eof:
+            key = "common"
+        else:
+            config = self.transformer_configs[entity_type]
+            index = batch_id.int % config["replicas"]
+            key = f"{config['downstream_stage']}_{index}"
+
         exchange.send(batch, key, headers | {MESSAGE_ID: batch_id.hex})
 
     def _send_ack_packet(self):

@@ -12,6 +12,7 @@ from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
 from shared.protocol import MESSAGE_ID, SESSION_ID
 from shared.shutdown import ShutdownSignal
+from worker.heartbeat import build_container_name, HeartbeatSender
 from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
 from pydantic import BaseModel
@@ -145,7 +146,8 @@ class SessionManager:
         if session_id not in self._sessions:
             self._sessions[session_id] = Session(session_id=session_id)
             self._on_start_of_session(self._sessions[session_id])
-            logging.info(f"action: create_session | stage: {self._stage_name} | session_id: {session_id}")
+            if self._is_leader:
+                logging.info(f"action: create_session | stage: {self._stage_name} | session: {session_id.hex[:8]}")
         current_session = self._sessions.get(session_id, None)
         return current_session
 
@@ -223,8 +225,12 @@ class WorkerBase(ABC):
             instances=self._instances,
             is_leader=self._leader,
         )
+        container_name = build_container_name(self._stage_name, self._index, self._instances)
+        self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
 
     def start(self):
+        self._heartbeat.start()
+
         self._upstream_thread = threading.Thread(
             target=self._source.start_consuming,
             args=[self._on_message_upstream],
@@ -234,9 +240,8 @@ class WorkerBase(ABC):
         self._try_to_load_sessions()
         self._upstream_thread.start()
 
-        logging.info(
-            f"action: thread_start | stage: {self._stage_name} |" f" data_thread: {self._upstream_thread.name} |"
-        )
+        if self._leader:
+            logging.info(f"action: thread_start | stage: {self._stage_name} | thread: {self._upstream_thread.name}")
 
         # Wait for shutdown signal
         self._shutdown_event.wait()
@@ -254,6 +259,8 @@ class WorkerBase(ABC):
     def _cleanup(self):
         """Cleanup method that stops consuming and waits for threads."""
         logging.info(f"action: cleanup_start | stage: {self._stage_name}")
+
+        self._heartbeat.stop()
 
         try:
             self._source.stop_consuming()
@@ -286,13 +293,14 @@ class WorkerBase(ABC):
             worker_eof = WorkerEOF.deserialize(message)
             session.add_eof(worker_eof.worker_id)
             logging.info(
-                f"action: receive_WorkerEOF | stage: {self._stage_name} | session: {session.session_id} |"
-                f" from: {worker_eof.worker_id} |"
-                f" collected: {session.get_eof_collected()}"
+                f"action: receive_WorkerEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]} | "
+                f"from: {worker_eof.worker_id} | collected: {session.get_eof_collected()}"
             )
         else:
             session.add_eof(str(self._index))
-            logging.info(f"action: receive_UpstreamEOF | stage: {self._stage_name} | session: {session.session_id}")
+            logging.info(
+                f"action: receive_UpstreamEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]}"
+            )
 
         if self._session_manager.try_to_flush(session):
             if self._leader:
