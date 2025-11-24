@@ -1,19 +1,20 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, TypeVar, Generic
 from pydantic import BaseModel
+from pydantic.generics import GenericModel
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
 
-
-class SessionData(BaseModel):
-    aggregated: Optional[Message] = None
+TMsg = TypeVar("TMsg", bound=Message)
+class SessionData(GenericModel, Generic[TMsg]):
+    aggregated: Optional[TMsg] = None
     message_count: int = 0
 
 
-class AggregatorBase(WorkerBase, ABC):
+class AggregatorBase(WorkerBase, Generic[TMsg], ABC):
     def _start_of_session(self, session: Session):
         session.set_storage(SessionData())
 

@@ -5,7 +5,7 @@ import threading
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, List, Optional, Type, Union
+from typing import Callable, List, Optional, Type, Union, TypeVar, Any
 
 from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
@@ -16,18 +16,33 @@ from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
 from pydantic import BaseModel
 
-
+T = TypeVar("T", bound=BaseModel)
 class Session(BaseModel):
     session_id: uuid.UUID
     eof_collected: set[str] = set()
     msgs_received: set[str] = set()
-    storage: Optional[dict] = None
+    storage: Optional[Any] = None
     
-    def get_storage(self, data_type:type[BaseModel]):
-        return data_type(**self.storage)
+    def get_storage(self, data_type: Type[T]) -> T:
+        raw = self.storage
+
+        if isinstance(raw, data_type):
+            return raw
+
+        if raw is None:
+            obj = data_type()
+
+        elif isinstance(raw, dict):
+            obj = data_type.model_validate(raw)
+
+        else:
+            obj = data_type.model_validate(raw)
+
+        self.storage = obj
+        return obj
 
     def set_storage(self, storage:BaseModel):
-        self.storage = storage.model_dump()
+        self.storage = storage
         
     def add_eof(self, worker_id: str):
         self.eof_collected.add(worker_id)
