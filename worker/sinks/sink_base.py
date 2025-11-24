@@ -1,16 +1,15 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from pydantic import BaseModel
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 
 
-@dataclass
-class SessionData:
-    result: list[Message] = field(default_factory=list)
+class SessionData(BaseModel):
+    result: list[Message] = []
     message_count: int = 0
 
 
@@ -38,7 +37,7 @@ class SinkBase(WorkerBase, ABC):
         session.set_storage(SessionData())
 
     def _end_of_session(self, session: Session):
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         formatted_results: list[RawMessage] = [self.format_fn(session_data.result)]
         if formatted_results:
             self._send_message(formatted_results, session_id=session.session_id, message_id=uuid.uuid4())
@@ -48,5 +47,5 @@ class SinkBase(WorkerBase, ABC):
             session_data.result.clear()
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         session_data.result.append(message)

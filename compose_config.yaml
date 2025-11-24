@@ -8,7 +8,7 @@ settings:
     full: 0
   chaos_monkey:
     enabled: true
-    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
+    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,q4_enrich_users_0,q4_enrich_users_1,q4_enrich_users_2,q4_enrich_stores,q2_enrich_items,q3_enrich_stores"
     kill_interval: 10
     logging_level: DEBUG
   health_checker:

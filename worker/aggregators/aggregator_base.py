@@ -1,15 +1,14 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Optional
+from pydantic import BaseModel
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
 
 
-@dataclass
-class SessionData:
+class SessionData(BaseModel):
     aggregated: Optional[Message] = None
     message_count: int = 0
 
@@ -19,7 +18,7 @@ class AggregatorBase(WorkerBase, ABC):
         session.set_storage(SessionData())
 
     def _end_of_session(self, session: Session) -> None:
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
 
         if session_data.aggregated is None:
             return
@@ -27,7 +26,7 @@ class AggregatorBase(WorkerBase, ABC):
         self._send_message(messages=[session_data.aggregated], session_id=session.session_id, message_id=uuid.uuid4())
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         session_data.aggregated = self.aggregator_fn(session_data.aggregated, message)
         session_data.message_count += 1
         if session_data.message_count % 100000 == 0:

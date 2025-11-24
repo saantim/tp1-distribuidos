@@ -5,7 +5,7 @@ import threading
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Type, Union
+from typing import Callable, List, Optional, Type, Union
 
 from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
@@ -21,13 +21,13 @@ class Session(BaseModel):
     session_id: uuid.UUID
     eof_collected: set[str] = set()
     msgs_received: set[str] = set()
-    storage: Optional[Any] = None
+    storage: Optional[dict] = None
     
-    def get_storage(self):
-        return self.storage
+    def get_storage(self, data_type:type[BaseModel]):
+        return data_type(**self.storage)
 
-    def set_storage(self, storage: Any):
-        self.storage = storage
+    def set_storage(self, storage:BaseModel):
+        self.storage = storage.model_dump()
         
     def add_eof(self, worker_id: str):
         self.eof_collected.add(worker_id)

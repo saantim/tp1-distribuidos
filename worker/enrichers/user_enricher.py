@@ -4,7 +4,7 @@ from typing import Type
 
 from shared.entity import Message, User
 from worker.base import Session
-from worker.enrichers.enricher_base import EnricherBase
+from worker.enrichers.enricher_base import EnricherBase, EnricherSessionData
 from worker.types import UserPurchasesByStore
 
 
@@ -50,12 +50,12 @@ class Enricher(EnricherBase):
         return entity
 
     def _on_entity_upstream(self, message: User, session: Session) -> None:
-        loaded = session.get_storage().loaded_entities
+        loaded = session.get_storage(EnricherSessionData).loaded_entities
         self._enrich_entity_fn(loaded, message)
 
     def _flush_buffer(self, session: Session) -> None:
         session_id = session.session_id
-        loaded = session.get_storage().loaded_entities
+        loaded = session.get_storage(EnricherSessionData).loaded_entities
         user_purchases_list = loaded.get("user_purchases_list", [])
 
         if not user_purchases_list:

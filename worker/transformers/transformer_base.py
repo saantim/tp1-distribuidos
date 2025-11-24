@@ -6,8 +6,8 @@ Transforms CSV rows into entities.
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Type
+from pydantic import BaseModel
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddleware
@@ -15,9 +15,8 @@ from worker.base import Session, WorkerBase
 from worker.packer import is_raw_batch, unpack_raw_batch
 
 
-@dataclass
-class SessionData:
-    buffer: list[Message] = field(default_factory=list)
+class SessionData(BaseModel):
+    buffer: list[Message] = []
     transformed: int = 0
 
 
@@ -61,7 +60,7 @@ class TransformerBase(WorkerBase, ABC):
         Called when session ends (after receiving EOF from all upstream workers).
         Flush remaining buffered entities.
         """
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         self._flush_buffer(session)
         logging.info(
             f"action: end_of_session | stage: {self._stage_name} | "
@@ -70,7 +69,7 @@ class TransformerBase(WorkerBase, ABC):
 
     def _flush_buffer(self, session: Session) -> None:
         """Flush buffer to all output queues."""
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         if not session_data.buffer:
             return
 
@@ -85,7 +84,7 @@ class TransformerBase(WorkerBase, ABC):
             csv_row: CSV row as string
         """
         try:
-            session_data: SessionData = session.get_storage()
+            session_data: SessionData = session.get_storage(SessionData)
             row_dict = self.parse_fn(csv_row)
             entity = self.create_fn(row_dict)
 

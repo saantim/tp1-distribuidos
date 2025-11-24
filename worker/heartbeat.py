@@ -58,7 +58,7 @@ class HeartbeatSender:
 
     def _send_heartbeats(self):
         """Send heartbeat to all health checkers."""
-        heartbeat = Heartbeat(self._container_name, time.time())
+        heartbeat = Heartbeat(container_name=self._container_name, timestamp=time.time())
         data = heartbeat.serialize()
 
         for host in self._hc_hosts:

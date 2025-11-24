@@ -2,8 +2,8 @@ import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Type
+from pydantic import BaseModel
 
 from shared.entity import EOF, Message
 from shared.middleware.interface import MessageMiddlewareExchange
@@ -14,12 +14,12 @@ from worker.output import WorkerOutput
 from worker.packer import unpack_entity_batch
 
 
-@dataclass
-class EnricherSessionData:
+
+class EnricherSessionData(BaseModel):
     """Storage for per-session enricher state."""
 
-    loaded_entities: dict = field(default_factory=dict)
-    buffer: list[Message] = field(default_factory=list)
+    loaded_entities: dict = {}
+    buffer: list[Message] = []
     enriched_count: int = 0
 
 
@@ -68,7 +68,7 @@ class EnricherBase(WorkerBase, ABC):
                 channel.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
-            session_data: EnricherSessionData = session.get_storage()
+            session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
             for entity in unpack_entity_batch(body, self.get_enricher_type()):
                 session_data.loaded_entities = self._load_entity_fn(session_data.loaded_entities, entity)
 
@@ -102,7 +102,7 @@ class EnricherBase(WorkerBase, ABC):
     def _end_of_session(self, session: Session):
         """Flush final y limpieza cuando una sesión termina."""
         session_id = session.session_id
-        session_data: EnricherSessionData = session.get_storage()
+        session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
 
         self._flush_buffer(session)
         final_count = session_data.enriched_count
@@ -125,7 +125,7 @@ class EnricherBase(WorkerBase, ABC):
     def _flush_buffer(self, session: Session) -> None:
         """Envía buffer acumulado a todas las colas de salida."""
         session_id = session.session_id
-        session_data: EnricherSessionData = session.get_storage()
+        session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
         buffer = session_data.buffer
 
         if not buffer:
@@ -195,7 +195,7 @@ class EnricherBase(WorkerBase, ABC):
         Procesa una entidad upstream.
         Las subclases implementan este método.
         """
-        session_data: EnricherSessionData = session.get_storage()
+        session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
         enriched = self._enrich_entity_fn(session_data.loaded_entities, message)
         session_data.buffer.append(enriched)
         if len(session_data.buffer) >= self._BUFFER_SIZE:

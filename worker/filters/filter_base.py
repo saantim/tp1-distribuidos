@@ -2,16 +2,15 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from pydantic import BaseModel
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 
 
-@dataclass
-class SessionData:
-    buffer: list[Message] = field(default_factory=list)
+class SessionData(BaseModel):
+    buffer: list[Message] = []
     received: int = 0
     passed: int = 0
 
@@ -37,7 +36,7 @@ class FilterBase(WorkerBase, ABC):
         session.set_storage(SessionData())
 
     def _end_of_session(self, session: Session):
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         logging.info(
             f"[{self._stage_name}] end_of_session: received_per_session={session_data.received}, "
             f"pass={session_data.passed} session_id={session.session_id.hex[:8]}"
@@ -45,7 +44,7 @@ class FilterBase(WorkerBase, ABC):
         self._flush_buffer(session)
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         session_data.received += 1
 
         if self.filter_fn(message):
@@ -63,7 +62,7 @@ class FilterBase(WorkerBase, ABC):
 
     def _flush_buffer(self, session: Session) -> None:
         """Flush buffer and send messages"""
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         if session_data.buffer:
             self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())
             session_data.buffer.clear()

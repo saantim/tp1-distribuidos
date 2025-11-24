@@ -29,7 +29,7 @@ class Sink(SinkBase):
             JSON-encoded array of semester/store/TPV rows
         """
         if not results_collected:
-            return RawMessage(b"")
+            return RawMessage(raw_data=b"")
 
         try:
             formatted_rows = []
@@ -59,8 +59,8 @@ class Sink(SinkBase):
                 "results": formatted_rows,
             }
 
-            return RawMessage(json.dumps(output, indent=2).encode("utf-8"))
+            return RawMessage(raw_data=json.dumps(output, indent=2).encode("utf-8"))
 
         except Exception as e:
             logging.error(f"Error formatting Q3 results: {e}", exc_info=True)
-            return RawMessage(b"")
+            return RawMessage(raw_data=b"")
