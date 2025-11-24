@@ -6,17 +6,21 @@ Transforms CSV rows into entities.
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from typing import Type
-from pydantic import BaseModel
+from typing import Generic, Type, TypeVar
+
+from pydantic.generics import GenericModel
 
 from shared.entity import Message, RawMessage
-from shared.middleware.interface import MessageMiddleware
+from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 from worker.packer import is_raw_batch, unpack_raw_batch
 
 
-class SessionData(BaseModel):
-    buffer: list[Message] = []
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class SessionData(GenericModel, Generic[TypedMSG]):
+    buffer: list[TypedMSG] = []
     transformed: int = 0
 
 
@@ -31,7 +35,7 @@ class TransformerBase(WorkerBase, ABC):
         instances: int,
         index: int,
         stage_name: str,
-        source: MessageMiddleware,
+        source: MessageMiddlewareExchange,
         outputs: list,
         batch_size: int = 500,
     ):

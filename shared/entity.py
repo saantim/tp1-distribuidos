@@ -1,8 +1,8 @@
-import json
-from abc import ABC
 from datetime import datetime
-from typing import Dict, NewType, Set, Optional
-from pydantic import BaseModel
+from typing import NewType, Optional
+
+from pydantic import BaseModel, ConfigDict
+
 
 class Message(BaseModel):
 
@@ -18,14 +18,14 @@ class Message(BaseModel):
 
     @classmethod
     def deserialize(cls, payload: bytes):
-        data:dict = json.loads(payload)
-        return cls.from_dict(data)
+        json_str = payload.decode()
+        return cls.model_validate_json(json_str)
 
     @classmethod
     def is_type(cls, payload: bytes):
         try:
-            data = json.loads(payload)
-            cls.from_dict(data)
+            json_str = payload.decode()
+            cls.model_validate_json(json_str)
             return True
         except Exception as e:
             _ = e
@@ -46,6 +46,10 @@ class Heartbeat(Message):
 
 
 class RawMessage(Message):
+    model_config = ConfigDict(
+        ser_json_bytes="base64",
+        val_json_bytes="base64",
+    )
     raw_data: bytes
 
 

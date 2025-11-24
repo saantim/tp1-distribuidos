@@ -48,6 +48,8 @@ class ClientHandler:
         results are handled by separate result collector thread.
         """
         try:
+            # TODO: Mejorar el chequeo de cuando esta listo el pipeline para empezar a aceptar clientes.
+            time.sleep(5)
             if not self._wait_for_session_start():
                 return
 

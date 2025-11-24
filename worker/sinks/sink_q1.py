@@ -22,6 +22,7 @@ class Sink(SinkBase):
         """
 
         if not results_collected:
+            logging.warning("No results collected for Q1, sending empty results.")
             return RawMessage(raw_data=b"")
 
         output = []

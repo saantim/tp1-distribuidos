@@ -2,15 +2,20 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from pydantic import BaseModel
+from typing import Generic, TypeVar
+
+from pydantic.generics import GenericModel
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 
 
-class SessionData(BaseModel):
-    buffer: list[Message] = []
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class SessionData(GenericModel, Generic[TypedMSG]):
+    buffer: list[TypedMSG] = []
     received: int = 0
     passed: int = 0
 
