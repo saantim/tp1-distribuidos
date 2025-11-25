@@ -28,22 +28,24 @@ transformers:
       - name: "menu_items_source"
         routing_fn: "broadcast"
 
-  stores:
-    module: "store"
-    replicas: 1
-    input: "raw_stores_batches"
-    output:
-      - name: "stores_source"
-        routing_fn: "broadcast"
+  # Q3, Q4 disabled
+  # stores:
+  #   module: "store"
+  #   replicas: 1
+  #   input: "raw_stores_batches"
+  #   output:
+  #     - name: "stores_source"
+  #       routing_fn: "broadcast"
 
-  users:
-    module: "user"
-    replicas: 3
-    input: "raw_users_batches"
-    output:
-      - name: "users_source"
-        downstream_stage: "q4_enrich_users"
-        downstream_workers: 3
+  # Q4 disabled
+  # users:
+  #   module: "user"
+  #   replicas: 3
+  #   input: "raw_users_batches"
+  #   output:
+  #     - name: "users_source"
+  #       downstream_stage: "q4_enrich_users"
+  #       downstream_workers: 3
 
   transactions:
     module: "transaction"
@@ -77,10 +79,11 @@ queries:
           - name: "q1.filtered_year"
             downstream_stage: "q1_filter_hour"
             downstream_workers: 6
-          - name: "q4.filtered_year"
-            downstream_stage: "q4_aggregate_users"
-            downstream_workers: 5
-            routing_fn: "tx_router"
+          # Q4 disabled
+          # - name: "q4.filtered_year"
+          #   downstream_stage: "q4_aggregate_users"
+          #   downstream_workers: 5
+          #   routing_fn: "tx_router"
 
       filter_hour:
         type: "filter"
@@ -91,9 +94,10 @@ queries:
           - name: "q1.filtered_hour"
             downstream_stage: "q1_filter_amount"
             downstream_workers: 4
-          - name: "q3.filtered_hour"
-            downstream_stage: "q3_aggregate_semester"
-            downstream_workers: 3
+          # Q3 disabled
+          # - name: "q3.filtered_hour"
+          #   downstream_stage: "q3_aggregate_semester"
+          #   downstream_workers: 3
 
       filter_amount:
         type: "filter"
@@ -174,7 +178,7 @@ queries:
 
   q3:
     description: "Aggregate by semester/store → enrich with store data"
-    enabled: true
+    enabled: false
     stages:
       aggregate_semester:
         type: "aggregator"
@@ -220,7 +224,7 @@ queries:
 
   q4:
     description: "Route → aggregate by user → enrich → merge top-3 → enrich with store"
-    enabled: true
+    enabled: false
     stages:
       aggregate_users:
         type: "aggregator"

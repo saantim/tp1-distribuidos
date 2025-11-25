@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import cast, Optional, Type
 
@@ -8,6 +9,13 @@ from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 
 class Aggregator(AggregatorBase):
+
+    PRUNE_INTERVAL = 50000
+    TOP_K_BUFFER = 20
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._messages_since_prune = 0
 
     def get_entity_type(self) -> Type[Message]:
         return Transaction
@@ -29,6 +37,38 @@ class Aggregator(AggregatorBase):
             )
 
         aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id].purchases += 1
+        return aggregated
+
+    def _on_entity_upstream(self, message: Message, session: Session) -> None:
+        """Override to add periodic pruning."""
+        super()._on_entity_upstream(message, session)
+
+        self._messages_since_prune += 1
+        if self._messages_since_prune >= self.PRUNE_INTERVAL:
+            session_data = session.get_storage(SessionData)
+            if session_data.aggregated is not None:
+                session_data.aggregated = self._prune_to_top_k(
+                    cast(UserPurchasesByStore, session_data.aggregated), self.TOP_K_BUFFER
+                )
+                logging.info(
+                    f"[{self._stage_name}] Pruned to top-{self.TOP_K_BUFFER} per store | "
+                    f"messages: {session_data.message_count} | session: {session.session_id.hex[:8]}"
+                )
+            self._messages_since_prune = 0
+
+    @staticmethod
+    def _prune_to_top_k(aggregated: UserPurchasesByStore, k: int) -> UserPurchasesByStore:
+        """Prune each store to keep only top-K users by purchase count."""
+        for store_id, users_dict in aggregated.user_purchases_by_store.items():
+            if len(users_dict) <= k:
+                continue  # Already small enough
+
+            users_list = list(users_dict.values())
+            users_list.sort(key=lambda x: x.purchases, reverse=True)
+            users_list = users_list[:k]
+
+            aggregated.user_purchases_by_store[store_id] = {user_info.user: user_info for user_info in users_list}
+
         return aggregated
 
     def _end_of_session(self, session: Session):

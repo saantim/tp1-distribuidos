@@ -3,6 +3,7 @@ import threading
 import uuid
 from abc import ABC, abstractmethod
 from typing import Type
+
 from pydantic import BaseModel
 
 from shared.entity import EOF, Message
@@ -12,7 +13,6 @@ from shared.protocol import MESSAGE_ID, SESSION_ID
 from worker.base import Session, WorkerBase
 from worker.output import WorkerOutput
 from worker.packer import unpack_entity_batch
-
 
 
 class EnricherSessionData(BaseModel):
@@ -177,18 +177,7 @@ class EnricherBase(WorkerBase, ABC):
         super()._cleanup()
 
     def _on_message_session_queue(self, channel, method, properties, body: bytes):
-        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
-        # TODO: aca puedes sacar el message_id y hacer tus chequeos.
-        session: Session = self._session_manager.get_or_initialize(session_id)
-        try:
-            if not self._handle_eof(body, session):
-                for message in unpack_entity_batch(body, self.get_entity_type()):
-                    self._on_entity_upstream(message, session)
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-        except Exception as e:
-            _ = e
-            logging.exception(f"action: batch_process | stage: {self._stage_name}")
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        super()._on_message_upstream(channel, method, properties, body)
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         """
@@ -226,12 +215,10 @@ class EnricherBase(WorkerBase, ABC):
         """Start consuming from session queue (spawns thread with self-cleanup)."""
         session_queue = self._get_session_queue(session_id)
 
-        # Wrapper that cleans up connection after consumption ends
         def thread_target():
             try:
                 session_queue.start_consuming(on_message_callback=self._on_message_session_queue)
             finally:
-                # Thread exiting - close connection
                 try:
                     session_queue.close()
                     logging.debug(
@@ -240,7 +227,6 @@ class EnricherBase(WorkerBase, ABC):
                 except Exception as e:
                     logging.warning(f"Error closing session queue connection: {e}")
 
-        # Spawn thread
         consumer_thread = threading.Thread(
             target=thread_target,
             name=f"{self._stage_name}_{self._index}_{session_id.hex}_session_thread",
