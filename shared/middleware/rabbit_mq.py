@@ -14,7 +14,7 @@ from .interface import (
 )
 
 
-PREFETCH_COUNT = 500
+PREFETCH_COUNT = 1000
 
 
 class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):

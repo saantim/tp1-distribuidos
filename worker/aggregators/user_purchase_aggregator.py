@@ -76,17 +76,5 @@ class Aggregator(AggregatorBase):
         aggregated = session_data.aggregated
 
         if aggregated is not None:
-            aggregated = self._truncate_top_3(cast(UserPurchasesByStore, aggregated))
+            aggregated = self._prune_to_top_k(aggregated, self.TOP_K_BUFFER)
             self._send_message(messages=[aggregated], session_id=session.session_id, message_id=uuid.uuid4())
-
-    @staticmethod
-    def _truncate_top_3(aggregated: UserPurchasesByStore) -> UserPurchasesByStore:
-        for store_id, dict_of_user_purchases_info in aggregated.user_purchases_by_store.items():
-            users_purchases_info = list(dict_of_user_purchases_info.values())
-            users_purchases_info.sort(key=lambda x: x.purchases, reverse=True)
-            users_purchases_info = users_purchases_info[:3]
-            aggregated.user_purchases_by_store[store_id] = {
-                user_purchases_info.user: user_purchases_info for user_purchases_info in users_purchases_info
-            }
-
-        return aggregated
