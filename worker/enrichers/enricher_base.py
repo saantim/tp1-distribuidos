@@ -2,9 +2,9 @@ import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
-from typing import Type
+from typing import Generic, Type, TypeVar
 
-from pydantic import BaseModel
+from pydantic.generics import GenericModel
 
 from shared.entity import EOF, Message
 from shared.middleware.interface import MessageMiddlewareExchange
@@ -15,11 +15,14 @@ from worker.output import WorkerOutput
 from worker.packer import unpack_entity_batch
 
 
-class EnricherSessionData(BaseModel):
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class EnricherSessionData(GenericModel, Generic[TypedMSG]):
     """Storage for per-session enricher state."""
 
     loaded_entities: dict = {}
-    buffer: list[Message] = []
+    buffer: list[TypedMSG] = []
     enriched_count: int = 0
 
 
@@ -63,6 +66,7 @@ class EnricherBase(WorkerBase, ABC):
 
         try:
             if EOF.is_type(body):
+                self._session_manager.save_session(session)
                 self._consume_session_queue(session_id)
                 logging.info(f"action: enricher_data_ready | stage: {self._stage_name} | session: {session_id.hex[:8]}")
                 channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -191,11 +195,11 @@ class EnricherBase(WorkerBase, ABC):
             self._flush_buffer(session)
 
     @abstractmethod
-    def _enrich_entity_fn(self, loaded_entities: dict, entity: Message) -> Message:
+    def _enrich_entity_fn(self, loaded_entities: dict, entity: TypedMSG) -> Message:
         pass
 
     @abstractmethod
-    def _load_entity_fn(self, loaded_entities: dict, entity: Message) -> dict:
+    def _load_entity_fn(self, loaded_entities: dict, entity: TypedMSG) -> dict:
         """
         Carga una entidad de referencia para una sesión.
         """

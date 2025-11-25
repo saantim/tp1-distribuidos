@@ -89,6 +89,110 @@ services:
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+  transformer_stores:
+    container_name: transformer_stores
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_stores-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: transformer_stores
+      MODULE_NAME: store
+      FROM: raw_stores_batches
+      TO: '[{"name": "stores_source", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  transformer_users_0:
+    container_name: transformer_users_0
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '3'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  transformer_users_1:
+    container_name: transformer_users_1
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-1:/sessions
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  transformer_users_2:
+    container_name: transformer_users_2
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformers/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-2:/sessions
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
   transformer_transactions_0:
     container_name: transformer_transactions_0
     image: transformer_worker
@@ -449,7 +553,7 @@ services:
       STAGE_NAME: q1_filter_year
       MODULE_NAME: year
       FROM: transactions_source
-      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -475,7 +579,7 @@ services:
       STAGE_NAME: q1_filter_year
       MODULE_NAME: year
       FROM: transactions_source
-      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -501,7 +605,7 @@ services:
       STAGE_NAME: q1_filter_year
       MODULE_NAME: year
       FROM: transactions_source
-      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -527,7 +631,7 @@ services:
       STAGE_NAME: q1_filter_year
       MODULE_NAME: year
       FROM: transactions_source
-      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -553,7 +657,7 @@ services:
       STAGE_NAME: q1_filter_year
       MODULE_NAME: year
       FROM: transactions_source
-      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -579,7 +683,7 @@ services:
       STAGE_NAME: q1_filter_year
       MODULE_NAME: year
       FROM: transactions_source
-      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}]'
+      TO: '[{"name": "q1.filtered_year", "downstream_stage": "q1_filter_hour", "downstream_workers": 6}, {"name": "q4.filtered_year", "downstream_stage": "q4_aggregate_users", "downstream_workers": 5, "routing_fn": "tx_router"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -605,7 +709,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -631,7 +735,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -657,7 +761,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -683,7 +787,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -709,7 +813,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -735,7 +839,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 3}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -1205,6 +1309,453 @@ services:
       MODULE_NAME: sink_q2
       FROM: q2.enriched_items
       TO: '[{"name": "results", "downstream_stage": "q2", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q3_aggregate_semester_0:
+    container_name: q3_aggregate_semester_0
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '3'
+      STAGE_NAME: q3_aggregate_semester
+      MODULE_NAME: semester_agg
+      FROM: q3.filtered_hour
+      TO: '[{"name": "q3.aggregated_semester", "downstream_stage": "q3_merge_semester", "downstream_workers": 1}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q3_aggregate_semester_1:
+    container_name: q3_aggregate_semester_1
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-1:/sessions
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      STAGE_NAME: q3_aggregate_semester
+      MODULE_NAME: semester_agg
+      FROM: q3.filtered_hour
+      TO: '[{"name": "q3.aggregated_semester", "downstream_stage": "q3_merge_semester", "downstream_workers": 1}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q3_aggregate_semester_2:
+    container_name: q3_aggregate_semester_2
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-2:/sessions
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
+      STAGE_NAME: q3_aggregate_semester
+      MODULE_NAME: semester_agg
+      FROM: q3.filtered_hour
+      TO: '[{"name": "q3.aggregated_semester", "downstream_stage": "q3_merge_semester", "downstream_workers": 1}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q3_merge_semester:
+    container_name: q3_merge_semester
+    image: merger_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/mergers/merger_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_merge_semester-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q3_merge_semester
+      MODULE_NAME: semester_merge
+      FROM: q3.aggregated_semester
+      TO: '[{"name": "q3.merged_semester", "downstream_stage": "q3_enrich_stores", "downstream_workers": 1}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q3_enrich_stores:
+    container_name: q3_enrich_stores
+    image: enricher_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_enrich_stores-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q3_enrich_stores
+      MODULE_NAME: store_enricher
+      FROM: q3.merged_semester
+      TO: '[{"name": "q3.enriched_stores", "downstream_stage": "q3_sink", "downstream_workers": 1}]'
+      ENRICHER: stores_source
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q3_sink:
+    container_name: q3_sink
+    image: sink_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_sink-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q3_sink
+      MODULE_NAME: sink_q3
+      FROM: q3.enriched_stores
+      TO: '[{"name": "results", "downstream_stage": "q3", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_aggregate_users_0:
+    container_name: q4_aggregate_users_0
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '5'
+      STAGE_NAME: q4_aggregate_users
+      MODULE_NAME: user_purchase_aggregator
+      FROM: q4.filtered_year
+      TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_aggregate_users_1:
+    container_name: q4_aggregate_users_1
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-1:/sessions
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '5'
+      STAGE_NAME: q4_aggregate_users
+      MODULE_NAME: user_purchase_aggregator
+      FROM: q4.filtered_year
+      TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_aggregate_users_2:
+    container_name: q4_aggregate_users_2
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-2:/sessions
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '5'
+      STAGE_NAME: q4_aggregate_users
+      MODULE_NAME: user_purchase_aggregator
+      FROM: q4.filtered_year
+      TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_aggregate_users_3:
+    container_name: q4_aggregate_users_3
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-3:/sessions
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      STAGE_NAME: q4_aggregate_users
+      MODULE_NAME: user_purchase_aggregator
+      FROM: q4.filtered_year
+      TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_aggregate_users_4:
+    container_name: q4_aggregate_users_4
+    image: aggregator_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/aggregators/aggregator_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-4:/sessions
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
+      STAGE_NAME: q4_aggregate_users
+      MODULE_NAME: user_purchase_aggregator
+      FROM: q4.filtered_year
+      TO: '[{"name": "q4.aggregated_users", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_enrich_users_0:
+    container_name: q4_enrich_users_0
+    image: enricher_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '3'
+      STAGE_NAME: q4_enrich_users
+      MODULE_NAME: user_enricher
+      FROM: users_source
+      TO: '[{"name": "q4.enriched_users", "downstream_stage": "q4_merge_top3", "downstream_workers": 1}]'
+      ENRICHER: q4.aggregated_users
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_enrich_users_1:
+    container_name: q4_enrich_users_1
+    image: enricher_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-1:/sessions
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      STAGE_NAME: q4_enrich_users
+      MODULE_NAME: user_enricher
+      FROM: users_source
+      TO: '[{"name": "q4.enriched_users", "downstream_stage": "q4_merge_top3", "downstream_workers": 1}]'
+      ENRICHER: q4.aggregated_users
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_enrich_users_2:
+    container_name: q4_enrich_users_2
+    image: enricher_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-2:/sessions
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
+      STAGE_NAME: q4_enrich_users
+      MODULE_NAME: user_enricher
+      FROM: users_source
+      TO: '[{"name": "q4.enriched_users", "downstream_stage": "q4_merge_top3", "downstream_workers": 1}]'
+      ENRICHER: q4.aggregated_users
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_merge_top3:
+    container_name: q4_merge_top3
+    image: merger_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/mergers/merger_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_merge_top3-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q4_merge_top3
+      MODULE_NAME: top_3
+      FROM: q4.enriched_users
+      TO: '[{"name": "q4.merged_top3", "downstream_stage": "q4_enrich_stores", "downstream_workers": 1}]'
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_enrich_stores:
+    container_name: q4_enrich_stores
+    image: enricher_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/enrichers/enricher_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_stores-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q4_enrich_stores
+      MODULE_NAME: store_enricher_q4
+      FROM: q4.merged_top3
+      TO: '[{"name": "q4.enriched_stores", "downstream_stage": "q4_sink", "downstream_workers": 1}]'
+      ENRICHER: stores_source
+      HEALTH_CHECKER_REPLICAS: '1'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+  q4_sink:
+    container_name: q4_sink
+    image: sink_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/sinks/sink_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_sink-0:/sessions
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: q4_sink
+      MODULE_NAME: sink_q4
+      FROM: q4.enriched_stores
+      TO: '[{"name": "results", "downstream_stage": "q4", "downstream_workers": 1, "routing_fn": "by_stage_name"}]'
       HEALTH_CHECKER_REPLICAS: '1'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'

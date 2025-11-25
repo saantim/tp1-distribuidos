@@ -18,7 +18,7 @@ class SessionData(GenericModel, Generic[TypedMSG]):
 
 class MergerBase(WorkerBase, ABC):
     @abstractmethod
-    def merger_fn(self, merged: Optional[Message], payload: Message) -> None:
+    def merger_fn(self, merged: Optional[TypedMSG], payload: TypedMSG) -> None:
         pass
 
     def _start_of_session(self, session: Session):

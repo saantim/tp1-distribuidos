@@ -90,7 +90,7 @@ class TransformerBase(WorkerBase, ABC):
         try:
             session_data: SessionData = session.get_storage(SessionData)
             row_dict = self.parse_fn(csv_row)
-            entity = self.create_fn(row_dict)
+            entity: TypedMSG = self.create_fn(row_dict)
 
             session_data.transformed += 1
             session_data.buffer.append(entity)
@@ -134,7 +134,7 @@ class TransformerBase(WorkerBase, ABC):
         pass
 
     @abstractmethod
-    def create_fn(self, row_dict: dict) -> Message:
+    def create_fn(self, row_dict: dict) -> TypedMSG:
         """
         Create entity from parsed row dictionary.
 

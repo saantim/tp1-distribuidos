@@ -40,5 +40,5 @@ class AggregatorBase(WorkerBase, ABC):
             )
 
     @abstractmethod
-    def aggregator_fn(self, aggregated: Optional[Message], message: Message) -> Message:
+    def aggregator_fn(self, aggregated: Optional[TypedMSG], message: TypedMSG) -> Message:
         pass
