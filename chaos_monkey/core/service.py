@@ -66,12 +66,28 @@ class ChaosMonkey:
             there are no eligible containers.
         """
         containers: list[Container] = DockerManager.get_containers()
-        logging.debug("Total containers before exclusion filter: %d", len(containers))
-        containers = list(filter(lambda c: c.Names not in self._config.containers_excluded, containers))
-        logging.debug("Eligible containers after exclusion filter: %d", len(containers))
 
-        if containers:
-            selected = random.choice(containers)
+        logging.debug(
+            "Total containers before exclusion filter: %d", len(containers)
+        )
+
+        containers_filtered = []
+
+        for container in containers:
+            excluded = False
+            for prefix in self._config.containers_excluded:
+                if container.Names.startswith(prefix):
+                    excluded = True
+                    break
+            if not excluded:
+                containers_filtered.append(container)
+
+        logging.debug(
+            "Eligible containers after exclusion filter: %d", len(containers_filtered)
+        )
+
+        if containers_filtered:
+            selected = random.choice(containers_filtered)
             logging.info(f"Container selected for termination: name={selected.Names!r} id={selected.ID!r}")
             return selected
 

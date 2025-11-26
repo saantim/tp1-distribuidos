@@ -20,7 +20,7 @@ class Merger(MergerBase):
             for item_id, item_info in dict_of_period_item_sold.items():
                 merged_items: dict[ItemId, ItemInfo] = merged.transaction_item_per_period.get(period, {})
 
-                item: ItemInfo = merged_items.get(item_id, ItemInfo(0, 0, ItemName("")))
+                item: ItemInfo = merged_items.get(item_id, ItemInfo(amount=0, quantity=0, item_name=ItemName("")))
                 item.quantity += item_info.quantity
                 item.amount += item_info.amount
 

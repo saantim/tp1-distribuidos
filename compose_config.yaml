@@ -4,8 +4,8 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 3
-    full: 0
+    min: 0
+    full: 1
   chaos_monkey:
     enabled: false
     containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
@@ -37,12 +37,12 @@ transformers:
         routing_fn: "broadcast"
 
   stores:
-    module: "store"
-    replicas: 1
-    input: "raw_stores_batches"
-    output:
-      - name: "stores_source"
-        routing_fn: "broadcast"
+     module: "store"
+     replicas: 1
+     input: "raw_stores_batches"
+     output:
+       - name: "stores_source"
+         routing_fn: "broadcast"
 
   users:
     module: "user"

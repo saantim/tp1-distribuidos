@@ -20,6 +20,7 @@ class Enricher(EnricherBase):
     def _enrich_entity_fn(self, loaded_entities: dict, entity: TransactionItemByPeriod) -> TransactionItemByPeriod:
         for period, items in entity.transaction_item_per_period.items():
             for item_id, item_info in items.items():
+                # TODO remover este int
                 name = loaded_entities.get(int(item_id), "")
                 if name:
                     new = ItemInfo(item_name=ItemName(name), amount=item_info.amount, quantity=item_info.quantity)

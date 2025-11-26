@@ -2,7 +2,7 @@ import uuid
 from typing import cast, Optional, Type
 
 from shared.entity import Message, StoreName, Transaction
-from worker.aggregators.aggregator_base import AggregatorBase
+from worker.aggregators.aggregator_base import AggregatorBase, SessionData
 from worker.base import Session
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
@@ -32,7 +32,7 @@ class Aggregator(AggregatorBase):
         return aggregated
 
     def _end_of_session(self, session: Session):
-        session_data = session.get_storage()
+        session_data = session.get_storage(SessionData)
         aggregated = session_data.aggregated
 
         if aggregated is not None:

@@ -50,6 +50,7 @@ def create_worker_service(
         "entrypoint": entrypoints[worker_type],
         "networks": ["coffee"],
         "depends_on": depends_on,
+        "volumes": [f"./.saved_sessions/{stage_name}-{replica_id}:/sessions"],
         "environment": {
             "REPLICA_ID": str(replica_id),
             "REPLICAS": str(total_replicas),

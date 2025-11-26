@@ -29,7 +29,7 @@ class Sink(SinkBase):
             JSON-encoded array of period results
         """
         if not results_collected:
-            return RawMessage(b"")
+            return RawMessage(raw_data=b"")
 
         try:
             formatted_periods = []
@@ -72,8 +72,8 @@ class Sink(SinkBase):
 
             output = {"query": "Q2", "description": "Top products per period (2024-2025)", "results": formatted_periods}
 
-            return RawMessage(json.dumps(output, indent=2).encode("utf-8"))
+            return RawMessage(raw_data=json.dumps(output, indent=2).encode("utf-8"))
 
         except Exception as e:
             logging.error(f"Error formatting Q2 results: {e}", exc_info=True)
-            return RawMessage(b"")
+            return RawMessage(raw_data=b"")
