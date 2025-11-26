@@ -6,17 +6,21 @@ Transforms CSV rows into entities.
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from typing import Type
-from pydantic import BaseModel
+from typing import Generic, Type, TypeVar
+
+from pydantic.generics import GenericModel
 
 from shared.entity import Message, RawMessage
-from shared.middleware.interface import MessageMiddleware
+from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 from worker.packer import is_raw_batch, unpack_raw_batch
 
 
-class SessionData(BaseModel):
-    buffer: list[Message] = []
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class SessionData(GenericModel, Generic[TypedMSG]):
+    buffer: list[TypedMSG] = []
     transformed: int = 0
 
 
@@ -31,7 +35,7 @@ class TransformerBase(WorkerBase, ABC):
         instances: int,
         index: int,
         stage_name: str,
-        source: MessageMiddleware,
+        source: MessageMiddlewareExchange,
         outputs: list,
         batch_size: int = 500,
     ):
@@ -86,7 +90,7 @@ class TransformerBase(WorkerBase, ABC):
         try:
             session_data: SessionData = session.get_storage(SessionData)
             row_dict = self.parse_fn(csv_row)
-            entity = self.create_fn(row_dict)
+            entity: TypedMSG = self.create_fn(row_dict)
 
             session_data.transformed += 1
             session_data.buffer.append(entity)
@@ -130,7 +134,7 @@ class TransformerBase(WorkerBase, ABC):
         pass
 
     @abstractmethod
-    def create_fn(self, row_dict: dict) -> Message:
+    def create_fn(self, row_dict: dict) -> TypedMSG:
         """
         Create entity from parsed row dictionary.
 

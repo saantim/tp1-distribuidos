@@ -149,7 +149,7 @@ def unpack_entity_batch(body: bytes, entity_class: Type[Message]) -> Iterator[Me
             yield entity_class.deserialize(entity_bytes)
 
     except Exception as e:
-        logging.error(f"Failed to unpack entity batch: {e}")
+        logging.exception(f"Failed to unpack entity batch: {e}")
         return
 
 

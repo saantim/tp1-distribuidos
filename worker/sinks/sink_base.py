@@ -1,15 +1,20 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from pydantic import BaseModel
+from typing import Generic, TypeVar
+
+from pydantic.generics import GenericModel
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 
 
-class SessionData(BaseModel):
-    result: list[Message] = []
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class SessionData(GenericModel, Generic[TypedMSG]):
+    result: list[TypedMSG] = []
     message_count: int = 0
 
 
@@ -28,10 +33,9 @@ class SinkBase(WorkerBase, ABC):
         outputs: list,
     ):
         super().__init__(instances, index, stage_name, source, outputs)
-        self._results_per_session: dict[uuid.UUID, list[Message]] = {}
 
     @abstractmethod
-    def format_fn(self, results_collected: list[Message]) -> RawMessage: ...
+    def format_fn(self, results_collected: list[TypedMSG]) -> RawMessage: ...
 
     def _start_of_session(self, session: Session):
         session.set_storage(SessionData())
@@ -49,3 +53,4 @@ class SinkBase(WorkerBase, ABC):
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data: SessionData = session.get_storage(SessionData)
         session_data.result.append(message)
+        session_data.message_count += 1

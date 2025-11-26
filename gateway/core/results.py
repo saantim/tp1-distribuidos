@@ -7,7 +7,7 @@ import threading
 from uuid import UUID
 
 from gateway.core.session import SessionData
-from shared.entity import EOF
+from shared.entity import EOF, RawMessage
 from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from shared.network import Network, NetworkError
 from shared.protocol import ResultPacket, SESSION_ID
@@ -57,7 +57,6 @@ class ResultCollector:
                 channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
                 return
 
-            # Extract query ID from routing key (e.g., "q1", "q2", etc.)
             query_id = method.routing_key
 
             session_id = None
@@ -85,7 +84,6 @@ class ResultCollector:
             if query_id == "common" and is_eof:
                 self.session_manager.increment_query_eof(session_id)
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-
                 if self.session_manager.is_session_complete(session_id):
                     logging.info(f"action: session_complete | session_id: {session_id}")
                     self.session_manager.close_session(session_id)
@@ -102,9 +100,11 @@ class ResultCollector:
                 network = Network(session.socket, self.shutdown_signal)
 
                 for result_data in unpacked_results:
-                    self.session_manager.add_result(session_id, query_id.upper(), result_data)
+                    raw_message = RawMessage.deserialize(result_data)
+                    actual_data = raw_message.raw_data
 
-                    result_packet = ResultPacket(query_id.upper(), result_data)
+                    self.session_manager.add_result(session_id, query_id.upper(), actual_data)
+                    result_packet = ResultPacket(query_id.upper(), actual_data)
                     network.send_packet(result_packet)
 
                 eof_packet = ResultPacket(query_id.upper(), EOF().serialize())

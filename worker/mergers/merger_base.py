@@ -1,20 +1,24 @@
 import uuid
 from abc import ABC, abstractmethod
-from typing import Optional
-from pydantic import BaseModel
+from typing import Generic, Optional, TypeVar
+
+from pydantic.generics import GenericModel
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
 
 
-class SessionData(BaseModel):
-    merged: Optional[Message] = None
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class SessionData(GenericModel, Generic[TypedMSG]):
+    merged: Optional[TypedMSG] = None
     message_count: int = 0
 
 
 class MergerBase(WorkerBase, ABC):
     @abstractmethod
-    def merger_fn(self, merged: Optional[Message], payload: Message) -> None:
+    def merger_fn(self, merged: Optional[TypedMSG], payload: TypedMSG) -> None:
         pass
 
     def _start_of_session(self, session: Session):

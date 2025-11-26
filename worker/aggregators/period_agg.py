@@ -1,11 +1,13 @@
 from typing import Optional, Type
 
 from shared.entity import ItemName, Message, TransactionItem
-from worker.aggregators.aggregator_base import AggregatorBase
+from worker.aggregators.aggregator_base import AggregatorBase, SessionData
 from worker.types import ItemInfo, Period, TransactionItemByPeriod
 
+PeriodSessionData = SessionData[TransactionItemByPeriod]
 
 class Aggregator(AggregatorBase):
+    session_data_type = PeriodSessionData
 
     def get_entity_type(self) -> Type[Message]:
         return TransactionItem
