@@ -13,16 +13,16 @@ def load_config(config_file="compose_config.yaml"):
 
 
 def create_worker_service(
-    name,
-    worker_type,
-    replica_id,
-    total_replicas,
-    stage_name,
-    module,
-    input_exchange,
-    outputs,
-    enricher=None,
-    health_checker_config=None,
+        name,
+        worker_type,
+        replica_id,
+        total_replicas,
+        stage_name,
+        module,
+        input_exchange,
+        outputs,
+        enricher=None,
+        health_checker_config=None,
 ):
     """Create a worker service definition"""
 
@@ -93,6 +93,13 @@ def add_transformer_workers(services, name, transformer, stage_map, health_check
             outputs=transformer["output"],
             health_checker_config=health_checker_config,
         )
+        services[worker_name]["healthcheck"] = {
+            "test": "test -f /tmp/ready",
+            "interval": "5s",
+            "timeout": "3s",
+            "retries": 20,
+            "start_period": "10s",
+        }
 
 
 def add_stage_workers(services, query_name, stage_name, stage, query_config, stage_map, health_checker_config=None):
@@ -116,6 +123,13 @@ def add_stage_workers(services, query_name, stage_name, stage, query_config, sta
             enricher=stage.get("enricher"),
             health_checker_config=health_checker_config,
         )
+        services[worker_name]["healthcheck"] = {
+            "test": "test -f /tmp/ready",
+            "interval": "5s",
+            "timeout": "3s",
+            "retries": 20,
+            "start_period": "10s",
+        }
 
 
 def build_stage_replica_map(config):
@@ -188,6 +202,7 @@ def generate_compose(config):
     # Add RabbitMQ
     rmq = config["settings"]["rabbitmq"]
     services["rabbitmq"] = {
+        "hostname": "rabbitmq",
         "container_name": "rabbitmq",
         "image": f"rabbitmq:{rmq['version']}",
         "volumes": ["rabbitmq-volume:/var/lib/rabbitmq"],
@@ -200,7 +215,7 @@ def generate_compose(config):
         "ports": ["5672:5672", "8080:15672"],
         "healthcheck": {
             "test": "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms &&"
-            " rabbitmq-diagnostics -q check_port_connectivity",
+                    " rabbitmq-diagnostics -q check_port_connectivity",
             "interval": "5s",
             "timeout": "10s",
             "retries": 10,
@@ -216,6 +231,7 @@ def generate_compose(config):
         "networks": ["coffee"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
     }
+
 
     if chaos_monkey_enabled:
         services["chaos_monkey"] = {
@@ -300,6 +316,11 @@ def generate_compose(config):
         "networks": {"coffee": {"driver": "bridge"}},
     }
 
+    services["gateway"]["depends_on"] = {
+        name: {"condition": "service_healthy"}
+        for name in services
+        if name.startswith(("transformer_", "q1_", "q2_", "q3_", "q4_"))
+    }
     return compose
 
 
