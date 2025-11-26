@@ -22,7 +22,8 @@ class Sink(SinkBase):
         """
 
         if not results_collected:
-            return RawMessage(b"")
+            logging.warning("No results collected for Q1, sending empty results.")
+            return RawMessage(raw_data=b"")
 
         output = []
         try:
@@ -32,7 +33,7 @@ class Sink(SinkBase):
                     "final_amount": float(tx.final_amount),
                 }
                 output.append(result)
-            return RawMessage(json.dumps(output).encode("utf-8"))
+            return RawMessage(raw_data=json.dumps(output).encode("utf-8"))
         except Exception as e:
             logging.error(f"Error formatting Q1 result: {e}")
-            return RawMessage(b"")
+            return RawMessage(raw_data=b"")

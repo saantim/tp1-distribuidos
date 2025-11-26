@@ -43,7 +43,7 @@ class Transformer(TransformerBase):
         created_at = datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S") if created_at_str else None
 
         return {
-            "item_id": int(parts[1].strip()),
+            "item_id": str(parts[1].strip()),
             "quantity": int(parts[2].strip()),
             "subtotal": float(parts[4].strip()),
             "created_at": created_at,

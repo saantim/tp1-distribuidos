@@ -31,15 +31,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-  chaos_monkey:
-    container_name: chaos_monkey
-    build:
-      context: .
-      dockerfile: ./chaos_monkey/Dockerfile
-    environment:
-      CONTAINERS_EXCLUDED: chaos_monkey,rabbitmq,client_min,client_full
-      KILL_INTERVAL: 10.0
-      LOGGING_LEVEL: DEBUG
   health_checker_0:
     container_name: health_checker_0
     build:
@@ -57,7 +48,7 @@ services:
       PORT: '9090'
       CHECK_INTERVAL: '10'
       TIMEOUT_THRESHOLD: '15'
-  client_min:
+  client_full:
     build:
       context: .
       dockerfile: ./client/Dockerfile
@@ -69,9 +60,9 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_min:/client/.data
+    - ./.data/dataset_full:/client/.data
     - ./.results:/client/.results
-    scale: 3
+    scale: 1
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
@@ -86,6 +77,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_menu_items-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -110,6 +103,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_stores-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -134,6 +129,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '3'
@@ -158,6 +155,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '3'
@@ -182,6 +181,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '3'
@@ -206,6 +207,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -230,6 +233,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -254,6 +259,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -278,6 +285,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -302,6 +311,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -326,6 +337,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '8'
@@ -350,6 +363,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '8'
@@ -374,6 +389,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '8'
@@ -398,6 +415,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '8'
@@ -422,6 +441,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '8'
@@ -446,6 +467,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-5:/sessions
     environment:
       REPLICA_ID: '5'
       REPLICAS: '8'
@@ -470,6 +493,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-6:/sessions
     environment:
       REPLICA_ID: '6'
       REPLICAS: '8'
@@ -494,6 +519,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-7:/sessions
     environment:
       REPLICA_ID: '7'
       REPLICAS: '8'
@@ -518,6 +545,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '6'
@@ -542,6 +571,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '6'
@@ -566,6 +597,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '6'
@@ -590,6 +623,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '6'
@@ -614,6 +649,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '6'
@@ -638,6 +675,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-5:/sessions
     environment:
       REPLICA_ID: '5'
       REPLICAS: '6'
@@ -662,6 +701,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '6'
@@ -686,6 +727,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '6'
@@ -710,6 +753,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '6'
@@ -734,6 +779,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '6'
@@ -758,6 +805,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '6'
@@ -782,6 +831,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-5:/sessions
     environment:
       REPLICA_ID: '5'
       REPLICAS: '6'
@@ -806,6 +857,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '4'
@@ -830,6 +883,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '4'
@@ -854,6 +909,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '4'
@@ -878,6 +935,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '4'
@@ -902,6 +961,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_sink-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -926,6 +987,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -950,6 +1013,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -974,6 +1039,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -998,6 +1065,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -1022,6 +1091,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -1046,6 +1117,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -1070,6 +1143,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -1094,6 +1169,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -1118,6 +1195,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -1142,6 +1221,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -1166,6 +1247,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_merge_period-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1190,6 +1273,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_enrich_items-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1215,6 +1300,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_sink-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1239,6 +1326,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '3'
@@ -1263,6 +1352,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '3'
@@ -1287,6 +1378,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '3'
@@ -1311,6 +1404,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_merge_semester-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1335,6 +1430,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_enrich_stores-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1360,6 +1457,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_sink-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1384,6 +1483,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -1408,6 +1509,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -1432,6 +1535,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -1456,6 +1561,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-3:/sessions
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -1480,6 +1587,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-4:/sessions
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -1504,6 +1613,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '3'
@@ -1529,6 +1640,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-1:/sessions
     environment:
       REPLICA_ID: '1'
       REPLICAS: '3'
@@ -1554,6 +1667,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-2:/sessions
     environment:
       REPLICA_ID: '2'
       REPLICAS: '3'
@@ -1579,6 +1694,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_merge_top3-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1603,6 +1720,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_stores-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1628,6 +1747,8 @@ services:
         condition: service_healthy
       health_checker_0:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_sink-0:/sessions
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'

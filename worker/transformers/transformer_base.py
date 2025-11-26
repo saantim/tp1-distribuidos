@@ -6,18 +6,21 @@ Transforms CSV rows into entities.
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Type
+from typing import Generic, Type, TypeVar
+
+from pydantic.generics import GenericModel
 
 from shared.entity import Message, RawMessage
-from shared.middleware.interface import MessageMiddleware
+from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 from worker.packer import is_raw_batch, unpack_raw_batch
 
 
-@dataclass
-class SessionData:
-    buffer: list[Message] = field(default_factory=list)
+TypedMSG = TypeVar("TypedMSG", bound=Message)
+
+
+class SessionData(GenericModel, Generic[TypedMSG]):
+    buffer: list[TypedMSG] = []
     transformed: int = 0
 
 
@@ -32,7 +35,7 @@ class TransformerBase(WorkerBase, ABC):
         instances: int,
         index: int,
         stage_name: str,
-        source: MessageMiddleware,
+        source: MessageMiddlewareExchange,
         outputs: list,
         batch_size: int = 500,
     ):
@@ -61,7 +64,7 @@ class TransformerBase(WorkerBase, ABC):
         Called when session ends (after receiving EOF from all upstream workers).
         Flush remaining buffered entities.
         """
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         self._flush_buffer(session)
         logging.info(
             f"action: end_of_session | stage: {self._stage_name} | "
@@ -70,7 +73,7 @@ class TransformerBase(WorkerBase, ABC):
 
     def _flush_buffer(self, session: Session) -> None:
         """Flush buffer to all output queues."""
-        session_data: SessionData = session.get_storage()
+        session_data: SessionData = session.get_storage(SessionData)
         if not session_data.buffer:
             return
 
@@ -85,9 +88,9 @@ class TransformerBase(WorkerBase, ABC):
             csv_row: CSV row as string
         """
         try:
-            session_data: SessionData = session.get_storage()
+            session_data: SessionData = session.get_storage(SessionData)
             row_dict = self.parse_fn(csv_row)
-            entity = self.create_fn(row_dict)
+            entity: TypedMSG = self.create_fn(row_dict)
 
             session_data.transformed += 1
             session_data.buffer.append(entity)
@@ -131,7 +134,7 @@ class TransformerBase(WorkerBase, ABC):
         pass
 
     @abstractmethod
-    def create_fn(self, row_dict: dict) -> Message:
+    def create_fn(self, row_dict: dict) -> TypedMSG:
         """
         Create entity from parsed row dictionary.
 

@@ -98,5 +98,6 @@ test_count_eof:
 
 clean_res:
 	ls .results | grep -v '^expected$$' | xargs -I{} rm -rf .results/{}
+	rm -rf .saved_sessions
 	@echo "Cleaned pipeline results (except '.results/expected')"
 .PHONY: clean_res

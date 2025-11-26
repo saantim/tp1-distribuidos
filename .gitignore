@@ -16,5 +16,6 @@ docker-compose.yaml
 # Files
 .data/
 .results/
+.saved_sessions/
 
 **/__pycache__
