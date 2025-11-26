@@ -1,6 +1,7 @@
 name: coffee-shop-analyzer
 services:
   rabbitmq:
+    hostname: rabbitmq
     container_name: rabbitmq
     image: rabbitmq:4.1.4-management
     volumes:
@@ -29,7 +30,135 @@ services:
     networks:
     - coffee
     depends_on:
-      rabbitmq:
+      transformer_menu_items:
+        condition: service_healthy
+      transformer_stores:
+        condition: service_healthy
+      transformer_users_0:
+        condition: service_healthy
+      transformer_users_1:
+        condition: service_healthy
+      transformer_users_2:
+        condition: service_healthy
+      transformer_transactions_0:
+        condition: service_healthy
+      transformer_transactions_1:
+        condition: service_healthy
+      transformer_transactions_2:
+        condition: service_healthy
+      transformer_transactions_3:
+        condition: service_healthy
+      transformer_transactions_4:
+        condition: service_healthy
+      transformer_transaction_items_0:
+        condition: service_healthy
+      transformer_transaction_items_1:
+        condition: service_healthy
+      transformer_transaction_items_2:
+        condition: service_healthy
+      transformer_transaction_items_3:
+        condition: service_healthy
+      transformer_transaction_items_4:
+        condition: service_healthy
+      transformer_transaction_items_5:
+        condition: service_healthy
+      transformer_transaction_items_6:
+        condition: service_healthy
+      transformer_transaction_items_7:
+        condition: service_healthy
+      q1_filter_year_0:
+        condition: service_healthy
+      q1_filter_year_1:
+        condition: service_healthy
+      q1_filter_year_2:
+        condition: service_healthy
+      q1_filter_year_3:
+        condition: service_healthy
+      q1_filter_year_4:
+        condition: service_healthy
+      q1_filter_year_5:
+        condition: service_healthy
+      q1_filter_hour_0:
+        condition: service_healthy
+      q1_filter_hour_1:
+        condition: service_healthy
+      q1_filter_hour_2:
+        condition: service_healthy
+      q1_filter_hour_3:
+        condition: service_healthy
+      q1_filter_hour_4:
+        condition: service_healthy
+      q1_filter_hour_5:
+        condition: service_healthy
+      q1_filter_amount_0:
+        condition: service_healthy
+      q1_filter_amount_1:
+        condition: service_healthy
+      q1_filter_amount_2:
+        condition: service_healthy
+      q1_filter_amount_3:
+        condition: service_healthy
+      q1_sink:
+        condition: service_healthy
+      q2_filter_items_0:
+        condition: service_healthy
+      q2_filter_items_1:
+        condition: service_healthy
+      q2_filter_items_2:
+        condition: service_healthy
+      q2_filter_items_3:
+        condition: service_healthy
+      q2_filter_items_4:
+        condition: service_healthy
+      q2_aggregate_period_0:
+        condition: service_healthy
+      q2_aggregate_period_1:
+        condition: service_healthy
+      q2_aggregate_period_2:
+        condition: service_healthy
+      q2_aggregate_period_3:
+        condition: service_healthy
+      q2_aggregate_period_4:
+        condition: service_healthy
+      q2_merge_period:
+        condition: service_healthy
+      q2_enrich_items:
+        condition: service_healthy
+      q2_sink:
+        condition: service_healthy
+      q3_aggregate_semester_0:
+        condition: service_healthy
+      q3_aggregate_semester_1:
+        condition: service_healthy
+      q3_aggregate_semester_2:
+        condition: service_healthy
+      q3_merge_semester:
+        condition: service_healthy
+      q3_enrich_stores:
+        condition: service_healthy
+      q3_sink:
+        condition: service_healthy
+      q4_aggregate_users_0:
+        condition: service_healthy
+      q4_aggregate_users_1:
+        condition: service_healthy
+      q4_aggregate_users_2:
+        condition: service_healthy
+      q4_aggregate_users_3:
+        condition: service_healthy
+      q4_aggregate_users_4:
+        condition: service_healthy
+      q4_enrich_users_0:
+        condition: service_healthy
+      q4_enrich_users_1:
+        condition: service_healthy
+      q4_enrich_users_2:
+        condition: service_healthy
+      q4_merge_top3:
+        condition: service_healthy
+      q4_enrich_stores:
+        condition: service_healthy
+      q4_sink:
         condition: service_healthy
   health_checker_0:
     container_name: health_checker_0
@@ -103,6 +232,7 @@ services:
       ELECTION_TIMEOUT: '3'
       COORDINATOR_TIMEOUT: '5'
       PERSIST_PATH: /state/registry.json
+      TIMEOUT_THRESHOLD: '15'
   client_min:
     build:
       context: .
@@ -115,9 +245,9 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_full:/client/.data
+    - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 1
+    scale: 3
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
@@ -146,6 +276,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_stores:
     container_name: transformer_stores
     image: transformer_worker
@@ -174,6 +310,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_users_0:
     container_name: transformer_users_0
     image: transformer_worker
@@ -202,6 +344,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_users_1:
     container_name: transformer_users_1
     image: transformer_worker
@@ -230,6 +378,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_users_2:
     container_name: transformer_users_2
     image: transformer_worker
@@ -258,6 +412,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transactions_0:
     container_name: transformer_transactions_0
     image: transformer_worker
@@ -286,6 +446,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transactions_1:
     container_name: transformer_transactions_1
     image: transformer_worker
@@ -314,6 +480,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transactions_2:
     container_name: transformer_transactions_2
     image: transformer_worker
@@ -342,6 +514,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transactions_3:
     container_name: transformer_transactions_3
     image: transformer_worker
@@ -370,6 +548,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transactions_4:
     container_name: transformer_transactions_4
     image: transformer_worker
@@ -398,6 +582,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_0:
     container_name: transformer_transaction_items_0
     image: transformer_worker
@@ -426,6 +616,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_1:
     container_name: transformer_transaction_items_1
     image: transformer_worker
@@ -454,6 +650,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_2:
     container_name: transformer_transaction_items_2
     image: transformer_worker
@@ -482,6 +684,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_3:
     container_name: transformer_transaction_items_3
     image: transformer_worker
@@ -510,6 +718,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_4:
     container_name: transformer_transaction_items_4
     image: transformer_worker
@@ -538,6 +752,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_5:
     container_name: transformer_transaction_items_5
     image: transformer_worker
@@ -566,6 +786,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_6:
     container_name: transformer_transaction_items_6
     image: transformer_worker
@@ -594,6 +820,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   transformer_transaction_items_7:
     container_name: transformer_transaction_items_7
     image: transformer_worker
@@ -622,6 +854,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_0:
     container_name: q1_filter_year_0
     image: filter_worker
@@ -650,6 +888,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_1:
     container_name: q1_filter_year_1
     image: filter_worker
@@ -678,6 +922,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_2:
     container_name: q1_filter_year_2
     image: filter_worker
@@ -706,6 +956,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_3:
     container_name: q1_filter_year_3
     image: filter_worker
@@ -734,6 +990,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_4:
     container_name: q1_filter_year_4
     image: filter_worker
@@ -762,6 +1024,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_5:
     container_name: q1_filter_year_5
     image: filter_worker
@@ -790,6 +1058,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_hour_0:
     container_name: q1_filter_hour_0
     image: filter_worker
@@ -818,6 +1092,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_hour_1:
     container_name: q1_filter_hour_1
     image: filter_worker
@@ -846,6 +1126,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_hour_2:
     container_name: q1_filter_hour_2
     image: filter_worker
@@ -874,6 +1160,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_hour_3:
     container_name: q1_filter_hour_3
     image: filter_worker
@@ -902,6 +1194,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_hour_4:
     container_name: q1_filter_hour_4
     image: filter_worker
@@ -930,6 +1228,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_hour_5:
     container_name: q1_filter_hour_5
     image: filter_worker
@@ -958,6 +1262,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_amount_0:
     container_name: q1_filter_amount_0
     image: filter_worker
@@ -986,6 +1296,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_amount_1:
     container_name: q1_filter_amount_1
     image: filter_worker
@@ -1014,6 +1330,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_amount_2:
     container_name: q1_filter_amount_2
     image: filter_worker
@@ -1042,6 +1364,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_amount_3:
     container_name: q1_filter_amount_3
     image: filter_worker
@@ -1070,6 +1398,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_sink:
     container_name: q1_sink
     image: sink_worker
@@ -1098,6 +1432,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_filter_items_0:
     container_name: q2_filter_items_0
     image: filter_worker
@@ -1126,6 +1466,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_filter_items_1:
     container_name: q2_filter_items_1
     image: filter_worker
@@ -1154,6 +1500,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_filter_items_2:
     container_name: q2_filter_items_2
     image: filter_worker
@@ -1182,6 +1534,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_filter_items_3:
     container_name: q2_filter_items_3
     image: filter_worker
@@ -1210,6 +1568,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_filter_items_4:
     container_name: q2_filter_items_4
     image: filter_worker
@@ -1238,6 +1602,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_aggregate_period_0:
     container_name: q2_aggregate_period_0
     image: aggregator_worker
@@ -1266,6 +1636,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_aggregate_period_1:
     container_name: q2_aggregate_period_1
     image: aggregator_worker
@@ -1294,6 +1670,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_aggregate_period_2:
     container_name: q2_aggregate_period_2
     image: aggregator_worker
@@ -1322,6 +1704,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_aggregate_period_3:
     container_name: q2_aggregate_period_3
     image: aggregator_worker
@@ -1350,6 +1738,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_aggregate_period_4:
     container_name: q2_aggregate_period_4
     image: aggregator_worker
@@ -1378,6 +1772,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_merge_period:
     container_name: q2_merge_period
     image: merger_worker
@@ -1406,6 +1806,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_enrich_items:
     container_name: q2_enrich_items
     image: enricher_worker
@@ -1435,6 +1841,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q2_sink:
     container_name: q2_sink
     image: sink_worker
@@ -1463,6 +1875,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q3_aggregate_semester_0:
     container_name: q3_aggregate_semester_0
     image: aggregator_worker
@@ -1491,6 +1909,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q3_aggregate_semester_1:
     container_name: q3_aggregate_semester_1
     image: aggregator_worker
@@ -1519,6 +1943,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q3_aggregate_semester_2:
     container_name: q3_aggregate_semester_2
     image: aggregator_worker
@@ -1547,6 +1977,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q3_merge_semester:
     container_name: q3_merge_semester
     image: merger_worker
@@ -1575,6 +2011,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q3_enrich_stores:
     container_name: q3_enrich_stores
     image: enricher_worker
@@ -1604,6 +2046,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q3_sink:
     container_name: q3_sink
     image: sink_worker
@@ -1632,6 +2080,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_aggregate_users_0:
     container_name: q4_aggregate_users_0
     image: aggregator_worker
@@ -1660,6 +2114,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_aggregate_users_1:
     container_name: q4_aggregate_users_1
     image: aggregator_worker
@@ -1688,6 +2148,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_aggregate_users_2:
     container_name: q4_aggregate_users_2
     image: aggregator_worker
@@ -1716,6 +2182,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_aggregate_users_3:
     container_name: q4_aggregate_users_3
     image: aggregator_worker
@@ -1744,6 +2216,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_aggregate_users_4:
     container_name: q4_aggregate_users_4
     image: aggregator_worker
@@ -1772,6 +2250,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_enrich_users_0:
     container_name: q4_enrich_users_0
     image: enricher_worker
@@ -1801,6 +2285,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_enrich_users_1:
     container_name: q4_enrich_users_1
     image: enricher_worker
@@ -1830,6 +2320,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_enrich_users_2:
     container_name: q4_enrich_users_2
     image: enricher_worker
@@ -1859,6 +2355,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_merge_top3:
     container_name: q4_merge_top3
     image: merger_worker
@@ -1887,6 +2389,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_enrich_stores:
     container_name: q4_enrich_stores
     image: enricher_worker
@@ -1916,6 +2424,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q4_sink:
     container_name: q4_sink
     image: sink_worker
@@ -1944,6 +2458,12 @@ services:
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 volumes:
   rabbitmq-volume: null
   hc_0_data: null

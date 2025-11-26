@@ -2,6 +2,7 @@ import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import List, Type
 
 from shared.entity import EOF, Message, WorkerEOF
@@ -54,6 +55,7 @@ class WorkerBase(ABC):
             daemon=False,
         )
         self._try_to_load_sessions()
+        self._mark_ready()
         self._upstream_thread.start()
 
         if self._leader:
@@ -203,3 +205,11 @@ class WorkerBase(ABC):
     @abstractmethod
     def get_entity_type(self) -> Type[Message]:
         pass
+
+    def _mark_ready(self):
+        ready_path = Path("/tmp/ready")
+        try:
+            ready_path.touch(exist_ok=True)
+            logging.info(f"[HEALTHCHECK] Worker marked as ready at {ready_path}")
+        except Exception as e:
+            logging.error(f"[HEALTHCHECK] Failed to mark ready: {e}")
