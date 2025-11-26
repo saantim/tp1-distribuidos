@@ -33,7 +33,7 @@ class Transformer(TransformerBase):
         birthdate = datetime.strptime(birthdate_str, "%Y-%m-%d") if birthdate_str else None
 
         return {
-            "user_id": int(parts[0].strip()),
+            "user_id": str(parts[0].strip()),
             "birthdate": birthdate,
         }
 

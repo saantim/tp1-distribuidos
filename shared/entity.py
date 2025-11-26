@@ -1,10 +1,12 @@
+import json
 from datetime import datetime
 from typing import NewType, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 
 class Message(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
     def __str__(self):
         return str(self.model_dump())
@@ -22,18 +24,18 @@ class Message(BaseModel):
         return cls.model_validate_json(json_str)
 
     @classmethod
-    def is_type(cls, payload: bytes):
+    def is_type(cls, payload: bytes) -> bool:
         try:
             json_str = payload.decode()
-            cls.model_validate_json(json_str)
-            return True
-        except Exception as e:
-            _ = e
+            data = json.loads(json_str)
+            obj = cls.model_validate(data, strict=True)
+            return type(obj) is cls
+        except (ValidationError, json.JSONDecodeError, UnicodeDecodeError):
             return False
 
 
 class EOF(Message):
-    pass
+    type: str = "EOF"
 
 
 class WorkerEOF(Message):
@@ -53,7 +55,7 @@ class RawMessage(Message):
     raw_data: bytes
 
 
-ItemId = NewType("ItemId", int)
+ItemId = NewType("ItemId", str)
 ItemName = NewType("ItemName", str)
 
 
@@ -62,7 +64,7 @@ class MenuItem(Message):
     item_name: ItemName
 
 
-StoreId = NewType("StoreId", int)
+StoreId = NewType("StoreId", str)
 StoreName = NewType("StoreName", str)
 
 
@@ -83,7 +85,7 @@ class TransactionItem(Message):
     created_at: CreatedAt
 
 
-UserId = NewType("UserId", int)
+UserId = NewType("UserId", str)
 Birthdate = NewType("Birthdate", datetime)
 
 

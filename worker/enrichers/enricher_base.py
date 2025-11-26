@@ -79,7 +79,7 @@ class EnricherBase(WorkerBase, ABC):
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
-            logging.error(
+            logging.exception(
                 f"action: enricher_msg_error | stage: {self._stage_name} | "
                 f"session: {session_id.hex[:8]} | error: {e}"
             )

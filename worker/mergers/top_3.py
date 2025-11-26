@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Type
 
 from shared.entity import Message
@@ -23,5 +24,7 @@ class Merger(MergerBase):
                 combined = {**current_top_3, **new_users}
                 final_top3 = dict(sorted(combined.items(), key=lambda x: x[1].purchases, reverse=True)[:3])
                 merged.user_purchases_by_store[store_id] = final_top3
+
+        logging.info(f"Merged {merged}")
 
         return merged

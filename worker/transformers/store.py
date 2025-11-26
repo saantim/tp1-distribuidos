@@ -28,7 +28,7 @@ class Transformer(TransformerBase):
             raise ValueError(f"Expected at least 2 fields, got {len(parts)}")
 
         return {
-            "store_id": int(parts[0].strip()),
+            "store_id": str(parts[0].strip()),
             "store_name": parts[1].strip(),
         }
 

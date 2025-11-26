@@ -36,14 +36,14 @@ transformers:
        - name: "stores_source"
          routing_fn: "broadcast"
 
-#  users:
-#     module: "user"
-#     replicas: 3
-#     input: "raw_users_batches"
-#     output:
-#       - name: "users_source"
-#         downstream_stage: "q4_enrich_users"
-#         downstream_workers: 3
+  users:
+    module: "user"
+    replicas: 3
+    input: "raw_users_batches"
+    output:
+      - name: "users_source"
+        downstream_stage: "q4_enrich_users"
+        downstream_workers: 3
 
   transactions:
     module: "transaction"
@@ -77,10 +77,10 @@ queries:
           - name: "q1.filtered_year"
             downstream_stage: "q1_filter_hour"
             downstream_workers: 6
-#          - name: "q4.filtered_year"
-#            downstream_stage: "q4_aggregate_users"
-#            downstream_workers: 5
-#            routing_fn: "tx_router"
+          - name: "q4.filtered_year"
+            downstream_stage: "q4_aggregate_users"
+            downstream_workers: 5
+            routing_fn: "tx_router"
 
       filter_hour:
         type: "filter"
@@ -220,7 +220,7 @@ queries:
 
   q4:
     description: "Route → aggregate by user → enrich → merge top-3 → enrich with store"
-    enabled: false
+    enabled: true
     stages:
       aggregate_users:
         type: "aggregator"

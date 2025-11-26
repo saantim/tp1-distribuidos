@@ -22,6 +22,9 @@ class Sink(SinkBase):
         Format Query 4 results for batch output.
         Receives all enriched Top3 data
         """
+
+        logging.info(f"formatting results: {results_collected}")
+
         if not results_collected:
             return RawMessage(raw_data=b"")
 

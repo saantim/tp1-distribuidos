@@ -10,8 +10,6 @@ from worker.types import UserPurchasesByStore
 
 class Enricher(EnricherBase):
 
-    DEFAULT_WAITING_TTL_MS = 10000
-
     def _load_entity_fn(self, loaded_entities: dict, entity: UserPurchasesByStore) -> dict:
         """
         Acumula múltiples UserPurchasesByStore y construye set de user_ids requeridos.
@@ -26,7 +24,9 @@ class Enricher(EnricherBase):
         required_users = loaded_entities["required_users"]
         for _, users_dict in entity.user_purchases_by_store.items():
             for user_id in users_dict.keys():
-                required_users.add(int(user_id))
+                if user_id is None:
+                    logging.warning(f"NONE USER ID: {entity}")
+                required_users.add(user_id)
 
         return loaded_entities
 
@@ -38,14 +38,14 @@ class Enricher(EnricherBase):
         required_users = loaded_entities.get("required_users", set())
         user_purchases_list = loaded_entities.get("user_purchases_list", [])
 
-        if not user_purchases_list or int(entity.user_id) not in required_users:
+        if not user_purchases_list or entity.user_id not in required_users:
             return entity
 
         # Enriquecer todos los UserPurchasesByStore con el birthdate del User
         for user_purchases in user_purchases_list:
             for _, users_dict in user_purchases.user_purchases_by_store.items():
-                if str(entity.user_id) in users_dict:
-                    users_dict[str(entity.user_id)].birthday = str(entity.birthdate)
+                if entity.user_id in users_dict:
+                    users_dict[entity.user_id].birthday = str(entity.birthdate)
 
         return entity
 
@@ -69,10 +69,12 @@ class Enricher(EnricherBase):
                 }
                 user_purchases.user_purchases_by_store[store_id] = enriched_users
 
-        # Use base class helper instead of manual send
         self._send_message(messages=user_purchases_list, session_id=session_id, message_id=uuid.uuid4())
 
-        logging.info(f"action: flushed_buffer | session_id: {session_id} | count: {len(user_purchases_list)}")
+        logging.info(
+            f"action: flushed_buffer | session_id: {session_id} | count: {len(user_purchases_list)}"
+            f"| buffer: {user_purchases_list}"
+        )
 
     def get_enricher_type(self) -> Type[Message]:
         """Tipo de referencia que cargamos (el top-3)."""

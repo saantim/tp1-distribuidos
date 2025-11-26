@@ -12,12 +12,10 @@ from worker.heartbeat import build_container_name, HeartbeatSender
 from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
 from worker.session import Session, SessionManager
-from worker.unacked import UnackedMessageTracker
 
 
 class WorkerBase(ABC):
     COMMON_ROUTING_KEY = "common"
-    SAVE_INTERVAL = 500
 
     def __init__(
         self,
@@ -45,7 +43,6 @@ class WorkerBase(ABC):
         )
         container_name = build_container_name(self._stage_name, self._index, self._instances)
         self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
-        self._unacked_tracker = UnackedMessageTracker()
 
     def start(self):
         self._heartbeat.start()
@@ -101,7 +98,7 @@ class WorkerBase(ABC):
         logging.info(f"action: signal_received | stage: {self._stage_name} | signal: {_signum}")
         self.stop()
 
-    def _handle_eof(self, message: bytes, session: Session, channel) -> bool:
+    def _handle_eof(self, message: bytes, session: Session) -> bool:
 
         if not WorkerEOF.is_type(message) and not EOF.is_type(message):
             return False
@@ -118,8 +115,6 @@ class WorkerBase(ABC):
             logging.info(
                 f"action: receive_UpstreamEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]}"
             )
-
-        self._batch_commit(channel)
 
         if self._session_manager.try_to_flush(session):
             if self._leader:
@@ -151,59 +146,15 @@ class WorkerBase(ABC):
                 channel.basic_ack(delivery_tag=method.delivery_tag)
                 logging.warning(f"action: duplicated_msg | id: {message_id.hex}")
                 return
-
-            self._unacked_tracker.track(method.delivery_tag, session_id, properties.headers.get(MESSAGE_ID))
-
-            if not self._handle_eof(body, session, channel):
+            session.add_msg_received(properties.headers.get(MESSAGE_ID))
+            if not self._handle_eof(body, session):
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
-
-            if self._unacked_tracker.size() >= self.SAVE_INTERVAL:
-                self._batch_commit(channel)
-
+            # self._session_manager.save_session(session)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
-            logging.exception(f"action: batch_process | stage: {self._stage_name}", e)
-            self._unacked_tracker.remove(method.delivery_tag)
-            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
-    def _batch_commit(self, channel) -> None:
-        """
-        Commit batched messages: save state, mark as received, and ack to RabbitMQ.
-
-        This implements the WAL (write-ahead log) pattern:
-        1. Group unacked messages by session
-        2. Mark messages as received in each session
-        3. Persist each session state to disk (includes updated msgs_received)
-        4. Acknowledge all unacked messages to RabbitMQ with multiple=True
-        5. Clear worker's unacked list
-        """
-        if self._unacked_tracker.is_empty():
-            return
-
-        try:
-            messages_by_session = self._unacked_tracker.group_by_session()
-            for session_id, message_ids in messages_by_session.items():
-                session = self._session_manager.get_or_initialize(session_id)
-                if session:
-                    for msg_id in message_ids:
-                        session.add_msg_received(msg_id)
-                    self._session_manager.save_session(session)
-
-            logging.debug(
-                f"action: disk_flush | stage: {self._stage_name} | "
-                f"sessions: {len(messages_by_session)} | messages: {self._unacked_tracker.size()}"
-            )
-
-            max_tag = self._unacked_tracker.get_max_delivery_tag()
-            channel.basic_ack(delivery_tag=max_tag, multiple=True)
-
-        except Exception as e:
-            logging.error(
-                f"[{self._stage_name}] batch_commit FAILED | "
-                f"batch_size: {self._unacked_tracker.size()} | error: {e}"
-            )
-        finally:
-            self._unacked_tracker.clear()
+            _ = e
+            logging.exception(f"action: batch_process | stage: {self._stage_name}")
 
     def _send_message(self, messages: List[Message], session_id: uuid.UUID, message_id: uuid.UUID):
         """
