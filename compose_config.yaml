@@ -4,8 +4,8 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 0
-    full: 1
+    min: 3
+    full: 0
   chaos_monkey:
     enabled: false
     containers_excluded: "health_checker_0,gateway,chaos_monkey,rabbitmq,client_min-1,client_min-2,client_min-3,client_full,q4_enrich_users_0,q4_enrich_users_1,q4_enrich_users_2,q4_enrich_stores,q2_enrich_items,q3_enrich_stores"
