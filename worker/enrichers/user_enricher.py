@@ -71,10 +71,7 @@ class Enricher(EnricherBase):
 
         self._send_message(messages=user_purchases_list, session_id=session_id, message_id=uuid.uuid4())
 
-        logging.info(
-            f"action: flushed_buffer | session_id: {session_id} | count: {len(user_purchases_list)}"
-            f"| buffer: {user_purchases_list}"
-        )
+        logging.info(f"action: flushed_buffer | session_id: {session_id} | count: {len(user_purchases_list)}")
 
     def get_enricher_type(self) -> Type[Message]:
         """Tipo de referencia que cargamos (el top-3)."""

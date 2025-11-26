@@ -242,14 +242,10 @@ class EnricherBase(WorkerBase, ABC):
         logging.info(f"action: start_session_consumer | stage: {self._stage_name} | session: {session_id.hex[:8]}")
 
     def _get_session_queue(self, session_id: uuid.UUID) -> MessageMiddlewareQueueMQ:
-        """Get or create session-specific direct queue with TTL fallback."""
+        """Get or create session-specific direct queue"""
         if session_id not in self._queue_per_session:
             queue_name = f"{self._stage_name}_{self._index}_{session_id.hex[:8]}"
-            self._queue_per_session[session_id] = MessageMiddlewareQueueMQ(
-                host="rabbitmq",
-                queue_name=queue_name,
-                arguments={"x-expires": 300000},  # Auto-delete after 5 min of inactivity (crash safety)
-            )
+            self._queue_per_session[session_id] = MessageMiddlewareQueueMQ(host="rabbitmq", queue_name=queue_name)
         return self._queue_per_session[session_id]
 
     def start(self):

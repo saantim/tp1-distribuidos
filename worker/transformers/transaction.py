@@ -50,7 +50,7 @@ class Transformer(TransformerBase):
         return {
             "transaction_id": parts[0],
             "store_id": str(parts[1].strip()),
-            "user_id": str(user_id),
+            "user_id": str(user_id) if user_id is not None else None,
             "final_amount": float(parts[7].strip()),
             "created_at": created_at,
         }

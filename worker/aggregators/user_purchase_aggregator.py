@@ -1,4 +1,3 @@
-import logging
 import uuid
 from typing import cast, Optional, Type
 
@@ -39,7 +38,6 @@ class Aggregator(AggregatorBase):
         if aggregated is not None:
             aggregated = self._truncate_top_3(cast(UserPurchasesByStore, aggregated))
             self._send_message(messages=[aggregated], session_id=session.session_id, message_id=uuid.uuid4())
-            logging.info(f"action: sent_data | aggregated: {aggregated} | session_id: {session.session_id.hex[:8]}")
 
     @staticmethod
     def _truncate_top_3(aggregated: UserPurchasesByStore) -> UserPurchasesByStore:
