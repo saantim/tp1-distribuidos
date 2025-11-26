@@ -20,6 +20,10 @@ class PacketType(IntEnum):
     BATCH = 4
     SESSION_ID_PACKET = 5
     RESULT = 6
+    HC_HEARTBEAT = 7
+    HC_ELECTION = 8
+    HC_OK = 9
+    HC_COORDINATOR = 10
 
 
 class EntityType(IntEnum):
@@ -86,6 +90,10 @@ class Packet(ABC):
             PacketType.RESULT: ResultPacket,
             PacketType.ACK: AckPacket,
             PacketType.ERROR: ErrorPacket,
+            PacketType.HC_HEARTBEAT: HCHeartbeatPacket,
+            PacketType.HC_ELECTION: HCElectionPacket,
+            PacketType.HC_OK: HCOkPacket,
+            PacketType.HC_COORDINATOR: HCCoordinatorPacket,
         }
 
         packet_class = packet_classes.get(PacketType(header.message_type))
@@ -248,3 +256,90 @@ class SessionIdPacket(Packet):
         reader = ByteReader(data)
         session_id_int = reader.read_uint128()
         return cls(session_id_int)
+
+
+class HCHeartbeatPacket(Packet):
+    """Heartbeat packet sent between health checkers."""
+
+    def __init__(self, hc_id: int, timestamp: float):
+        self.hc_id = hc_id
+        self.timestamp = timestamp
+
+    def get_message_type(self) -> int:
+        return PacketType.HC_HEARTBEAT
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_uint32(self.hc_id)
+        writer.write_float64(self.timestamp)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "HCHeartbeatPacket":
+        reader = ByteReader(data)
+        hc_id = reader.read_uint32()
+        timestamp = reader.read_float64()
+        return cls(hc_id, timestamp)
+
+
+class HCElectionPacket(Packet):
+    """Bully election: 'I am starting an election' sent to higher-ID processes."""
+
+    def __init__(self, hc_id: int):
+        self.hc_id = hc_id
+
+    def get_message_type(self) -> int:
+        return PacketType.HC_ELECTION
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_uint32(self.hc_id)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "HCElectionPacket":
+        reader = ByteReader(data)
+        hc_id = reader.read_uint32()
+        return cls(hc_id)
+
+
+class HCOkPacket(Packet):
+    """Bully election: 'I am alive and will take over' response to ELECTION."""
+
+    def __init__(self, hc_id: int):
+        self.hc_id = hc_id
+
+    def get_message_type(self) -> int:
+        return PacketType.HC_OK
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_uint32(self.hc_id)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "HCOkPacket":
+        reader = ByteReader(data)
+        hc_id = reader.read_uint32()
+        return cls(hc_id)
+
+
+class HCCoordinatorPacket(Packet):
+    """Bully election: 'I am the new leader' broadcast to all processes."""
+
+    def __init__(self, hc_id: int):
+        self.hc_id = hc_id
+
+    def get_message_type(self) -> int:
+        return PacketType.HC_COORDINATOR
+
+    def serialize_payload(self) -> bytes:
+        writer = ByteWriter()
+        writer.write_uint32(self.hc_id)
+        return writer.get_bytes()
+
+    @classmethod
+    def deserialize_payload(cls, data: bytes) -> "HCCoordinatorPacket":
+        reader = ByteReader(data)
+        hc_id = reader.read_uint32()
+        return cls(hc_id)

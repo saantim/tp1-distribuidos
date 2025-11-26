@@ -1,10 +1,9 @@
 import logging
 import random
-import time
 from typing import Optional
 
-from chaos_monkey.core.docker_manager import Container, DockerManager
 from chaos_monkey.core.config import ChaosMonkeyConfiguration
+from chaos_monkey.core.docker_manager import Container, DockerManager
 from shared.shutdown import ShutdownSignal
 
 
@@ -20,6 +19,7 @@ class ChaosMonkey:
         _config: Configuration parameters controlling the monkey's behavior.
         _shutdown_signal: Cooperative shutdown signal used to stop the loop.
     """
+
     def __init__(self, config: ChaosMonkeyConfiguration, shutdown_signal: ShutdownSignal):
         """
         Initialize a new Chaos Monkey instance.
@@ -41,21 +41,19 @@ class ChaosMonkey:
         until shutdown is requested.
         """
         logging.info(
-            f"Chaos Monkey started (interval={self._config.interval}, excluded_containers={self._config.containers_excluded})",
-
+            f"Chaos Monkey started (interval={self._config.interval},"
+            f" excluded_containers={self._config.containers_excluded})",
         )
 
-        while True:
+        while not self._shutdown_signal.wait(timeout=self._config.interval):
             try:
-                time.sleep(self._config.interval)
-                if self._shutdown_signal.should_shutdown():
-                    logging.info("Shutdown signal received, stopping Chaos Monkey loop")
-                    break
                 container = self._select_container_to_kill()
                 if container:
                     self._kill_container(container)
             except Exception:
                 logging.exception("Unhandled error in Chaos Monkey main loop")
+
+        logging.info("Shutdown signal received, stopping Chaos Monkey loop")
 
         logging.info("Main loop stopped")
 
@@ -68,6 +66,7 @@ class ChaosMonkey:
             there are no eligible containers.
         """
         containers: list[Container] = DockerManager.get_containers()
+
         logging.debug(
             "Total containers before exclusion filter: %d", len(containers)
         )

@@ -2,19 +2,39 @@ import configparser
 import logging
 import os
 
-from health_checker.server import HealthChecker
+from health_checker.core import HealthChecker
 from shared.shutdown import ShutdownSignal
 
 
 def initialize_config():
-    config = configparser.ConfigParser(os.environ)
+    config = configparser.ConfigParser()
     config.read("config.ini")
 
+    defaults = config["DEFAULT"]
+    worker = config["worker"]
+    peer = config["peer"]
+    election = config["election"]
+
     return {
-        "port": int(os.getenv("PORT", config["DEFAULT"]["PORT"])),
-        "check_interval": float(os.getenv("CHECK_INTERVAL", config["DEFAULT"]["CHECK_INTERVAL"])),
-        "timeout_threshold": float(os.getenv("TIMEOUT_THRESHOLD", config["DEFAULT"]["TIMEOUT_THRESHOLD"])),
-        "logging_level": os.getenv("LOGGING_LEVEL", config["DEFAULT"]["LOGGING_LEVEL"]),
+        "replica_id": int(os.getenv("REPLICA_ID", "0")),
+        "replicas": int(os.getenv("REPLICAS", "1")),
+        "check_interval": float(os.getenv("CHECK_INTERVAL", defaults["CHECK_INTERVAL"])),
+        "logging_level": os.getenv("LOGGING_LEVEL", defaults["LOGGING_LEVEL"]),
+        "persist_path": os.getenv("PERSIST_PATH", "/state/registry.json"),
+        "worker": {
+            "port": int(os.getenv("WORKER_PORT", worker["PORT"])),
+            "timeout": float(os.getenv("WORKER_TIMEOUT", worker["TIMEOUT"])),
+            "heartbeat_interval": float(os.getenv("WORKER_HEARTBEAT_INTERVAL", worker["HEARTBEAT_INTERVAL"])),
+        },
+        "peer": {
+            "port": int(os.getenv("PEER_PORT", peer["PORT"])),
+            "heartbeat_interval": float(os.getenv("PEER_HEARTBEAT_INTERVAL", peer["HEARTBEAT_INTERVAL"])),
+            "timeout": float(os.getenv("PEER_TIMEOUT", peer["TIMEOUT"])),
+        },
+        "election": {
+            "timeout": float(os.getenv("ELECTION_TIMEOUT", election["TIMEOUT"])),
+            "coordinator_timeout": float(os.getenv("COORDINATOR_TIMEOUT", election["COORDINATOR_TIMEOUT"])),
+        },
     }
 
 
@@ -31,15 +51,24 @@ def main():
     initialize_log(config["logging_level"])
 
     logging.info(
-        f"action: config | port: {config['port']} | check_interval: {config['check_interval']} | "
-        f"timeout_threshold: {config['timeout_threshold']}"
+        f"action: config | replica_id: {config['replica_id']} | replicas: {config['replicas']} | "
+        f"check_interval: {config['check_interval']} | "
+        f"worker: {config['worker']} | peer: {config['peer']} | election: {config['election']}"
     )
 
     shutdown_signal = ShutdownSignal()
     checker = HealthChecker(
-        port=config["port"],
+        replica_id=config["replica_id"],
+        replicas=config["replicas"],
+        worker_port=config["worker"]["port"],
+        peer_port=config["peer"]["port"],
         check_interval=config["check_interval"],
-        timeout_threshold=config["timeout_threshold"],
+        worker_timeout=config["worker"]["timeout"],
+        peer_heartbeat_interval=config["peer"]["heartbeat_interval"],
+        peer_timeout=config["peer"]["timeout"],
+        election_timeout=config["election"]["timeout"],
+        coordinator_timeout=config["election"]["coordinator_timeout"],
+        persist_path=config["persist_path"],
         shutdown_signal=shutdown_signal,
     )
 

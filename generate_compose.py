@@ -67,8 +67,8 @@ def create_worker_service(
     if health_checker_config:
         hc_replicas = health_checker_config.get("replicas", 1)
         service["environment"]["HEALTH_CHECKER_REPLICAS"] = str(hc_replicas)
-        service["environment"]["HEALTH_CHECKER_PORT"] = str(health_checker_config["port"])
-        service["environment"]["HEARTBEAT_INTERVAL"] = str(health_checker_config["heartbeat_interval"])
+        service["environment"]["HEALTH_CHECKER_PORT"] = str(health_checker_config["worker"]["port"])
+        service["environment"]["HEARTBEAT_INTERVAL"] = str(health_checker_config["worker"]["heartbeat_interval"])
 
     return service
 
@@ -248,23 +248,35 @@ def generate_compose(config):
             },
         }
 
+    hc_volumes = {}
     if health_checker_enabled:
         hc_replicas = health_checker_config.get("replicas", 1)
         for i in range(hc_replicas):
             hc_name = f"health_checker_{i}"
+            volume_name = f"hc_{i}_data"
+            hc_volumes[volume_name] = None
             services[hc_name] = {
                 "container_name": hc_name,
                 "build": {"context": ".", "dockerfile": "./health_checker/Dockerfile"},
                 "entrypoint": "python main.py",
                 "networks": ["coffee"],
-                "restart": "on-failure",
-                "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
+                "volumes": [
+                    "/var/run/docker.sock:/var/run/docker.sock",
+                    f"{volume_name}:/state",
+                ],
                 "environment": {
                     "REPLICA_ID": str(i),
                     "REPLICAS": str(hc_replicas),
-                    "PORT": str(health_checker_config["port"]),
                     "CHECK_INTERVAL": str(health_checker_config["check_interval"]),
-                    "TIMEOUT_THRESHOLD": str(health_checker_config["timeout_threshold"]),
+                    "WORKER_PORT": str(health_checker_config["worker"]["port"]),
+                    "WORKER_TIMEOUT": str(health_checker_config["worker"]["timeout"]),
+                    "WORKER_HEARTBEAT_INTERVAL": str(health_checker_config["worker"]["heartbeat_interval"]),
+                    "PEER_PORT": str(health_checker_config["peer"]["port"]),
+                    "PEER_HEARTBEAT_INTERVAL": str(health_checker_config["peer"]["heartbeat_interval"]),
+                    "PEER_TIMEOUT": str(health_checker_config["peer"]["timeout"]),
+                    "ELECTION_TIMEOUT": str(health_checker_config["election"]["timeout"]),
+                    "COORDINATOR_TIMEOUT": str(health_checker_config["election"]["coordinator_timeout"]),
+                    "PERSIST_PATH": "/state/registry.json",
                 },
             }
 
@@ -309,10 +321,13 @@ def generate_compose(config):
             add_stage_workers(services, query_name, stage_name, stage, query, stage_map, hc_config)
 
     # Build complete compose
+    volumes = {"rabbitmq-volume": None}
+    volumes.update(hc_volumes)
+
     compose = {
         "name": "coffee-shop-analyzer",
         "services": services,
-        "volumes": {"rabbitmq-volume": None},
+        "volumes": volumes,
         "networks": {"coffee": {"driver": "bridge"}},
     }
 
