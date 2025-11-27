@@ -13,16 +13,16 @@ def load_config(config_file="compose_config.yaml"):
 
 
 def create_worker_service(
-        name,
-        worker_type,
-        replica_id,
-        total_replicas,
-        stage_name,
-        module,
-        input_exchange,
-        outputs,
-        enricher=None,
-        health_checker_config=None,
+    name,
+    worker_type,
+    replica_id,
+    total_replicas,
+    stage_name,
+    module,
+    input_exchange,
+    outputs,
+    enricher=None,
+    health_checker_config=None,
 ):
     """Create a worker service definition"""
 
@@ -37,7 +37,7 @@ def create_worker_service(
 
     depends_on = {"rabbitmq": {"condition": "service_healthy"}}
 
-    if health_checker_config:   
+    if health_checker_config:
         hc_replicas = health_checker_config.get("replicas", 1)
         for i in range(hc_replicas):
             depends_on[f"health_checker_{i}"] = {"condition": "service_started"}
@@ -58,7 +58,6 @@ def create_worker_service(
             "TO": json.dumps(outputs),
         },
     }
-
 
     if enricher:
         service["environment"]["ENRICHER"] = enricher
@@ -204,7 +203,7 @@ def generate_compose(config):
         "hostname": "rabbitmq",
         "container_name": "rabbitmq",
         "image": f"rabbitmq:{rmq['version']}",
-        "volumes": ["rabbitmq-volume:/var/lib/rabbitmq"],
+        "volumes": ["rabbitmq-volume:/var/lib/rabbitmq", "./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf"],
         "environment": {
             "RABBITMQ_DEFAULT_USER": rmq["user"],
             "RABBITMQ_DEFAULT_PASS": rmq["password"],
@@ -214,7 +213,7 @@ def generate_compose(config):
         "ports": ["5672:5672", "8080:15672"],
         "healthcheck": {
             "test": "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms &&"
-                    " rabbitmq-diagnostics -q check_port_connectivity",
+            " rabbitmq-diagnostics -q check_port_connectivity",
             "interval": "5s",
             "timeout": "10s",
             "retries": 10,
@@ -230,7 +229,6 @@ def generate_compose(config):
         "networks": ["coffee"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
     }
-
 
     if chaos_monkey_enabled:
         services["chaos_monkey"] = {

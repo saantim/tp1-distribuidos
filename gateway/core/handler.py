@@ -69,7 +69,13 @@ class ClientHandler:
             logging.exception(f"action: handle_session | session_id: {self.session_id} | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
-            pass
+            # Clean up session if still in UPLOADING state (client disconnected early)
+            from gateway.core.session import SessionState
+
+            session_state = self.session_manager.get_session_state(self.session_id)
+            if session_state == SessionState.UPLOADING:
+                logging.info(f"action: cleanup_incomplete_session | session_id: {self.session_id}")
+                self.session_manager.close_session(self.session_id)
 
     def _wait_for_session_start(self) -> bool:
         """Wait for FileSendStart packet."""
@@ -116,7 +122,17 @@ class ClientHandler:
                     f"action: process_batches | session_id: {self.session_id} | "
                     f"result: session_end | batches: {batch_count} | eofs: {eof_count}"
                 )
+
+                # CRITICAL: Transition state and get buffered results + queries needing EOF
+                buffered, queries_needing_eof = self.session_manager.transition_to_ready_for_results(self.session_id)
+
+                # Send ACK (protocol requires ACK after FILE_SEND_END)
                 self._send_ack_packet()
+
+                # Flush buffered results to client (lock-free)
+                if buffered or queries_needing_eof:
+                    self._flush_buffered_results(buffered, queries_needing_eof)
+
                 break
 
             if packet_type == PacketType.BATCH:
@@ -214,3 +230,35 @@ class ClientHandler:
             self.network.send_packet(error_packet)
         except NetworkError as e:
             logging.error(f"action: send_error | session_id: {self.session_id} | error: {e}")
+
+    def _flush_buffered_results(self, buffered_results, queries_needing_eof):
+        """
+        Flush buffered results to client socket, then send EOF for each query.
+        Called after state transition to READY_FOR_RESULTS.
+
+        Args:
+            buffered_results: List of (query_id, result_body) to send
+            queries_needing_eof: Set of query_ids that need EOF packet sent
+        """
+        from shared.protocol import ResultPacket
+
+        logging.info(
+            f"action: flush_buffered_results | session_id: {self.session_id} | "
+            f"results: {len(buffered_results)} | queries_needing_eof: {queries_needing_eof}"
+        )
+
+        try:
+            # Send all buffered result packets
+            for query_id, result_body in buffered_results:
+                result_packet = ResultPacket(query_id, result_body)
+                self.network.send_packet(result_packet)
+
+            # Send EOF for each query that had buffered results
+            for query_id in queries_needing_eof:
+                eof_packet = ResultPacket(query_id, EOF().serialize())
+                self.network.send_packet(eof_packet)
+                logging.debug(f"action: flush_eof | session_id: {self.session_id} | query: {query_id}")
+
+        except NetworkError as e:
+            logging.error(f"action: flush_error | session_id: {self.session_id} | error: {e}")
+            raise  # Propagate to handle_session error handling

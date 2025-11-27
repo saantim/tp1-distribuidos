@@ -6,6 +6,7 @@ services:
     image: rabbitmq:4.1.4-management
     volumes:
     - rabbitmq-volume:/var/lib/rabbitmq
+    - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
@@ -30,6 +31,42 @@ services:
     networks:
     - coffee
     depends_on:
+      transformer_menu_items:
+        condition: service_healthy
+      transformer_stores:
+        condition: service_healthy
+      transformer_users_0:
+        condition: service_healthy
+      transformer_users_1:
+        condition: service_healthy
+      transformer_users_2:
+        condition: service_healthy
+      transformer_transactions_0:
+        condition: service_healthy
+      transformer_transactions_1:
+        condition: service_healthy
+      transformer_transactions_2:
+        condition: service_healthy
+      transformer_transactions_3:
+        condition: service_healthy
+      transformer_transactions_4:
+        condition: service_healthy
+      transformer_transaction_items_0:
+        condition: service_healthy
+      transformer_transaction_items_1:
+        condition: service_healthy
+      transformer_transaction_items_2:
+        condition: service_healthy
+      transformer_transaction_items_3:
+        condition: service_healthy
+      transformer_transaction_items_4:
+        condition: service_healthy
+      transformer_transaction_items_5:
+        condition: service_healthy
+      transformer_transaction_items_6:
+        condition: service_healthy
+      transformer_transaction_items_7:
+        condition: service_healthy
       q1_filter_year_0:
         condition: service_healthy
       q1_filter_year_1:
@@ -210,7 +247,691 @@ services:
     volumes:
     - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 3
+    scale: 10
+  transformer_menu_items:
+    container_name: transformer_menu_items
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_menu_items-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: transformer_menu_items
+      MODULE_NAME: menu
+      FROM: raw_menu_items_batches
+      TO: '[{"name": "menu_items_source", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_stores:
+    container_name: transformer_stores
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_stores-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '1'
+      STAGE_NAME: transformer_stores
+      MODULE_NAME: store
+      FROM: raw_stores_batches
+      TO: '[{"name": "stores_source", "routing_fn": "broadcast"}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_users_0:
+    container_name: transformer_users_0
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '3'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_users_1:
+    container_name: transformer_users_1
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '3'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_users_2:
+    container_name: transformer_users_2
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '3'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transactions_0:
+    container_name: transformer_transactions_0
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transactions_1:
+    container_name: transformer_transactions_1
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transactions_2:
+    container_name: transformer_transactions_2
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transactions_3:
+    container_name: transformer_transactions_3
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transactions_4:
+    container_name: transformer_transactions_4
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transactions-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_transactions
+      MODULE_NAME: transaction
+      FROM: raw_transactions_batches
+      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_0:
+    container_name: transformer_transaction_items_0
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '0'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_1:
+    container_name: transformer_transaction_items_1
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '1'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_2:
+    container_name: transformer_transaction_items_2
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '2'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_3:
+    container_name: transformer_transaction_items_3
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_4:
+    container_name: transformer_transaction_items_4
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_5:
+    container_name: transformer_transaction_items_5
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-5:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '5'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_6:
+    container_name: transformer_transaction_items_6
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-6:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '6'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_transaction_items_7:
+    container_name: transformer_transaction_items_7
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_transaction_items-7:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '7'
+      REPLICAS: '8'
+      STAGE_NAME: transformer_transaction_items
+      MODULE_NAME: transaction_item
+      FROM: raw_transaction_items_batches
+      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
   q1_filter_year_0:
     container_name: q1_filter_year_0
     image: filter_worker
