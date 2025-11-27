@@ -68,10 +68,10 @@ def parse_gateway_config(config_file: str = "compose_config.yaml") -> dict:
     except yaml.YAMLError as e:
         raise ValueError(f"Failed to parse YAML config: {e}")
 
-    transformers_config = _parse_transformers(config.get("transformer", {}))
+    transformers_config = _parse_transformers(config.get("transformers", {}))
     enabled_queries = parse_enabled_queries(config_file)
 
-    return {"transformer": transformers_config, "enabled_queries": enabled_queries}
+    return {"transformers": transformers_config, "enabled_queries": enabled_queries}
 
 
 def _parse_transformers(transformers_yaml: dict) -> Dict[EntityType, dict]:

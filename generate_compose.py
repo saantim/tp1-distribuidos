@@ -136,7 +136,7 @@ def build_stage_replica_map(config):
     stage_map = {}
 
     # Add transformer
-    for name, transformer in config.get("transformer", {}).items():
+    for name, transformer in config.get("transformers", {}).items():
         stage_name = f"transformer_{name}"
         stage_map[stage_name] = transformer["replicas"]
 
@@ -309,7 +309,7 @@ def generate_compose(config):
 
     hc_config = health_checker_config if health_checker_enabled else None
 
-    for name, transformer in config.get("transformer", {}).items():
+    for name, transformer in config.get("transformers", {}).items():
         add_transformer_workers(services, name, transformer, stage_map, hc_config)
 
     for query_name, query in config.get("queries", {}).items():

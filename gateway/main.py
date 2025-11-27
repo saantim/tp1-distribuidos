@@ -62,7 +62,7 @@ def main():
     batch_exchanges = {}
     transformer_configs = {}
 
-    for entity_type, config in gateway_config["transformer"].items():
+    for entity_type, config in gateway_config["transformers"].items():
         batch_exchanges[entity_type.name] = config["exchange"]
         transformer_configs[entity_type] = {
             "exchange": config["exchange"],
