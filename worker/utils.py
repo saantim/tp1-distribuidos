@@ -36,7 +36,7 @@ def build_input_exchange(exchange_name: str, stage_name: str, replica_id: int) -
 
 def build_queue(queue_name: str) -> MessageMiddlewareQueueMQ:
     """
-    Build a simple queue middleware (for transformers input and sinks output).
+    Build a simple queue middleware (for transformer input and sink output).
 
     Args:
         queue_name: Name of the queue

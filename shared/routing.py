@@ -50,7 +50,7 @@ def by_stage_name(message: Message, downstream_stage: str, downstream_workers: i
     Uses downstream_stage directly as the routing key.
     Useful for routing to specific stages/components by name without indexing.
 
-    Example: For sinks, exchange="results", downstream_stage="q1" -> routing_key="q1"
+    Example: For sink, exchange="results", downstream_stage="q1" -> routing_key="q1"
     Gateway subscribes to "results" exchange with routing keys ["q1", "q2", "q3", "q4"].
     """
     return downstream_stage

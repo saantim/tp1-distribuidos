@@ -30,42 +30,6 @@ services:
     networks:
     - coffee
     depends_on:
-      transformer_menu_items:
-        condition: service_healthy
-      transformer_stores:
-        condition: service_healthy
-      transformer_users_0:
-        condition: service_healthy
-      transformer_users_1:
-        condition: service_healthy
-      transformer_users_2:
-        condition: service_healthy
-      transformer_transactions_0:
-        condition: service_healthy
-      transformer_transactions_1:
-        condition: service_healthy
-      transformer_transactions_2:
-        condition: service_healthy
-      transformer_transactions_3:
-        condition: service_healthy
-      transformer_transactions_4:
-        condition: service_healthy
-      transformer_transaction_items_0:
-        condition: service_healthy
-      transformer_transaction_items_1:
-        condition: service_healthy
-      transformer_transaction_items_2:
-        condition: service_healthy
-      transformer_transaction_items_3:
-        condition: service_healthy
-      transformer_transaction_items_4:
-        condition: service_healthy
-      transformer_transaction_items_5:
-        condition: service_healthy
-      transformer_transaction_items_6:
-        condition: service_healthy
-      transformer_transaction_items_7:
-        condition: service_healthy
       q1_filter_year_0:
         condition: service_healthy
       q1_filter_year_1:
@@ -232,7 +196,6 @@ services:
       ELECTION_TIMEOUT: '3'
       COORDINATOR_TIMEOUT: '5'
       PERSIST_PATH: /state/registry.json
-      TIMEOUT_THRESHOLD: '15'
   client_min:
     build:
       context: .
@@ -248,625 +211,13 @@ services:
     - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
     scale: 3
-  transformer_menu_items:
-    container_name: transformer_menu_items
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '1'
-      STAGE_NAME: transformer_menu_items
-      MODULE_NAME: menu
-      FROM: raw_menu_items_batches
-      TO: '[{"name": "menu_items_source", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_stores:
-    container_name: transformer_stores
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '1'
-      STAGE_NAME: transformer_stores
-      MODULE_NAME: store
-      FROM: raw_stores_batches
-      TO: '[{"name": "stores_source", "routing_fn": "broadcast"}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_users_0:
-    container_name: transformer_users_0
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '3'
-      STAGE_NAME: transformer_users
-      MODULE_NAME: user
-      FROM: raw_users_batches
-      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_users_1:
-    container_name: transformer_users_1
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '1'
-      REPLICAS: '3'
-      STAGE_NAME: transformer_users
-      MODULE_NAME: user
-      FROM: raw_users_batches
-      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_users_2:
-    container_name: transformer_users_2
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '2'
-      REPLICAS: '3'
-      STAGE_NAME: transformer_users
-      MODULE_NAME: user
-      FROM: raw_users_batches
-      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 3}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transactions_0:
-    container_name: transformer_transactions_0
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '5'
-      STAGE_NAME: transformer_transactions
-      MODULE_NAME: transaction
-      FROM: raw_transactions_batches
-      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transactions_1:
-    container_name: transformer_transactions_1
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '1'
-      REPLICAS: '5'
-      STAGE_NAME: transformer_transactions
-      MODULE_NAME: transaction
-      FROM: raw_transactions_batches
-      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transactions_2:
-    container_name: transformer_transactions_2
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '2'
-      REPLICAS: '5'
-      STAGE_NAME: transformer_transactions
-      MODULE_NAME: transaction
-      FROM: raw_transactions_batches
-      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transactions_3:
-    container_name: transformer_transactions_3
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '3'
-      REPLICAS: '5'
-      STAGE_NAME: transformer_transactions
-      MODULE_NAME: transaction
-      FROM: raw_transactions_batches
-      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transactions_4:
-    container_name: transformer_transactions_4
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '4'
-      REPLICAS: '5'
-      STAGE_NAME: transformer_transactions
-      MODULE_NAME: transaction
-      FROM: raw_transactions_batches
-      TO: '[{"name": "transactions_source", "downstream_stage": "q1_filter_year", "downstream_workers": 6}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_0:
-    container_name: transformer_transaction_items_0
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '0'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_1:
-    container_name: transformer_transaction_items_1
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '1'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_2:
-    container_name: transformer_transaction_items_2
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '2'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_3:
-    container_name: transformer_transaction_items_3
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '3'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_4:
-    container_name: transformer_transaction_items_4
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '4'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_5:
-    container_name: transformer_transaction_items_5
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '5'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_6:
-    container_name: transformer_transaction_items_6
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '6'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-  transformer_transaction_items_7:
-    container_name: transformer_transaction_items_7
-    image: transformer_worker
-    build:
-      context: .
-      dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/transformers/transformer_main.py
-    networks:
-    - coffee
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      health_checker_0:
-        condition: service_started
-      health_checker_1:
-        condition: service_started
-      health_checker_2:
-        condition: service_started
-    environment:
-      REPLICA_ID: '7'
-      REPLICAS: '8'
-      STAGE_NAME: transformer_transaction_items
-      MODULE_NAME: transaction_item
-      FROM: raw_transaction_items_batches
-      TO: '[{"name": "transaction_items_source", "downstream_stage": "q2_filter_items", "downstream_workers": 5}]'
-      HEALTH_CHECKER_REPLICAS: '3'
-      HEALTH_CHECKER_PORT: '9090'
-      HEARTBEAT_INTERVAL: '5'
-    healthcheck:
-      test: test -f /tmp/ready
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
   q1_filter_year_0:
     container_name: q1_filter_year_0
     image: filter_worker
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -878,6 +229,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '6'
@@ -900,7 +255,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -912,6 +267,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '6'
@@ -934,7 +293,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -946,6 +305,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '6'
@@ -968,7 +331,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -980,6 +343,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '3'
       REPLICAS: '6'
@@ -1002,7 +369,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1014,6 +381,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '4'
       REPLICAS: '6'
@@ -1036,7 +407,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1048,6 +419,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_year-5:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '5'
       REPLICAS: '6'
@@ -1070,7 +445,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1082,6 +457,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '6'
@@ -1104,7 +483,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1116,6 +495,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '6'
@@ -1138,7 +521,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1150,6 +533,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '6'
@@ -1172,7 +559,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1184,6 +571,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '3'
       REPLICAS: '6'
@@ -1206,7 +597,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1218,6 +609,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '4'
       REPLICAS: '6'
@@ -1240,7 +635,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1252,6 +647,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_hour-5:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '5'
       REPLICAS: '6'
@@ -1274,7 +673,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1286,6 +685,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '4'
@@ -1308,7 +711,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1320,6 +723,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '4'
@@ -1342,7 +749,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1354,6 +761,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '4'
@@ -1376,7 +787,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1388,6 +799,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '3'
       REPLICAS: '4'
@@ -1410,7 +825,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
+    entrypoint: python /worker/sink/sink_main.py
     networks:
     - coffee
     depends_on:
@@ -1422,6 +837,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_sink-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1444,7 +863,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1456,6 +875,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -1478,7 +901,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1490,6 +913,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -1512,7 +939,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1524,6 +951,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -1546,7 +977,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1558,6 +989,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -1580,7 +1015,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/filters/filter_main.py
+    entrypoint: python /worker/filter/filter_main.py
     networks:
     - coffee
     depends_on:
@@ -1592,6 +1027,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_filter_items-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -1614,7 +1053,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1626,6 +1065,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -1648,7 +1091,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1660,6 +1103,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -1682,7 +1129,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1694,6 +1141,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -1716,7 +1167,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1728,6 +1179,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -1750,7 +1205,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1762,6 +1217,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_aggregate_period-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -1784,7 +1243,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/mergers/merger_main.py
+    entrypoint: python /worker/merger/merger_main.py
     networks:
     - coffee
     depends_on:
@@ -1796,6 +1255,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_merge_period-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1818,7 +1281,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
+    entrypoint: python /worker/enricher/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -1830,6 +1293,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_enrich_items-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1853,7 +1320,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
+    entrypoint: python /worker/sink/sink_main.py
     networks:
     - coffee
     depends_on:
@@ -1865,6 +1332,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q2_sink-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -1887,7 +1358,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1899,6 +1370,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '3'
@@ -1921,7 +1396,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1933,6 +1408,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '3'
@@ -1955,7 +1434,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -1967,6 +1446,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_aggregate_semester-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '3'
@@ -1989,7 +1472,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/mergers/merger_main.py
+    entrypoint: python /worker/merger/merger_main.py
     networks:
     - coffee
     depends_on:
@@ -2001,6 +1484,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_merge_semester-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -2023,7 +1510,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
+    entrypoint: python /worker/enricher/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -2035,6 +1522,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_enrich_stores-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -2058,7 +1549,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
+    entrypoint: python /worker/sink/sink_main.py
     networks:
     - coffee
     depends_on:
@@ -2070,6 +1561,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q3_sink-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -2092,7 +1587,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -2104,6 +1599,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '5'
@@ -2126,7 +1625,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -2138,6 +1637,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '5'
@@ -2160,7 +1663,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -2172,6 +1675,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '5'
@@ -2194,7 +1701,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -2206,6 +1713,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '3'
       REPLICAS: '5'
@@ -2228,7 +1739,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/aggregators/aggregator_main.py
+    entrypoint: python /worker/aggregator/aggregator_main.py
     networks:
     - coffee
     depends_on:
@@ -2240,6 +1751,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_aggregate_users-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '4'
       REPLICAS: '5'
@@ -2262,7 +1777,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
+    entrypoint: python /worker/enricher/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -2274,6 +1789,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '3'
@@ -2297,7 +1816,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
+    entrypoint: python /worker/enricher/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -2309,6 +1828,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-1:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '1'
       REPLICAS: '3'
@@ -2332,7 +1855,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
+    entrypoint: python /worker/enricher/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -2344,6 +1867,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_users-2:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '2'
       REPLICAS: '3'
@@ -2367,7 +1894,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/mergers/merger_main.py
+    entrypoint: python /worker/merger/merger_main.py
     networks:
     - coffee
     depends_on:
@@ -2379,6 +1906,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_merge_top3-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -2401,7 +1932,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/enrichers/enricher_main.py
+    entrypoint: python /worker/enricher/enricher_main.py
     networks:
     - coffee
     depends_on:
@@ -2413,6 +1944,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_enrich_stores-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'
@@ -2436,7 +1971,7 @@ services:
     build:
       context: .
       dockerfile: ./worker/Dockerfile
-    entrypoint: python /worker/sinks/sink_main.py
+    entrypoint: python /worker/sink/sink_main.py
     networks:
     - coffee
     depends_on:
@@ -2448,6 +1983,10 @@ services:
         condition: service_started
       health_checker_2:
         condition: service_started
+    volumes:
+    - ./.saved_sessions/q4_sink-0:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
     environment:
       REPLICA_ID: '0'
       REPLICAS: '1'

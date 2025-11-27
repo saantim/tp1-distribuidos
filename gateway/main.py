@@ -62,7 +62,7 @@ def main():
     batch_exchanges = {}
     transformer_configs = {}
 
-    for entity_type, config in gateway_config["transformers"].items():
+    for entity_type, config in gateway_config["transformer"].items():
         batch_exchanges[entity_type.name] = config["exchange"]
         transformer_configs[entity_type] = {
             "exchange": config["exchange"],
@@ -76,7 +76,7 @@ def main():
         f"action: config | result: success | "
         f"port: {port} | listen_backlog: {listen_backlog} | "
         f"logging_level: {logging_level} | middleware_host: {middleware_host} | "
-        f"transformers: {len(transformer_configs)} | queries: {enabled_queries}"
+        f"transformer: {len(transformer_configs)} | queries: {enabled_queries}"
     )
 
     try:

@@ -1,1 +1,1 @@
-__all__ = ["filters", "mergers", "aggregators", "transformers", "enrichers", "sinks"]
+__all__ = ["filter", "merger", "aggregator", "transformer", "enricher", "sink"]

@@ -27,22 +27,20 @@ def create_worker_service(
     """Create a worker service definition"""
 
     entrypoints = {
-        "filter": "python /worker/filters/filter_main.py",
-        "aggregator": "python /worker/aggregators/aggregator_main.py",
-        "merger": "python /worker/mergers/merger_main.py",
-        "enricher": "python /worker/enrichers/enricher_main.py",
-        "router": "python /worker/router/router_main.py",
-        "sink": "python /worker/sinks/sink_main.py",
-        "transformer": "python /worker/transformers/transformer_main.py",
+        "filter": "python /worker/filter/filter_main.py",
+        "aggregator": "python /worker/aggregator/aggregator_main.py",
+        "merger": "python /worker/merger/merger_main.py",
+        "enricher": "python /worker/enricher/enricher_main.py",
+        "sink": "python /worker/sink/sink_main.py",
+        "transformer": "python /worker/transformer/transformer_main.py",
     }
 
     depends_on = {"rabbitmq": {"condition": "service_healthy"}}
 
-    if health_checker_config:
+    if health_checker_config:   
         hc_replicas = health_checker_config.get("replicas", 1)
         for i in range(hc_replicas):
             depends_on[f"health_checker_{i}"] = {"condition": "service_started"}
-
     service = {
         "container_name": name,
         "image": f"{worker_type}_worker",
@@ -50,7 +48,7 @@ def create_worker_service(
         "entrypoint": entrypoints[worker_type],
         "networks": ["coffee"],
         "depends_on": depends_on,
-        "volumes": [f"./.saved_sessions/{stage_name}-{replica_id}:/sessions"],
+        "volumes": [f"./.saved_sessions/{stage_name}-{replica_id}:/sessions", "./worker:/worker", "./shared:/shared"],
         "environment": {
             "REPLICA_ID": str(replica_id),
             "REPLICAS": str(total_replicas),
@@ -60,6 +58,7 @@ def create_worker_service(
             "TO": json.dumps(outputs),
         },
     }
+
 
     if enricher:
         service["environment"]["ENRICHER"] = enricher
@@ -136,8 +135,8 @@ def build_stage_replica_map(config):
     """Build a map of stage_name -> replica_count for validation"""
     stage_map = {}
 
-    # Add transformers
-    for name, transformer in config.get("transformers", {}).items():
+    # Add transformer
+    for name, transformer in config.get("transformer", {}).items():
         stage_name = f"transformer_{name}"
         stage_map[stage_name] = transformer["replicas"]
 
@@ -170,7 +169,7 @@ def validate_outputs(stage_name, outputs, stage_map):
                 f"Stage '{stage_name}': Output '{output['name']}' missing 'downstream_stage' or 'downstream_workers'"
             )
 
-        # Check if downstream stage exists (allow query names like "q1", "q2", etc. for sinks)
+        # Check if downstream stage exists (allow query names like "q1", "q2", etc. for sink)
         is_query_name = downstream_stage in ["q1", "q2", "q3", "q4"]
         if downstream_stage not in stage_map and downstream_stage != "gateway" and not is_query_name:
             raise ValueError(
@@ -310,7 +309,7 @@ def generate_compose(config):
 
     hc_config = health_checker_config if health_checker_enabled else None
 
-    for name, transformer in config.get("transformers", {}).items():
+    for name, transformer in config.get("transformer", {}).items():
         add_transformer_workers(services, name, transformer, stage_map, hc_config)
 
     for query_name, query in config.get("queries", {}).items():
