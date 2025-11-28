@@ -97,18 +97,30 @@ class ResultCollector:
                 return
 
             try:
-                network = Network(session.socket, self.shutdown_signal)
-
+                # Process each result in batch
+                results_sent = False
                 for result_data in unpacked_results:
                     raw_message = RawMessage.deserialize(result_data)
                     actual_data = raw_message.raw_data
 
-                    self.session_manager.add_result(session_id, query_id.upper(), actual_data)
-                    result_packet = ResultPacket(query_id.upper(), actual_data)
-                    network.send_packet(result_packet)
+                    # NEW: Check if should buffer or send directly
+                    should_buffer = self.session_manager.add_result(session_id, query_id.upper(), actual_data)
 
-                eof_packet = ResultPacket(query_id.upper(), EOF().serialize())
-                network.send_packet(eof_packet)
+                    if not should_buffer:
+                        # State is READY_FOR_RESULTS, send directly
+                        network = Network(session.socket, self.shutdown_signal)
+                        result_packet = ResultPacket(query_id.upper(), actual_data)
+                        network.send_packet(result_packet)
+                        results_sent = True
+
+                # Send EOF only if we actually sent results (state was READY_FOR_RESULTS)
+                # If buffered, EOF will be sent during flush
+                if results_sent:
+                    network = Network(session.socket, self.shutdown_signal)
+                    eof_packet = ResultPacket(query_id.upper(), EOF().serialize())
+                    network.send_packet(eof_packet)
+                    logging.debug(f"action: send_eof | session_id: {session_id} | query: {query_id}")
+
                 channel.basic_ack(delivery_tag=method.delivery_tag)
 
             except NetworkError as err:

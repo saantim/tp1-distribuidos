@@ -52,7 +52,7 @@ class Analyzer:
         self.folders = folders
         self.enabled_queries = enabled_queries
         self.shutdown_signal = shutdown_signal
-        self.send_queue = queue.Queue(maxsize=100)
+        self.send_queue = queue.Queue(maxsize=50)
         self.processing_threads = []
 
     def run(self):
