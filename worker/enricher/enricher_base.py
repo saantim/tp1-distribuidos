@@ -118,7 +118,9 @@ class EnricherBase(WorkerBase, ABC):
             except Exception as e:
                 logging.warning(f"Failed to delete session queue: {e}")
 
-        self._queue_per_session.pop(session_id, None)
+        queue = self._queue_per_session.pop(session_id, None)
+        if queue:
+            queue.delete()
         self._thread_per_session.pop(session_id, None)
 
         logging.info(

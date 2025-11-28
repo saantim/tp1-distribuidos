@@ -3,11 +3,11 @@ SHELL := /bin/bash
 default: docker-compose-up
 
 generate-compose:
-	./venv/bin/python generate_compose.py
+	python3.13 generate_compose.py
 .PHONY: generate-compose
 
 build_test_compose:
-	./venv/bin/python generate_compose.py test_compose_config.yaml
+	python3.13 generate_compose.py test_compose_config.yaml
 
 multi_client_test: docker-compose-down build_test_compose
 	docker compose -f docker-compose.yml up -d

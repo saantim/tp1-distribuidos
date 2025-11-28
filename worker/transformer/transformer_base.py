@@ -37,7 +37,7 @@ class TransformerBase(WorkerBase, ABC):
         stage_name: str,
         source: MessageMiddlewareExchange,
         outputs: list,
-        batch_size: int = 500,
+        batch_size: int = 1000,
     ):
         super().__init__(instances, index, stage_name, source, outputs)
         self.buffer_size = batch_size
