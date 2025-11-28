@@ -37,6 +37,15 @@ class SinkBase(WorkerBase, ABC):
     @abstractmethod
     def format_fn(self, results_collected: list[TypedMSG]) -> RawMessage: ...
 
+    def output_size_calculation(self, msg: list[RawMessage]) -> int:
+        """Default implementation: returns total byte size of output messages."""
+        try:
+            if not msg:
+                return 0
+            return sum(len(m.raw_data) for m in msg)
+        except Exception:
+            return 0
+
     def _start_of_session(self, session: Session):
         session.set_storage(SessionData())
 
@@ -46,7 +55,7 @@ class SinkBase(WorkerBase, ABC):
         if formatted_results:
             self._send_message(formatted_results, session_id=session.session_id, message_id=uuid.uuid4())
             logging.info(
-                f"action: sent_final_results | size: {len(formatted_results)} | session: {session.session_id.hex[:8]}"
+                f"action: sent_final_results | size: {self.output_size_calculation(formatted_results)} | session: {session.session_id.hex[:8]}"
             )
             session_data.result.clear()
 

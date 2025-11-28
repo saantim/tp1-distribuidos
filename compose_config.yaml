@@ -4,7 +4,7 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 8
+    min: 15
     full: 0
   chaos_monkey:
     enabled: false
@@ -233,7 +233,7 @@ queries:
       aggregate_users:
         type: "aggregator"
         module: "user_purchase_aggregator"
-        replicas: 15
+        replicas: 8
         input: "q4.filtered_year"
         output:
           - name: "q4.aggregated_users"

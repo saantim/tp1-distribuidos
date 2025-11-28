@@ -37,3 +37,13 @@ class Sink(SinkBase):
         except Exception as e:
             logging.error(f"Error formatting Q1 result: {e}")
             return RawMessage(raw_data=b"")
+
+    def output_size_calculation(self, msg: list[RawMessage]) -> int:
+        """Calculate the number of transactions in the output."""
+        try:
+            if not msg or not msg[0].raw_data:
+                return 0
+            data = json.loads(msg[0].raw_data.decode("utf-8"))
+            return len(data) if isinstance(data, list) else 0
+        except Exception:
+            return 0
