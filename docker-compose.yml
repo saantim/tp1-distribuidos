@@ -27,6 +27,10 @@ services:
     build:
       context: .
       dockerfile: ./gateway/Dockerfile
+    volumes:
+    - ./gateway:/gateway
+    - ./shared:/shared
+    - ./compose_config.yaml:/gateway/compose_config.yaml
     entrypoint: python main.py
     networks:
     - coffee
@@ -301,7 +305,7 @@ services:
     volumes:
     - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 15
+    scale: 2
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
