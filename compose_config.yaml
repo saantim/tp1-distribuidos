@@ -51,7 +51,7 @@ transformers:
     output:
       - name: "users_source"
         downstream_stage: "q4_enrich_users"
-        downstream_workers: 3
+        downstream_workers: 5
 
   transactions:
     module: "transaction"
