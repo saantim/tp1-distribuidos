@@ -27,7 +27,7 @@ class AggregatorBase(WorkerBase, ABC):
         if session_data.aggregated is None:
             return
 
-        self._send_message(messages=[session_data.aggregated], session_id=session.session_id, message_id=uuid.uuid4())
+        self._send_message(messages=[session_data.aggregated], session_id=session.session_id)
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data: SessionData = session.get_storage(SessionData)

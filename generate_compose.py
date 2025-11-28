@@ -239,12 +239,13 @@ def generate_compose(config):
             "entrypoint": "python main.py",
             "networks": ["coffee"],
             "restart": "on-failure",
-            "volumes": ["/var/run/docker.sock:/var/run/docker.sock"],
+            "volumes": ["/var/run/docker.sock:/var/run/docker.sock", "./chaos_monkey:/chaos_monkey"],
             "environment": {
                 "CONTAINERS_EXCLUDED": str(chaos_monkey_config["containers_excluded"]),
                 "KILL_INTERVAL": float(chaos_monkey_config["kill_interval"]),
                 "LOGGING_LEVEL": str(chaos_monkey_config["logging_level"]),
             },
+            "depends_on": {"gateway": {"condition": "service_started"}},
         }
 
     hc_volumes = {}

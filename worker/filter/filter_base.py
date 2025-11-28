@@ -10,16 +10,6 @@ from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
 
-
-TypedMSG = TypeVar("TypedMSG", bound=Message)
-
-
-class SessionData(GenericModel, Generic[TypedMSG]):
-    buffer: list[TypedMSG] = []
-    received: int = 0
-    passed: int = 0
-
-
 class FilterBase(WorkerBase, ABC):
 
     def __init__(
@@ -38,10 +28,11 @@ class FilterBase(WorkerBase, ABC):
     def filter_fn(self, entity: Message) -> bool: ...
 
     def _start_of_session(self, session: Session):
-        session.set_storage(SessionData())
+        session_type = self.get_session_data_type()
+        session.set_storage(session_type())
 
     def _end_of_session(self, session: Session):
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         logging.info(
             f"[{self._stage_name}] end_of_session: received_per_session={session_data.received}, "
             f"pass={session_data.passed} session_id={session.session_id.hex[:8]}"
@@ -49,7 +40,7 @@ class FilterBase(WorkerBase, ABC):
         self._flush_buffer(session)
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         session_data.received += 1
 
         if self.filter_fn(message):
@@ -67,7 +58,7 @@ class FilterBase(WorkerBase, ABC):
 
     def _flush_buffer(self, session: Session) -> None:
         """Flush buffer and send messages"""
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         if session_data.buffer:
-            self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())
+            self._send_message(messages=session_data.buffer, session_id=session.session_id)
             session_data.buffer.clear()

@@ -76,7 +76,7 @@ class ChaosMonkey:
         for container in containers:
             excluded = False
             for prefix in self._config.containers_excluded:
-                if container.Names.startswith(prefix):
+                if prefix in container.Names:
                     excluded = True
                     break
             if not excluded:

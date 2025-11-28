@@ -135,7 +135,7 @@ class EnricherBase(WorkerBase, ABC):
         if not buffer:
             return
 
-        self._send_message(messages=buffer, session_id=session_id, message_id=uuid.uuid4())
+        self._send_message(messages=buffer, session_id=session_id)
 
         count = len(buffer)
         session_data.enriched_count += count

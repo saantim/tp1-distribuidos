@@ -10,15 +10,15 @@ build_test_compose:
 	./venv/bin/python generate_compose.py test_compose_config.yaml
 
 multi_client_test: docker-compose-down build_test_compose
-	docker compose -f docker-compose.yml up -d --build --force-recreate
+	docker compose -f docker-compose.yml up -d
 .PHONY: multi_client_test
 
 docker-compose-up: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d --build
+	docker compose -f docker-compose.yml up -d
 .PHONY: docker-compose-up
 
 docker-compose-rebuild: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d --build --force-recreate
+	docker compose -f docker-compose.yml up -d
 .PHONY: docker-compose-rebuild
 
 docker-compose-down:
@@ -70,25 +70,25 @@ logs-health:
 .PHONY: logs-health
 
 gen_min:
-	python3.13 .kaggle/build_expected.py --dataset min
+	python3 .kaggle/build_expected.py --dataset min
 .PHONY: gen_min
 
 gen_full:
-	python3.13 .kaggle/build_expected.py --dataset full
+	python3 .kaggle/build_expected.py --dataset full
 .PHONY: gen_full
 
 valid_min:
 	@ARGS="--dataset min"; \
 	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
-	python3.13 .kaggle/validation.py $$ARGS
+	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_min
 
 valid_full:
 	@ARGS="--dataset full"; \
 	if [ -n "$(SESSION)" ]; then ARGS="$$ARGS --session $(SESSION)"; fi; \
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
-	python3.13 .kaggle/validation.py $$ARGS
+	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
 
 test_count_eof:

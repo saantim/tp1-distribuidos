@@ -69,7 +69,7 @@ class Enricher(EnricherBase):
                 }
                 user_purchases.user_purchases_by_store[store_id] = enriched_users
 
-        self._send_message(messages=user_purchases_list, session_id=session_id, message_id=uuid.uuid4())
+        self._send_message(messages=user_purchases_list, session_id=session_id)
 
         logging.info(f"action: flushed_buffer | session_id: {session_id} | count: {len(user_purchases_list)}")
 

@@ -77,7 +77,7 @@ class TransformerBase(WorkerBase, ABC):
         if not session_data.buffer:
             return
 
-        self._send_message(messages=session_data.buffer, session_id=session.session_id, message_id=uuid.uuid4())
+        self._send_message(messages=session_data.buffer, session_id=session.session_id)
         session_data.buffer.clear()
 
     def _on_csv_row(self, csv_row: str, session: Session) -> None:

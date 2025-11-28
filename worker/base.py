@@ -1,9 +1,12 @@
+import hashlib
 import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Type
+
+from pydantic import BaseModel
 
 from shared.entity import EOF, Message, WorkerEOF
 from shared.middleware.interface import MessageMiddlewareExchange
@@ -140,32 +143,31 @@ class WorkerBase(ABC):
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
-        message_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(MESSAGE_ID))
+        message_id: str = properties.headers.get(MESSAGE_ID)
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
         session: Session = self._session_manager.get_or_initialize(session_id)
         try:
-            if session.is_duplicated_msg(message_id.hex):
+            if session.is_duplicated_msg(message_id):
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-                logging.warning(f"action: duplicated_msg | id: {message_id.hex}")
+                logging.warning(f"action: duplicated_msg | id: {message_id}")
                 return
             session.add_msg_received(properties.headers.get(MESSAGE_ID))
             if not self._handle_eof(body, session):
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
-            # self._session_manager.save_session(session)
+            self._session_manager.save_session(session)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
             logging.exception(f"action: batch_process | stage: {self._stage_name}")
 
-    def _send_message(self, messages: List[Message], session_id: uuid.UUID, message_id: uuid.UUID):
+    def _send_message(self, messages: List[Message], session_id: uuid.UUID):
         """
         Send messages to all outputs with appropriate routing.
 
         Args:
             messages: List of messages to send
             session_id: Session UUID
-            message_id: Message UUID (used for default routing)
         """
         if not messages:
             return
@@ -175,15 +177,17 @@ class WorkerBase(ABC):
             buffers: dict[str, List[Message]] = {}
 
             for message in messages:
-                routing_key = output.get_routing_key(message, message_id.int)
+                message_id = int(hashlib.md5(pack_entity_batch([message])).hexdigest()[:8], 16)
+                routing_key = output.get_routing_key(message, message_id)
                 if routing_key not in buffers:
                     buffers[routing_key] = []
                 buffers[routing_key].append(message)
 
             for routing_key, msg_batch in buffers.items():
                 packed = pack_entity_batch(msg_batch)
+                message_id = hashlib.md5(packed).hexdigest()
                 output.exchange.send(
-                    packed, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex}
+                    packed, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id}
                 )
 
     def _try_to_load_sessions(self):
@@ -204,6 +208,9 @@ class WorkerBase(ABC):
 
     @abstractmethod
     def get_entity_type(self) -> Type[Message]:
+        pass
+
+    def get_session_data_type(self) -> Type[BaseModel]:
         pass
 
     def _mark_ready(self):

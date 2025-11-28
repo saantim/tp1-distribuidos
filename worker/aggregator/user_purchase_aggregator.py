@@ -37,7 +37,7 @@ class Aggregator(AggregatorBase):
 
         if aggregated is not None:
             aggregated = self._truncate_top_3(cast(UserPurchasesByStore, aggregated))
-            self._send_message(messages=[aggregated], session_id=session.session_id, message_id=uuid.uuid4())
+            self._send_message(messages=[aggregated], session_id=session.session_id)
 
     @staticmethod
     def _truncate_top_3(aggregated: UserPurchasesByStore) -> UserPurchasesByStore:

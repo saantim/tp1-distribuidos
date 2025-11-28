@@ -44,7 +44,7 @@ class SinkBase(WorkerBase, ABC):
         session_data: SessionData = session.get_storage(SessionData)
         formatted_results: list[RawMessage] = [self.format_fn(session_data.result)]
         if formatted_results:
-            self._send_message(formatted_results, session_id=session.session_id, message_id=uuid.uuid4())
+            self._send_message(formatted_results, session_id=session.session_id)
             logging.info(
                 f"action: sent_final_results | size: {len(formatted_results)} | session: {session.session_id.hex[:8]}"
             )
