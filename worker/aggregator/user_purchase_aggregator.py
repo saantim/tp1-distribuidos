@@ -1,11 +1,16 @@
 import uuid
 from typing import cast, Optional, Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message, StoreName, Transaction
-from worker.aggregator.aggregator_base import AggregatorBase, SessionData
+from worker.aggregator.aggregator_base import AggregatorBase
 from worker.base import Session
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
+class SessionData(BaseModel):
+    aggregated: Optional[UserPurchasesByStore] = UserPurchasesByStore(user_purchases_by_store={})
+    message_count: int = 0
 
 class Aggregator(AggregatorBase):
 
@@ -36,7 +41,7 @@ class Aggregator(AggregatorBase):
         aggregated = session_data.aggregated
 
         if aggregated is not None:
-            aggregated = self._truncate_top_3(cast(UserPurchasesByStore, aggregated))
+            aggregated = self._truncate_top_3(cast(UserPurchasesByStore, cast(Message, aggregated))) # review
             self._send_message(messages=[aggregated], session_id=session.session_id)
 
     @staticmethod
@@ -50,3 +55,6 @@ class Aggregator(AggregatorBase):
             }
 
         return aggregated
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

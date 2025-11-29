@@ -8,10 +8,16 @@ We only extract:
 - item_id
 - item_name
 """
+from typing import Type
+
+from pydantic import BaseModel
 
 from shared.entity import MenuItem
 from worker.transformer.transformer_base import TransformerBase
 
+class SessionData(BaseModel):
+    buffer: list[MenuItem] = []
+    transformed: int = 0
 
 class Transformer(TransformerBase):
     """
@@ -46,3 +52,6 @@ class Transformer(TransformerBase):
             item_id=row_dict["item_id"],
             item_name=row_dict["item_name"],
         )
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

@@ -1,9 +1,14 @@
 from typing import Optional, Type
 
+from pydantic import BaseModel
+
 from shared.entity import ItemId, ItemName, Message
 from worker.merger.merger_base import MergerBase
 from worker.types import ItemInfo, TransactionItemByPeriod
 
+class SessionData(BaseModel):
+    merged: Optional[TransactionItemByPeriod] = TransactionItemByPeriod(transaction_item_per_period={})
+    message_count: int = 0
 
 class Merger(MergerBase):
 
@@ -28,3 +33,6 @@ class Merger(MergerBase):
                 merged.transaction_item_per_period[period] = merged_items
 
         return merged
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

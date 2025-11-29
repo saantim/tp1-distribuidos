@@ -1,9 +1,14 @@
 from typing import Optional, Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message, StoreName
 from worker.merger.merger_base import MergerBase
 from worker.types import SemesterTPVByStore, StoreInfo
 
+class SessionData(BaseModel):
+    merged: Optional[SemesterTPVByStore] = SemesterTPVByStore(semester_tpv_by_store={})
+    message_count: int = 0
 
 class Merger(MergerBase):
 
@@ -25,3 +30,6 @@ class Merger(MergerBase):
                 merged.semester_tpv_by_store[semester][store_id].amount += store_info.amount
 
         return merged
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

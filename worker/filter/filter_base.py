@@ -1,8 +1,6 @@
 # worker/filter/filter_main.py
 import logging
-import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
 
 from pydantic.generics import GenericModel
 

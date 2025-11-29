@@ -7,9 +7,16 @@ import json
 import logging
 from typing import Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message, RawMessage
 from worker.sink.sink_base import SinkBase
 from worker.types import TransactionItemByPeriod
+
+class SessionData(BaseModel):
+    result: list[TransactionItemByPeriod] = []
+    message_count: int = 0
+
 
 
 class Sink(SinkBase):
@@ -77,3 +84,6 @@ class Sink(SinkBase):
         except Exception as e:
             logging.error(f"Error formatting Q2 results: {e}", exc_info=True)
             return RawMessage(raw_data=b"")
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

@@ -1,13 +1,17 @@
 from typing import Optional, Type
 
+from pydantic import BaseModel
+
 from shared.entity import ItemName, Message, TransactionItem
-from worker.aggregator.aggregator_base import AggregatorBase, SessionData
+from worker.aggregator.aggregator_base import AggregatorBase
 from worker.types import ItemInfo, Period, TransactionItemByPeriod
 
-PeriodSessionData = SessionData[TransactionItemByPeriod]
+
+class SessionData(BaseModel):
+    aggregated: Optional[TransactionItemByPeriod] = TransactionItemByPeriod(transaction_item_per_period={})
+    message_count: int = 0
 
 class Aggregator(AggregatorBase):
-    session_data_type = PeriodSessionData
 
     def get_entity_type(self) -> Type[Message]:
         return TransactionItem
@@ -30,3 +34,6 @@ class Aggregator(AggregatorBase):
         aggregated.transaction_item_per_period[period][item_id].amount += tx_item.subtotal
 
         return aggregated
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

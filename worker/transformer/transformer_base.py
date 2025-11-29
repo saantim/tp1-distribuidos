@@ -16,14 +16,6 @@ from worker.base import Session, WorkerBase
 from worker.packer import is_raw_batch, unpack_raw_batch
 
 
-TypedMSG = TypeVar("TypedMSG", bound=Message)
-
-
-class SessionData(GenericModel, Generic[TypedMSG]):
-    buffer: list[TypedMSG] = []
-    transformed: int = 0
-
-
 class TransformerBase(WorkerBase, ABC):
     """
     Base class for transformer that convert CSV rows into entities.
@@ -57,14 +49,15 @@ class TransformerBase(WorkerBase, ABC):
         )
 
     def _start_of_session(self, session: Session):
-        session.set_storage(SessionData())
+        session_type = self.get_session_data_type()
+        session.set_storage(session_type())
 
     def _end_of_session(self, session: Session):
         """
         Called when session ends (after receiving EOF from all upstream workers).
         Flush remaining buffered entities.
         """
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         self._flush_buffer(session)
         logging.info(
             f"action: end_of_session | stage: {self._stage_name} | "
@@ -73,7 +66,7 @@ class TransformerBase(WorkerBase, ABC):
 
     def _flush_buffer(self, session: Session) -> None:
         """Flush buffer to all output queues."""
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         if not session_data.buffer:
             return
 
@@ -88,9 +81,9 @@ class TransformerBase(WorkerBase, ABC):
             csv_row: CSV row as string
         """
         try:
-            session_data: SessionData = session.get_storage(SessionData)
+            session_data = session.get_storage(self.get_session_data_type())
             row_dict = self.parse_fn(csv_row)
-            entity: TypedMSG = self.create_fn(row_dict)
+            entity: Message = self.create_fn(row_dict)
 
             session_data.transformed += 1
             session_data.buffer.append(entity)
@@ -134,7 +127,7 @@ class TransformerBase(WorkerBase, ABC):
         pass
 
     @abstractmethod
-    def create_fn(self, row_dict: dict) -> TypedMSG:
+    def create_fn(self, row_dict: dict) -> Message:
         """
         Create entity from parsed row dictionary.
 
