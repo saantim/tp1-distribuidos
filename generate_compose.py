@@ -225,7 +225,7 @@ def generate_compose(config):
     services["gateway"] = {
         "container_name": "gateway",
         "build": {"context": ".", "dockerfile": "./gateway/Dockerfile"},
-        "volumes": ["./gateway:/gateway", "./shared:/shared", f"./compose_config.yaml:/gateway/compose_config.yaml"],
+        "volumes": ["./gateway:/gateway", "./shared:/shared"],
         "entrypoint": "python main.py",
         "networks": ["coffee"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
