@@ -33,15 +33,11 @@ class DeltaFileSessionStorage(SessionStorage):
         current_snapshot: dict = session.model_dump(mode="json")
 
         diff: DeepDiff = DeepDiff(last_snapshot, current_snapshot)
-        # We use json_dumps to ensure the delta is serialized to a JSON-compatible string
         delta: Delta = Delta(diff, serializer=json_dumps)
 
         final_path = self._save_dir / f"{session_id}.jsonl"
+        record = {"ts": time.time(), "delta": delta.dumps()}
 
-        # Create the record to append
-        record = {"ts": time.time(), "delta": delta.dumps()}  # This returns the serialized string
-
-        # Append to file
         with open(final_path, "a") as f:
             f.write(json.dumps(record) + "\n")
             f.flush()
@@ -67,10 +63,7 @@ class DeltaFileSessionStorage(SessionStorage):
                 if not line.strip():
                     continue
                 record = json.loads(line)
-                # The 'delta' field contains the serialized delta string
                 delta_str = record["delta"]
-                # We need to reconstruct the Delta object.
-                # Since we serialized with json_dumps, we deserialize with json_loads
                 delta = Delta(delta_str, deserializer=json_loads)
                 session_data = session_data + delta
 
