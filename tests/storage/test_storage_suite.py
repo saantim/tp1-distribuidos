@@ -122,7 +122,7 @@ def test_snapshot_json_format(temp_dir: Path, session_id: uuid.UUID, complex_dat
     with open(file_path, "r") as f:
         content = json.load(f)
 
-    assert content["session_id"] == session_id.hex
+    assert content["session_id"] == str(session_id)
     assert content["storage"]["id"] == complex_data.id
 
 
