@@ -2,8 +2,8 @@ import logging
 import uuid
 from typing import Callable
 
-from worker.session import Session
-from worker.session_storage import SessionStorage
+from worker.sessions.session import Session
+from worker.sessions.storage import SessionStorage
 
 
 class SessionManager:
