@@ -154,27 +154,32 @@ def test_snapshot_atomic_write_crash(temp_dir: Path, session_id: uuid.UUID, comp
     assert loaded_data.count == 42
 
 
+# --- Delta-Specific Tests ---
+
+
 def test_delta_incremental_updates(temp_dir: Path, session_id: uuid.UUID, complex_data: ComplexModel):
     storage = DeltaFileSessionStorage(save_dir=str(temp_dir))
     session = Session(session_id=session_id)
 
+    # Step 1: Initial Save
     session.set_storage(complex_data)
     storage.save_session(session)
 
+    # Step 2: Modify and Save
     complex_data.count = 100
     session.set_storage(complex_data)
     storage.save_session(session)
 
+    # Step 3: Modify and Save
     complex_data.items.append("cherry")
     session.set_storage(complex_data)
     storage.save_session(session)
 
-    file_path = temp_dir / f"{session_id.hex}.jsonl"
-    with open(file_path, "r") as f:
-        lines = f.readlines()
+    # Check file structure: Should have 3 files
+    files = list(temp_dir.glob(f"{session_id.hex}_*.json"))
+    assert len(files) == 3
 
-    assert len(lines) == 3
-
+    # Verify reconstruction
     loaded_session = storage.load_session(session_id.hex)
     loaded_data = loaded_session.get_storage(ComplexModel)
 
@@ -183,24 +188,24 @@ def test_delta_incremental_updates(temp_dir: Path, session_id: uuid.UUID, comple
 
 
 def test_delta_append_only_behavior(temp_dir: Path, session_id: uuid.UUID, complex_data: ComplexModel):
+    """Verify that new files are created for updates."""
     storage = DeltaFileSessionStorage(save_dir=str(temp_dir))
     session = Session(session_id=session_id)
     session.set_storage(complex_data)
 
     storage.save_session(session)
-    file_path = temp_dir / f"{session_id.hex}.jsonl"
-    inode_1 = file_path.stat().st_ino
-    size_1 = file_path.stat().st_size
+    files_1 = list(temp_dir.glob(f"{session_id.hex}_*.json"))
+    assert len(files_1) == 1
 
     complex_data.count += 1
     session.set_storage(complex_data)
     storage.save_session(session)
 
-    inode_2 = file_path.stat().st_ino
-    size_2 = file_path.stat().st_size
+    files_2 = list(temp_dir.glob(f"{session_id.hex}_*.json"))
+    assert len(files_2) == 2
 
-    assert inode_1 == inode_2
-    assert size_2 > size_1
+    # Ensure the first file was not modified (basic check by name presence)
+    assert files_1[0] in files_2
 
 
 def test_delta_reconstruction_fidelity(temp_dir: Path, session_id: uuid.UUID, complex_data: ComplexModel):
@@ -209,11 +214,12 @@ def test_delta_reconstruction_fidelity(temp_dir: Path, session_id: uuid.UUID, co
     session.set_storage(complex_data)
     storage.save_session(session)
 
+    # Sequence of ops
     complex_data.metadata["new_key"] = "new_value"
     session.set_storage(complex_data)
     storage.save_session(session)
 
-    complex_data.items.pop(0)
+    complex_data.items.pop(0)  # Remove apple
     session.set_storage(complex_data)
     storage.save_session(session)
 
@@ -221,6 +227,7 @@ def test_delta_reconstruction_fidelity(temp_dir: Path, session_id: uuid.UUID, co
     session.set_storage(complex_data)
     storage.save_session(session)
 
+    # Load
     loaded_session = storage.load_session(session_id.hex)
     loaded_data = loaded_session.get_storage(ComplexModel)
 
@@ -247,16 +254,20 @@ def test_snapshot_corrupted_file(temp_dir: Path, session_id: uuid.UUID, complex_
         storage.load_session(session_id.hex)
 
 
-def test_delta_corrupted_last_line(temp_dir: Path, session_id: uuid.UUID, complex_data: ComplexModel):
+def test_delta_corrupted_last_file(temp_dir: Path, session_id: uuid.UUID, complex_data: ComplexModel):
     storage = DeltaFileSessionStorage(save_dir=str(temp_dir))
     session = Session(session_id=session_id)
     session.set_storage(complex_data)
     storage.save_session(session)
 
-    # Corrupt last line
-    file_path = temp_dir / f"{session_id.hex}.jsonl"
-    with open(file_path, "a") as f:
-        f.write("\n{invalid_json_line")
+    # Find the file
+    files = list(temp_dir.glob(f"{session_id.hex}_*.json"))
+    assert len(files) == 1
+    file_path = files[0]
+
+    # Corrupt it
+    with open(file_path, "w") as f:
+        f.write("{invalid_json")
 
     with pytest.raises(json.JSONDecodeError):
         storage.load_session(session_id.hex)
