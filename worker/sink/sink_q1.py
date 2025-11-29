@@ -8,12 +8,17 @@ import logging
 from typing import Type
 
 from shared.entity import Message, RawMessage, Transaction
+from worker.sessions.storage import SessionStorage
+from worker.sessions.storage.delta import DeltaFileSessionStorage
 from worker.sink.sink_base import SinkBase
 
 
 class Sink(SinkBase):
     def get_entity_type(self) -> Type[Message]:
         return Transaction
+
+    def create_session_storage(self) -> SessionStorage:
+        return DeltaFileSessionStorage()
 
     def format_fn(self, results_collected: list[Transaction]) -> RawMessage:
         """

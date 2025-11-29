@@ -18,6 +18,7 @@ from worker.packer import pack_entity_batch, unpack_entity_batch
 from worker.sessions.manager import SessionManager
 from worker.sessions.session import Session
 from worker.sessions.storage import SessionStorage
+from worker.sessions.storage.snapshot import SnapshotFileSessionStorage
 
 
 class WorkerBase(ABC):
@@ -30,7 +31,6 @@ class WorkerBase(ABC):
         stage_name: str,
         source: MessageMiddlewareExchange,
         outputs: List[WorkerOutput],
-        session_storage: SessionStorage,
     ):
         self._stage_name: str = stage_name
         self._instances: int = instances
@@ -47,7 +47,7 @@ class WorkerBase(ABC):
             on_end_of_session=self._end_of_session,
             instances=self._instances,
             is_leader=self._leader,
-            session_storage=session_storage,
+            session_storage=self.create_session_storage(),
         )
         container_name = build_container_name(self._stage_name, self._index, self._instances)
         self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
@@ -222,6 +222,10 @@ class WorkerBase(ABC):
     def get_session_data_type(self) -> Type[BaseModel]:
         """Return the class type for the session storage payload."""
         pass
+
+    def create_session_storage(self) -> SessionStorage:
+        """Create and return the session storage instance."""
+        return SnapshotFileSessionStorage()
 
     def _mark_ready(self):
         ready_path = Path("/tmp/ready")

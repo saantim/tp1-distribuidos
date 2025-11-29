@@ -3,6 +3,8 @@ from typing import Optional, Type
 from shared.entity import Message, StoreId, StoreName, Transaction, UserId
 from worker.aggregator.aggregator_base import AggregatorBase, SessionData
 from worker.base import Session
+from worker.sessions.storage import SessionStorage
+from worker.sessions.storage.delta import DeltaFileSessionStorage
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 
@@ -17,6 +19,9 @@ class Aggregator(AggregatorBase):
 
     def get_session_data_type(self) -> Type[SessionData]:
         return SessionData[UserPurchasesCount]
+
+    def create_session_storage(self) -> SessionStorage:
+        return DeltaFileSessionStorage()
 
     def aggregator_fn(self, aggregated: Optional[UserPurchasesCount], transaction: Transaction) -> UserPurchasesCount:
         if aggregated is None:
