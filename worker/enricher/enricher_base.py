@@ -212,6 +212,9 @@ class EnricherBase(WorkerBase, ABC):
         """Retorna el tipo de entidad de referencia (User, Store, MenuItem)."""
         pass
 
+    def get_session_data_type(self) -> Type[EnricherSessionData]:
+        return EnricherSessionData
+
     def _send_to_session_queue(self, message: bytes, session_id: uuid.UUID, message_id: uuid.UUID) -> None:
         """Send message to session-specific direct queue."""
         queue = self._get_session_queue(session_id)

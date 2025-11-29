@@ -2,13 +2,16 @@ from datetime import datetime
 from typing import Optional, Type
 
 from shared.entity import Message, StoreName, Transaction
-from worker.aggregator.aggregator_base import AggregatorBase
+from worker.aggregator.aggregator_base import AggregatorBase, SessionData
 from worker.types import Semester, SemesterTPVByStore, StoreInfo
 
 
 class Aggregator(AggregatorBase):
     def get_entity_type(self) -> Type[Message]:
         return Transaction
+
+    def get_session_data_type(self) -> Type[SessionData]:
+        return SessionData[SemesterTPVByStore]
 
     def aggregator_fn(self, aggregated: Optional[SemesterTPVByStore], message: Transaction) -> SemesterTPVByStore:
         semester: Semester = self._get_semester(message.created_at)

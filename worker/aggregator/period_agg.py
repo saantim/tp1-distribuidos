@@ -4,13 +4,18 @@ from shared.entity import ItemName, Message, TransactionItem
 from worker.aggregator.aggregator_base import AggregatorBase, SessionData
 from worker.types import ItemInfo, Period, TransactionItemByPeriod
 
+
 PeriodSessionData = SessionData[TransactionItemByPeriod]
+
 
 class Aggregator(AggregatorBase):
     session_data_type = PeriodSessionData
 
     def get_entity_type(self) -> Type[Message]:
         return TransactionItem
+
+    def get_session_data_type(self) -> Type[SessionData]:
+        return PeriodSessionData
 
     def aggregator_fn(
         self, aggregated: Optional[TransactionItemByPeriod], tx_item: TransactionItem

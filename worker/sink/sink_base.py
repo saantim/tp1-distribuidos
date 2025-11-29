@@ -1,7 +1,6 @@
 import logging
-import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Generic, Type, TypeVar
 
 from pydantic.generics import GenericModel
 
@@ -46,6 +45,9 @@ class SinkBase(WorkerBase, ABC):
         except Exception:
             return 0
 
+    def get_session_data_type(self) -> Type[SessionData]:
+        return SessionData
+
     def _start_of_session(self, session: Session):
         session.set_storage(SessionData())
 
@@ -55,7 +57,8 @@ class SinkBase(WorkerBase, ABC):
         if formatted_results:
             self._send_message(formatted_results, session_id=session.session_id)
             logging.info(
-                f"action: sent_final_results | size: {self.output_size_calculation(formatted_results)} | session: {session.session_id.hex[:8]}"
+                f"action: sent_final_results | size: {self.output_size_calculation(formatted_results)} |"
+                f" session: {session.session_id.hex[:8]}"
             )
             session_data.result.clear()
 

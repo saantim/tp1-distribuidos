@@ -4,7 +4,6 @@ Transforms CSV rows into entities.
 """
 
 import logging
-import uuid
 from abc import ABC, abstractmethod
 from typing import Generic, Type, TypeVar
 
@@ -44,6 +43,9 @@ class TransformerBase(WorkerBase, ABC):
 
     def get_entity_type(self) -> Type[Message]:
         return RawMessage
+
+    def get_session_data_type(self) -> Type[SessionData]:
+        return SessionData
 
     def _on_entity_upstream(self, message: RawMessage, session: Session) -> None:
         if is_raw_batch(message.raw_data):
