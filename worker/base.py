@@ -17,7 +17,7 @@ from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
 from worker.session import Session
 from worker.session_manager import SessionManager
-from worker.session_storage import SessionStorage
+from worker.session_storage import SessionStorage, SnapshotFileSessionStorage
 
 
 class WorkerBase(ABC):
@@ -29,8 +29,7 @@ class WorkerBase(ABC):
         index: int,
         stage_name: str,
         source: MessageMiddlewareExchange,
-        outputs: List[WorkerOutput],
-        session_storage: SessionStorage,
+        outputs: List[WorkerOutput]
     ):
         self._stage_name: str = stage_name
         self._instances: int = instances
@@ -47,7 +46,7 @@ class WorkerBase(ABC):
             on_end_of_session=self._end_of_session,
             instances=self._instances,
             is_leader=self._leader,
-            session_storage=session_storage,
+            session_storage=self.create_session_storage()
         )
         container_name = build_container_name(self._stage_name, self._index, self._instances)
         self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
@@ -213,6 +212,9 @@ class WorkerBase(ABC):
     @abstractmethod
     def get_entity_type(self) -> Type[Message]:
         pass
+
+    def create_session_storage(self) -> SessionStorage:
+        return SnapshotFileSessionStorage()
 
     def get_session_data_type(self) -> Type[BaseModel]:
         pass

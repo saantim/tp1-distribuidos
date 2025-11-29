@@ -10,6 +10,7 @@ from typing import Type
 from pydantic import BaseModel
 
 from shared.entity import Message, RawMessage, Transaction
+from worker.session_storage import SessionStorage, DeltaFileSessionStorage
 from worker.sink.sink_base import SinkBase
 
 class SessionData(BaseModel):
@@ -56,3 +57,6 @@ class Sink(SinkBase):
 
     def get_session_data_type(self) -> Type[BaseModel]:
         return SessionData
+
+    def create_session_storage(self) -> SessionStorage:
+        return DeltaFileSessionStorage()

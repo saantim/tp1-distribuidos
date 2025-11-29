@@ -1,4 +1,3 @@
-import uuid
 from typing import cast, Optional, Type
 
 from pydantic import BaseModel
@@ -6,6 +5,7 @@ from pydantic import BaseModel
 from shared.entity import Message, StoreName, Transaction
 from worker.aggregator.aggregator_base import AggregatorBase
 from worker.base import Session
+from worker.session_storage import DeltaFileSessionStorage, SessionStorage
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 class SessionData(BaseModel):
@@ -58,3 +58,6 @@ class Aggregator(AggregatorBase):
 
     def get_session_data_type(self) -> Type[BaseModel]:
         return SessionData
+
+    def create_session_storage(self) -> SessionStorage:
+        return DeltaFileSessionStorage()

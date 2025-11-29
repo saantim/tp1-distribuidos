@@ -1,5 +1,5 @@
 import uuid
-from typing import Type, TypeVar
+from typing import Type, TypeVar, Optional, Any
 
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ class Session(BaseModel):
     session_id: uuid.UUID
     eof_collected: set[str] = set()
     msgs_received: set[str] = set()
-    storage: dict = {}
+    storage: Optional[Any] = None
 
     def get_storage(self, data_type: Type[T]) -> T:
         """
@@ -46,7 +46,22 @@ class Session(BaseModel):
             pydantic.ValidationError: If the stored data is not compatible with
                 the given ``data_type`` schema.
         """
-        return data_type.model_validate(self.storage)
+        raw = self.storage
+
+        if isinstance(raw, data_type):
+            return raw
+
+        if raw is None:
+            obj = data_type()
+
+        elif isinstance(raw, dict):
+            obj = data_type.model_validate(raw)
+
+        else:
+            obj = data_type.model_validate(raw)
+
+        self.storage = obj
+        return obj
 
     def set_storage(self, storage: BaseModel) -> None:
         """
@@ -60,7 +75,7 @@ class Session(BaseModel):
             storage: Pydantic model instance representing the new storage
                 payload for this session.
         """
-        self.storage = storage.model_dump(mode="json")
+        self.storage = storage
 
     def add_eof(self, worker_id: str) -> None:
         """
