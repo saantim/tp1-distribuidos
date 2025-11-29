@@ -35,7 +35,7 @@ class EnricherBase(WorkerBase, ABC):
     """
 
     DEFAULT_WAITING_TTL_MS = 5000
-    _BUFFER_SIZE = 500
+    _BUFFER_SIZE = 10_000
 
     def __init__(
         self,

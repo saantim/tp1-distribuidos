@@ -1,9 +1,14 @@
 from typing import Optional, Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message
 from worker.merger.merger_base import MergerBase
 from worker.types import UserPurchasesByStore
 
+class SessionData(BaseModel):
+    merged: Optional[UserPurchasesByStore] = UserPurchasesByStore(user_purchases_by_store={})
+    message_count: int = 0
 
 class Merger(MergerBase):
 
@@ -25,3 +30,6 @@ class Merger(MergerBase):
                 merged.user_purchases_by_store[store_id] = final_top3
 
         return merged
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

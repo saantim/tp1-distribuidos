@@ -13,10 +13,16 @@ We only extract:
 """
 
 from datetime import datetime
+from typing import Type
+
+from pydantic import BaseModel
 
 from shared.entity import Transaction
 from worker.transformer.transformer_base import TransformerBase
 
+class SessionData(BaseModel):
+    buffer: list[Transaction] = []
+    transformed: int = 0
 
 class Transformer(TransformerBase):
     """
@@ -72,3 +78,6 @@ class Transformer(TransformerBase):
             final_amount=row_dict["final_amount"],
             created_at=row_dict["created_at"],
         )
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

@@ -1,8 +1,6 @@
 # worker/filter/filter_main.py
 import logging
-import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
 
 from pydantic.generics import GenericModel
 
@@ -19,7 +17,7 @@ class FilterBase(WorkerBase, ABC):
         stage_name: str,
         source: MessageMiddlewareExchange,
         outputs: list,
-        batch_size: int = 1000,
+        batch_size: int = 10_000,
     ):
         super().__init__(instances, index, stage_name, source, outputs)
         self.buffer_size = batch_size

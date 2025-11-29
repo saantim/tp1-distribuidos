@@ -192,7 +192,7 @@ class WorkerBase(ABC):
 
     def _try_to_load_sessions(self):
         self._session_manager.load_sessions()
-        logging.info(f"action: load_sessions | stage: {self._stage_name}")
+        logging.info(f"[SESSION] action: load_sessions | stage: {self._stage_name}")
 
     @abstractmethod
     def _end_of_session(self, session: Session):

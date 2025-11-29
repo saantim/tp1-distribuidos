@@ -7,8 +7,14 @@ import json
 import logging
 from typing import Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message, RawMessage, Transaction
 from worker.sink.sink_base import SinkBase
+
+class SessionData(BaseModel):
+    result: list[Transaction] = []
+    message_count: int = 0
 
 
 class Sink(SinkBase):
@@ -47,3 +53,6 @@ class Sink(SinkBase):
             return len(data) if isinstance(data, list) else 0
         except Exception:
             return 0
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

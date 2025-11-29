@@ -47,10 +47,11 @@ class SinkBase(WorkerBase, ABC):
             return 0
 
     def _start_of_session(self, session: Session):
-        session.set_storage(SessionData())
+        session_type = self.get_session_data_type()
+        session.set_storage(session_type())
 
     def _end_of_session(self, session: Session):
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         formatted_results: list[RawMessage] = [self.format_fn(session_data.result)]
         if formatted_results:
             self._send_message(formatted_results, session_id=session.session_id)
@@ -60,6 +61,6 @@ class SinkBase(WorkerBase, ABC):
             session_data.result.clear()
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
-        session_data: SessionData = session.get_storage(SessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         session_data.result.append(message)
         session_data.message_count += 1

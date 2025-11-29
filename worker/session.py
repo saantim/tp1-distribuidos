@@ -69,10 +69,11 @@ class Session(BaseModel):
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp_path, session_file)
+            #logging.info(f"[SESSION] Session {self.session_id} saved - size: {len(serialized)} bytes")
 
         except Exception as e:
             logging.error(
-                f"[Session] Error saving session {self.session_id}. " f"Temp file kept at: {tmp_path} - Error: {e}"
+                f"[SESSION] Error saving session {self.session_id}. " f"Temp file kept at: {tmp_path} - Error: {e}"
             )
             raise
 
@@ -92,7 +93,7 @@ class Session(BaseModel):
                     data["msgs_received"] = set(data["msgs_received"])
                 return cls(**data)
             except Exception as e:
-                logging.error(f"[Session] Error loading session {session_id}: {e}")
+                logging.error(f"[SESSION]  Error loading session {session_id}: {e}")
                 return None
         return None
 
@@ -149,12 +150,13 @@ class SessionManager:
     def save_session(self, session: Session, path: Union[str, Path] = "./sessions/saves") -> None:
         session = self._sessions.get(session.session_id, None)
         if session:
+            #logging.info(f"[SESSION] Saving session {session.session_id.hex[:8]} to {path}")
             session.save(path)
 
     def load_sessions(self, path: Union[str, Path] = "./sessions/saves") -> None:
         path = Path(path)
         if not path.exists():
-            logging.info(f"[SessionManager] No sessions directory found at: {path}")
+            logging.info(f"[SESSION] No sessions directory found at: {path}")
             return
         if not path.is_dir():
             raise NotADirectoryError(f"El path de sesiones no es un directorio: {path}")
@@ -165,5 +167,6 @@ class SessionManager:
                 session = Session.load(session_id_str, path)
                 if session:
                     self._sessions[session.session_id] = session
+                    logging.info(f"[SESSION] Session {session_id_str} loaded")
             except Exception as e:
-                logging.debug(f"[SessionManager] Ignorando sesión inválida {session_file}: {e}")
+                logging.debug(f"[SESSION] Ignorando sesión inválida {session_file}: {e}")
