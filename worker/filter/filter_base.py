@@ -17,7 +17,7 @@ class FilterBase(WorkerBase, ABC):
         stage_name: str,
         source: MessageMiddlewareExchange,
         outputs: list,
-        batch_size: int = 10_000,
+        batch_size: int = 10000,
     ):
         super().__init__(instances, index, stage_name, source, outputs)
         self.buffer_size = batch_size
