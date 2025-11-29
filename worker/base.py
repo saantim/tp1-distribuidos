@@ -200,21 +200,27 @@ class WorkerBase(ABC):
 
     @abstractmethod
     def _end_of_session(self, session: Session):
+        """Called when a session ends (all EOFs received)."""
         pass
 
     @abstractmethod
     def _start_of_session(self, session: Session):
+        """Called when a new session starts."""
         pass
 
     @abstractmethod
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
+        """Process a single entity received from upstream."""
         pass
 
     @abstractmethod
     def get_entity_type(self) -> Type[Message]:
+        """Return the class type of the entities this worker processes."""
         pass
 
+    @abstractmethod
     def get_session_data_type(self) -> Type[BaseModel]:
+        """Return the class type for the session storage payload."""
         pass
 
     def _mark_ready(self):
