@@ -1,6 +1,6 @@
 import uuid
 
-from worker.base import SessionManager
+from worker.session_manager import SessionManager
 
 
 def test_session_manager_save_and_load_directory(tmp_path):

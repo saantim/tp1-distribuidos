@@ -5,3 +5,4 @@ pytest
 pytest-timeout
 pydantic>=2.10.0
 pyyaml
+deepdiff==8.6.1
