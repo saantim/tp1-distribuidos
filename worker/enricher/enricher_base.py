@@ -35,7 +35,7 @@ class EnricherBase(WorkerBase, ABC):
     """
 
     DEFAULT_WAITING_TTL_MS = 5000
-    _BUFFER_SIZE = 500
+    _BUFFER_SIZE = 10000
 
     def __init__(
         self,
@@ -137,7 +137,7 @@ class EnricherBase(WorkerBase, ABC):
         if not buffer:
             return
 
-        self._send_message(messages=buffer, session_id=session_id, message_id=uuid.uuid4())
+        self._send_message(messages=buffer, session_id=session_id)
 
         count = len(buffer)
         session_data.enriched_count += count

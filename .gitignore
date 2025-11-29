@@ -18,4 +18,6 @@ docker-compose.yaml
 .results/
 .saved_sessions/
 
+./docker-compose.yml
+
 **/__pycache__

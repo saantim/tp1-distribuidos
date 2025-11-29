@@ -56,5 +56,5 @@ class DockerManager:
         Raises:
             subprocess.CalledProcessError: If the ``docker stop`` command fails.
         """
-        result = subprocess.run(['docker', 'stop', container.Names], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(['docker', 'kill', container.Names], check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         result.check_returncode()
