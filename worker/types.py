@@ -29,6 +29,26 @@ class UserPurchasesInfo(Message):
 class UserPurchasesByStore(Message):
     user_purchases_by_store: dict[StoreId, dict[UserId, UserPurchasesInfo]]
 
+    @classmethod
+    def build_from_v2(cls, v2:"UserPurchasesByStoreV2") -> "UserPurchasesByStore":
+        v1 = UserPurchasesByStore(user_purchases_by_store={})
+        for store_id in v2.user_purchases_by_store.keys():
+            user_purchases_info = {}
+            for user_id, purchases in v2.user_purchases_by_store[store_id].items():
+                user_purchases_info[user_id] = UserPurchasesInfo(
+                    user=user_id,
+                    birthday = "",
+                    purchases = purchases,
+                    store_name=StoreName(""),
+                )
+            v1.user_purchases_by_store[store_id] = user_purchases_info
+        return v1
+
+Purchases = NewType("Purchases", int)
+
+class UserPurchasesByStoreV2(Message):
+    user_purchases_by_store: dict[StoreId, dict[UserId, Purchases]]
+
 # PERIOD AGGREGATOR (Q2)
 class ItemInfo(Message):
     amount: float

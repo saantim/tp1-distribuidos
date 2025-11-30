@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, date
 from typing import NewType, Optional
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_serializer, model_validator
@@ -55,7 +55,7 @@ class RawMessage(Message):
     raw_data: bytes
 
 
-ItemId = NewType("ItemId", str)
+ItemId = NewType("ItemId", int)
 ItemName = NewType("ItemName", str)
 
 
@@ -64,7 +64,7 @@ class MenuItem(Message):
     item_name: ItemName
 
 
-StoreId = NewType("StoreId", str)
+StoreId = NewType("StoreId", int)
 StoreName = NewType("StoreName", str)
 
 
@@ -97,8 +97,9 @@ class TransactionItem(Message):
             return {"item_id": value[0], "quantity": value[1], "subtotal": value[2], "created_at": value[3]}
         return value
 
-UserId = NewType("UserId", str)
-Birthdate = NewType("Birthdate", datetime)
+
+UserId = NewType("UserId", int)
+Birthdate = NewType("Birthdate", date)
 
 
 class User(Message):

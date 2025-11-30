@@ -91,7 +91,7 @@ class EnricherBase(WorkerBase, ABC):
         Sobrescribe WorkerBase._on_message_upstream para agregar lógica de waiting queue.
         """
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
-        message_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(MESSAGE_ID))
+        message_id: str = properties.headers.get(MESSAGE_ID)
         self._session_manager.get_or_initialize(session_id)
 
         self._send_to_session_queue(message=body, session_id=session_id, message_id=message_id)
@@ -212,10 +212,10 @@ class EnricherBase(WorkerBase, ABC):
         """Retorna el tipo de entidad de referencia (User, Store, MenuItem)."""
         pass
 
-    def _send_to_session_queue(self, message: bytes, session_id: uuid.UUID, message_id: uuid.UUID) -> None:
+    def _send_to_session_queue(self, message: bytes, session_id: uuid.UUID, message_id: str) -> None:
         """Send message to session-specific direct queue."""
         queue = self._get_session_queue(session_id)
-        queue.send(message, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex})
+        queue.send(message, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id})
 
     def _consume_session_queue(self, session_id: uuid.UUID):
         """Start consuming from session queue (spawns thread with self-cleanup)."""

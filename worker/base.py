@@ -188,7 +188,7 @@ class WorkerBase(ABC):
 
             for routing_key, msg_batch in buffers.items():
                 packed = pack_entity_batch(msg_batch)
-                message_id = hashlib.md5(packed).hexdigest()
+                message_id = hashlib.md5(packed).hexdigest()[:8]
                 output.exchange.send(
                     packed, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id}
                 )
