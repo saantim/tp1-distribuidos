@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import NewType, Optional
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, model_serializer, model_validator
 
 
 class Message(BaseModel):
@@ -84,6 +84,18 @@ class TransactionItem(Message):
     subtotal: Subtotal
     created_at: CreatedAt
 
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self):
+        return [self.item_id, self.quantity, self.subtotal, self.created_at]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls, value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 4:
+                raise ValueError
+            return {"item_id": value[0], "quantity": value[1], "subtotal": value[2], "created_at": value[3]}
+        return value
 
 UserId = NewType("UserId", str)
 Birthdate = NewType("Birthdate", datetime)
@@ -92,6 +104,19 @@ Birthdate = NewType("Birthdate", datetime)
 class User(Message):
     user_id: UserId
     birthdate: Birthdate
+
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self):
+        return [self.user_id, self.birthdate]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls, value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 2:
+                raise ValueError
+            return {"user_id": value[0], "birthdate": value[1]}
+        return value
 
 
 TransactionId = NewType("TransactionId", str)
@@ -104,3 +129,16 @@ class Transaction(Message):
     user_id: Optional[UserId]
     final_amount: FinalAmount
     created_at: CreatedAt
+
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self):
+        return [self.id, self.store_id, self.user_id, self.final_amount, self.created_at]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls, value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 5:
+                raise ValueError
+            return {"id": value[0], "store_id": value[1], "user_id": value[2], "final_amount": value[3], "created_at": value[4]}
+        return value
