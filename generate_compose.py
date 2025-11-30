@@ -292,7 +292,7 @@ def generate_compose(config):
             "networks": ["coffee"],
             "depends_on": ["gateway"],
             "environment": {"LOGGING_LEVEL": "DEBUG"},
-            "volumes": ["./.data/dataset_min:/client/.data", "./.results:/client/.results"],
+            "volumes": ["./.data/dataset_min:/client/.data", "./.results:/client/.results", "./client:/client", "./shared:/shared"],
             "scale": amount_min,
         }
 

@@ -1,4 +1,7 @@
 from typing import NewType
+
+from pydantic import model_serializer, model_validator
+
 from shared.entity import ItemId, ItemName, Message, StoreId, StoreName, UserId
 
 
@@ -8,6 +11,19 @@ class UserPurchasesInfo(Message):
     birthday: str
     purchases: int
     store_name: StoreName
+
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self):
+        return [self.user, self.birthday, self.purchases, self.store_name]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls, value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 4:
+                raise ValueError
+            return {"user": value[0], "birthday": value[1], "purchases": value[2], "store_name": value[3]}
+        return value
 
 
 class UserPurchasesByStore(Message):
@@ -19,6 +35,19 @@ class ItemInfo(Message):
     quantity: int
     item_name: ItemName
 
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self):
+        return [self.amount, self.quantity, self.item_name]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls, value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 3:
+                raise ValueError
+            return {"amount": value[0], "quantity": value[1], "item_name": value[2]}
+        return value
+
 Period = NewType("Period", str)
 
 class TransactionItemByPeriod(Message):
@@ -28,6 +57,19 @@ class TransactionItemByPeriod(Message):
 class StoreInfo(Message):
     store_name: StoreName
     amount: float
+
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self):
+        return [self.store_name, self.amount]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls, value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 2:
+                raise ValueError
+            return {"store_name": value[0], "amount": value[1]}
+        return value
 
 
 Semester = NewType("Semester", str)

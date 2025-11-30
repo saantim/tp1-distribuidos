@@ -140,7 +140,7 @@ class SnapshotFileSessionStorage(SessionStorage):
         """
         data = session.model_dump(mode="json")
 
-        serialized = json.dumps(data, indent=2)
+        serialized = json.dumps(data)
         final_path = self._save_dir / f"{session.session_id.hex}.json"
         tmp_path = self._temporal_save_dir / f"{session.session_id.hex}.json"
 

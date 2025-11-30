@@ -59,5 +59,5 @@ class Aggregator(AggregatorBase):
     def get_session_data_type(self) -> Type[BaseModel]:
         return SessionData
 
-    def create_session_storage(self) -> SessionStorage:
-        return DeltaFileSessionStorage()
+    # def create_session_storage(self) -> SessionStorage:
+    #     return DeltaFileSessionStorage()
