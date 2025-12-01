@@ -40,7 +40,7 @@ T = TypeVar("T", bound="ListSerializable")
 class ListSerializable(BaseModel):
     @model_serializer(mode="plain")
     def _serialize_as_list(self) -> list[Any]:
-        return list(self.model_dump().values())
+        return [getattr(self, field) for field in self.model_fields]
 
     @model_validator(mode="before")
     @classmethod
