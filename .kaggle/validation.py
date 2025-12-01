@@ -173,7 +173,7 @@ class ResultsValidator:
                 return False, {"reason": "Period mismatch", "expected": e_result["period"], "got": p_result["period"]}
 
             # Check most sold product
-            if p_result["most_sold_product"]["item_id"] != e_result["most_sold_product"]["item_id"]:
+            if str(p_result["most_sold_product"]["item_id"]) != str(e_result["most_sold_product"]["item_id"]):
                 return False, {
                     "reason": f"Most sold product mismatch for {p_result['period']}",
                     "expected": e_result["most_sold_product"],
@@ -181,7 +181,9 @@ class ResultsValidator:
                 }
 
             # Check highest revenue product
-            if p_result["highest_revenue_product"]["item_id"] != e_result["highest_revenue_product"]["item_id"]:
+            if str(p_result["highest_revenue_product"]["item_id"]) != str(
+                e_result["highest_revenue_product"]["item_id"]
+            ):
                 return False, {
                     "reason": f"Highest revenue product mismatch for {p_result['period']}",
                     "expected": e_result["highest_revenue_product"],
@@ -217,8 +219,9 @@ class ResultsValidator:
             }
 
         # Create lookup maps
-        pipeline_map = {(r["store_id"], r["semester"]): r["tpv"] for r in pipeline_results}
-        expected_map = {(r["store_id"], r["semester"]): r["tpv"] for r in expected_results}
+        # Normalize store_id to string
+        pipeline_map = {(str(r["store_id"]), r["semester"]): r["tpv"] for r in pipeline_results}
+        expected_map = {(str(r["store_id"]), r["semester"]): r["tpv"] for r in expected_results}
 
         if set(pipeline_map.keys()) != set(expected_map.keys()):
             missing = set(expected_map.keys()) - set(pipeline_map.keys())
