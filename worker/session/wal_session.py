@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional
 
 from pydantic import Field
 
-from worker.session.base import Session
+from worker.session.storage import Session
 from worker.storage.ops import BaseOp, SysEofOp, SysMsgOp
 
 
@@ -38,9 +38,7 @@ class WALSession(Session):
         elif isinstance(op, SysMsgOp):
             self.add_msg_received(op.msg_id)
         else:
-            # Apply custom op via reducer
             if self.reducer:
                 self.storage = self.reducer(self.storage, op)
 
-        # Track for persistence
         self.pending_ops.append(op)

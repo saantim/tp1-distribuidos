@@ -1,10 +1,14 @@
-from typing import Type
+from typing import Any, Type
 
 from pydantic import BaseModel
 
 from shared.entity import Message, StoreId, StoreName, Transaction, UserId
 from worker.aggregator.aggregator_base import AggregatorBase
+from worker.aggregator.ops import IncrementUserPurchaseOp
 from worker.base import Session
+from worker.session.storage import SessionStorage
+from worker.storage import WALFileSessionStorage
+from worker.storage.ops import BaseOp
 from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 
@@ -13,28 +17,54 @@ class SessionData(BaseModel):
     message_count: int = 0
 
 
+def user_purchase_aggregator_reducer(
+    state: dict[StoreId, dict[UserId, int]] | None, op: BaseOp
+) -> dict[StoreId, dict[UserId, int]]:
+    if not isinstance(op, IncrementUserPurchaseOp):
+        return state or {}
+
+    if state is None:
+        state = {}
+
+    if op.store_id not in state:
+        state[op.store_id] = {}
+
+    if op.user_id not in state[op.store_id]:
+        state[op.store_id][op.user_id] = 0
+
+    state[op.store_id][op.user_id] += op.increment
+
+    return state
+
+
+def _session_reducer(state: Any, op: BaseOp) -> SessionData:
+    if state is None or not isinstance(state, SessionData):
+        if isinstance(state, dict):
+            session_data = SessionData.model_validate(state)
+        else:
+            session_data = SessionData()
+    else:
+        session_data = state
+
+    session_data.aggregated = user_purchase_aggregator_reducer(session_data.aggregated, op)
+    return session_data
+
+
 class Aggregator(AggregatorBase):
 
     def get_entity_type(self) -> Type[Message]:
         return Transaction
 
     def aggregator_fn(
-        self, aggregated: dict[StoreId, dict[UserId, int]], transaction: Transaction
+        self, aggregated: dict[StoreId, dict[UserId, int]], transaction: Transaction, session: Session
     ) -> dict[StoreId, dict[UserId, int]]:
-        if aggregated is None:
-            aggregated = {}
-
         if not transaction.user_id:
-            return aggregated
+            return aggregated or {}
 
-        if transaction.store_id not in aggregated:
-            aggregated[transaction.store_id] = {}
+        op = IncrementUserPurchaseOp(store_id=transaction.store_id, user_id=transaction.user_id, increment=1)
 
-        if transaction.user_id not in aggregated[transaction.store_id]:
-            aggregated[transaction.store_id][transaction.user_id] = 0
-
-        aggregated[transaction.store_id][transaction.user_id] += 1
-        return aggregated
+        session.apply(op)
+        return session.get_storage(SessionData).aggregated
 
     def _end_of_session(self, session: Session):
         session_data = session.get_storage(SessionData)
@@ -63,3 +93,11 @@ class Aggregator(AggregatorBase):
 
     def get_session_data_type(self) -> Type[BaseModel]:
         return SessionData
+
+    def get_reducer(self):
+        return _session_reducer
+
+    def create_session_storage(self) -> SessionStorage:
+        return WALFileSessionStorage(
+            save_dir="./sessions/saves", reducer=_session_reducer, op_types=[IncrementUserPurchaseOp]
+        )

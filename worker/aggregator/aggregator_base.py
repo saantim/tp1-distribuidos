@@ -10,6 +10,8 @@ class AggregatorBase(WorkerBase, ABC):
     def _start_of_session(self, session: Session):
         session_type = self.get_session_data_type()
         session.set_storage(session_type())
+        if hasattr(self, "get_reducer"):
+            session.bind_reducer(self.get_reducer())
 
     def _end_of_session(self, session: Session) -> None:
         session_data = session.get_storage(self.get_session_data_type())
@@ -21,7 +23,7 @@ class AggregatorBase(WorkerBase, ABC):
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data = session.get_storage(self.get_session_data_type())
-        session_data.aggregated = self.aggregator_fn(session_data.aggregated, message)
+        session_data.aggregated = self.aggregator_fn(session_data.aggregated, message, session)
         session_data.message_count += 1
         if session_data.message_count % 100000 == 0:
             logging.info(
@@ -30,7 +32,10 @@ class AggregatorBase(WorkerBase, ABC):
             )
 
     @abstractmethod
-    def aggregator_fn(self, aggregated: Optional[Message], message: Message) -> Message:
+    def aggregator_fn(self, aggregated: Optional[Message], message: Message, session: Session) -> Message:
+        """
+        Aggregate a message into the current state.
+        """
         pass
 
     def _after_batch_processed(self, session: Session) -> None:

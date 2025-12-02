@@ -4,8 +4,7 @@ import os
 from pathlib import Path
 from typing import List
 
-from worker.session import Session
-from worker.storage import SessionStorage
+from worker.session.storage import Session, SessionStorage
 
 
 class SnapshotFileSessionStorage(SessionStorage):

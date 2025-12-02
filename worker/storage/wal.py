@@ -6,9 +6,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Type
 
-from worker.session.base import Session
+from worker.session import Session, SessionStorage
 from worker.session.wal_session import WALSession
-from worker.storage import SessionStorage
 from worker.storage.ops import BaseOp, SysEofOp, SysMsgOp
 
 
