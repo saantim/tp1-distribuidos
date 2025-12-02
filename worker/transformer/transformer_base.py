@@ -4,11 +4,8 @@ Transforms CSV rows into entities.
 """
 
 import logging
-import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, Type, TypeVar
-
-from pydantic.generics import GenericModel
+from typing import Type
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddlewareExchange
@@ -58,11 +55,21 @@ class TransformerBase(WorkerBase, ABC):
         Flush remaining buffered entities.
         """
         session_data = session.get_storage(self.get_session_data_type())
-        self._flush_buffer(session)
+
+        if session_data.buffer:
+            logging.warning(
+                f"action: residual_buffer_in_end_session | stage: {self._stage_name} | "
+                f"size: {len(session_data.buffer)} | session: {session.session_id.hex[:8]}"
+            )
+            self._flush_buffer(session)
+
         logging.info(
             f"action: end_of_session | stage: {self._stage_name} | "
             f"total_transformed: {session_data.transformed} | session_id: {session.session_id.hex[:8]}"
         )
+
+    def _after_batch_processed(self, session: Session) -> None:
+        self._flush_buffer(session)
 
     def _flush_buffer(self, session: Session) -> None:
         """Flush buffer to all output queues."""
@@ -87,9 +94,6 @@ class TransformerBase(WorkerBase, ABC):
 
             session_data.transformed += 1
             session_data.buffer.append(entity)
-
-            if len(session_data.buffer) >= self.buffer_size:
-                self._flush_buffer(session)
 
             if session_data.transformed % 100000 == 0:
                 logging.info(

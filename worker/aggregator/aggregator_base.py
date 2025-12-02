@@ -1,9 +1,6 @@
 import logging
-import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar
-
-from pydantic.generics import GenericModel
+from typing import Optional
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
@@ -34,4 +31,7 @@ class AggregatorBase(WorkerBase, ABC):
 
     @abstractmethod
     def aggregator_fn(self, aggregated: Optional[Message], message: Message) -> Message:
+        pass
+
+    def _after_batch_processed(self, session: Session) -> None:
         pass

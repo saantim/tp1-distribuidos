@@ -1,12 +1,8 @@
-import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, TypeVar
-
-from pydantic.generics import GenericModel
+from typing import Optional
 
 from shared.entity import Message
 from worker.base import Session, WorkerBase
-
 
 
 class MergerBase(WorkerBase, ABC):
@@ -26,3 +22,6 @@ class MergerBase(WorkerBase, ABC):
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
         session_data = session.get_storage(self.get_session_data_type())
         session_data.merged = self.merger_fn(session_data.merged, message)
+
+    def _after_batch_processed(self, session: Session) -> None:
+        pass

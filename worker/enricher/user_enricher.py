@@ -1,5 +1,4 @@
 import logging
-import uuid
 from typing import Type
 
 from shared.entity import Message, User
@@ -61,7 +60,6 @@ class Enricher(EnricherBase):
         if not user_purchases_list:
             return
 
-        # Limpiar usuarios no enriquecidos (sin birthdate) en cada UserPurchasesByStore
         for user_purchases in user_purchases_list:
             for store_id, users_dict in user_purchases.user_purchases_by_store.items():
                 enriched_users = {

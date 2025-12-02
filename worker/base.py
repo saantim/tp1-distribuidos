@@ -29,7 +29,7 @@ class WorkerBase(ABC):
         index: int,
         stage_name: str,
         source: MessageMiddlewareExchange,
-        outputs: List[WorkerOutput]
+        outputs: List[WorkerOutput],
     ):
         self._stage_name: str = stage_name
         self._instances: int = instances
@@ -46,7 +46,7 @@ class WorkerBase(ABC):
             on_end_of_session=self._end_of_session,
             instances=self._instances,
             is_leader=self._leader,
-            session_storage=self.create_session_storage()
+            session_storage=self.create_session_storage(),
         )
         container_name = build_container_name(self._stage_name, self._index, self._instances)
         self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
@@ -158,6 +158,7 @@ class WorkerBase(ABC):
             if not self._handle_eof(body, session):
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
+            self._after_batch_processed(session)
             self._session_manager.save_session(session)
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
@@ -213,9 +214,17 @@ class WorkerBase(ABC):
     def get_entity_type(self) -> Type[Message]:
         pass
 
+    @abstractmethod
+    def _after_batch_processed(self, session: Session) -> None:
+        """
+        Lifecycle hook called after processing a message batch but before persisting session.
+        """
+        pass
+
     def create_session_storage(self) -> SessionStorage:
         return SnapshotFileSessionStorage()
 
+    @abstractmethod
     def get_session_data_type(self) -> Type[BaseModel]:
         pass
 

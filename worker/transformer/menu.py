@@ -8,16 +8,19 @@ We only extract:
 - item_id
 - item_name
 """
+
 from typing import Type
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from shared.entity import MenuItem
 from worker.transformer.transformer_base import TransformerBase
 
+
 class SessionData(BaseModel):
-    buffer: list[MenuItem] = []
+    buffer: list[MenuItem] = Field(default_factory=list, exclude=True)
     transformed: int = 0
+
 
 class Transformer(TransformerBase):
     """

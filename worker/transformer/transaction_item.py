@@ -14,15 +14,16 @@ We only extract:
 from datetime import datetime
 from typing import Type
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from shared.entity import TransactionItem
 from worker.transformer.transformer_base import TransformerBase
 
 
 class SessionData(BaseModel):
-    buffer: list[TransactionItem] = []
+    buffer: list[TransactionItem] = Field(default_factory=list, exclude=True)
     transformed: int = 0
+
 
 class Transformer(TransformerBase):
     """

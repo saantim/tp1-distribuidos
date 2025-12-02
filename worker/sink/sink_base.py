@@ -1,5 +1,4 @@
 import logging
-import uuid
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
@@ -56,7 +55,8 @@ class SinkBase(WorkerBase, ABC):
         if formatted_results:
             self._send_message(formatted_results, session_id=session.session_id)
             logging.info(
-                f"action: sent_final_results | size: {self.output_size_calculation(formatted_results)} | session: {session.session_id.hex[:8]}"
+                f"action: sent_final_results | size: {self.output_size_calculation(formatted_results)} |"
+                f" session: {session.session_id.hex[:8]}"
             )
             session_data.result.clear()
 
@@ -64,3 +64,6 @@ class SinkBase(WorkerBase, ABC):
         session_data = session.get_storage(self.get_session_data_type())
         session_data.result.append(message)
         session_data.message_count += 1
+
+    def _after_batch_processed(self, session: Session) -> None:
+        pass

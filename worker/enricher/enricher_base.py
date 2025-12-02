@@ -4,6 +4,7 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Generic, Type, TypeVar
 
+from pydantic import BaseModel
 from pydantic.generics import GenericModel
 
 from shared.entity import EOF, Message
@@ -50,7 +51,6 @@ class EnricherBase(WorkerBase, ABC):
 
         self._enricher_input: MessageMiddlewareExchange = enricher_input
 
-        # Per-session direct queues for main data (created on-demand)
         self._queue_per_session: dict[uuid.UUID, MessageMiddlewareQueueMQ] = {}
         self._thread_per_session: dict[uuid.UUID, threading.Thread] = {}
 
@@ -211,6 +211,12 @@ class EnricherBase(WorkerBase, ABC):
     @abstractmethod
     def get_enricher_type(self) -> Type[Message]:
         """Retorna el tipo de entidad de referencia (User, Store, MenuItem)."""
+        pass
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return EnricherSessionData
+
+    def _after_batch_processed(self, session: Session) -> None:
         pass
 
     def _send_to_session_queue(self, message: bytes, session_id: uuid.UUID, message_id: str) -> None:

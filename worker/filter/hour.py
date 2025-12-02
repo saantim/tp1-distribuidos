@@ -1,14 +1,16 @@
 from typing import Type
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from shared.entity import Message, Transaction
 from worker.filter.filter_base import FilterBase
 
+
 class SessionData(BaseModel):
-    buffer: list[Transaction] = []
+    buffer: list[Transaction] = Field(default_factory=list, exclude=True)
     received: int = 0
     passed: int = 0
+
 
 class Filter(FilterBase):
 
