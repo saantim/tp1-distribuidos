@@ -16,8 +16,8 @@ from worker.heartbeat import build_container_name, HeartbeatSender
 from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
 from worker.session import Session
-from worker.session_manager import SessionManager
-from worker.session_storage import SessionStorage, SnapshotFileSessionStorage
+from worker.session.manager import SessionManager
+from worker.storage import SessionStorage, SnapshotFileSessionStorage
 
 
 class WorkerBase(ABC):

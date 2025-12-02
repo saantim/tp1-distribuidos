@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from worker.session import Session
-from worker.session_storage import SessionStorage, SnapshotFileSessionStorage
+from worker.storage import SessionStorage, SnapshotFileSessionStorage
 
 
 class ComplexModel(BaseModel):

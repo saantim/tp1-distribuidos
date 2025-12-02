@@ -2,8 +2,8 @@ import uuid
 
 from pydantic import BaseModel
 
-from worker.session_manager import SessionManager
-from worker.session_storage import SnapshotFileSessionStorage
+from worker.session.manager import SessionManager
+from worker.storage import SnapshotFileSessionStorage
 
 
 class TestModel(BaseModel):

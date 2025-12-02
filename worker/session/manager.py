@@ -3,7 +3,7 @@ import uuid
 from typing import Callable
 
 from worker.session import Session
-from worker.session_storage import SessionStorage
+from worker.storage import SessionStorage
 
 
 class SessionManager:
@@ -23,6 +23,7 @@ class SessionManager:
     * Follower mode (``is_leader=False``): a session is flushable as soon as
       a single EOF is collected.
     """
+
     def __init__(
         self,
         stage_name: str,
