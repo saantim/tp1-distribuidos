@@ -5,7 +5,7 @@ Operations for aggregator workers using WAL storage.
 from typing import Literal
 
 from shared.entity import ItemId, StoreId, UserId
-from worker.storage.ops import BaseOp
+from worker.session import BaseOp
 
 
 class AggregateItemOp(BaseOp):

@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 import worker.types as worker_types
 from shared import entity
-from worker.storage.ops import BaseOp
+from worker.session import BaseOp
 
 
 class MergeOp(BaseOp):

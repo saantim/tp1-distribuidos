@@ -15,7 +15,7 @@ from shared.shutdown import ShutdownSignal
 from worker.heartbeat import build_container_name, HeartbeatSender
 from worker.output import WorkerOutput
 from worker.packer import pack_entity_batch, unpack_entity_batch
-from worker.session import Session, SessionStorage
+from worker.session import Session, SessionStorage, SysEofOp, SysMsgOp
 from worker.session.manager import SessionManager
 from worker.storage import SnapshotFileSessionStorage
 
@@ -107,19 +107,18 @@ class WorkerBase(ABC):
         self.stop()
 
     def _handle_eof(self, message: bytes, session: Session) -> bool:
-
         if not WorkerEOF.is_type(message) and not EOF.is_type(message):
             return False
 
         if WorkerEOF.is_type(message):
             worker_eof = WorkerEOF.deserialize(message)
-            session.add_eof(worker_eof.worker_id)
+            session.apply(SysEofOp(worker_id=worker_eof.worker_id))
             logging.info(
                 f"action: receive_WorkerEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]} | "
                 f"from: {worker_eof.worker_id} | collected: {session.get_eof_collected()}"
             )
         else:
-            session.add_eof(str(self._index))
+            session.apply(SysEofOp(worker_id=str(self._index)))
             logging.info(
                 f"action: receive_UpstreamEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]}"
             )
@@ -154,7 +153,7 @@ class WorkerBase(ABC):
                 channel.basic_ack(delivery_tag=method.delivery_tag)
                 logging.warning(f"action: duplicated_msg | id: {message_id}")
                 return
-            session.add_msg_received(properties.headers.get(MESSAGE_ID))
+            session.apply(SysMsgOp(msg_id=properties.headers.get(MESSAGE_ID)))
             if not self._handle_eof(body, session):
                 for message in unpack_entity_batch(body, self.get_entity_type()):
                     self._on_entity_upstream(message, session)
@@ -163,7 +162,7 @@ class WorkerBase(ABC):
             channel.basic_ack(delivery_tag=method.delivery_tag)
         except Exception as e:
             _ = e
-            logging.exception(f"action: batch_process | stage: {self._stage_name}")
+            logging.exception(f"action: batch_process | stage: {session.session_id.hex[:8]}")
 
     def _send_message(self, messages: List[Message], session_id: uuid.UUID):
         """

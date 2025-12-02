@@ -11,12 +11,12 @@ from typing import Any, Type
 from pydantic import BaseModel
 
 from shared.entity import CreatedAt, FinalAmount, Message, RawMessage, StoreId, Transaction, TransactionId, UserId
+from worker.session import BaseOp
 from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.sink.ops import AppendTransactionOp
 from worker.sink.sink_base import SinkBase
 from worker.storage import WALFileSessionStorage
-from worker.storage.ops import BaseOp
 
 
 class SessionData(BaseModel):

@@ -5,10 +5,10 @@ from pydantic import BaseModel
 from shared.entity import ItemName, Message, TransactionItem
 from worker.aggregator.aggregator_base import AggregatorBase
 from worker.aggregator.ops import AggregateItemOp
+from worker.session import BaseOp
 from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.storage import WALFileSessionStorage
-from worker.storage.ops import BaseOp
 from worker.types import ItemInfo, Period, TransactionItemByPeriod
 
 

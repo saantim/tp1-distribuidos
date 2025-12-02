@@ -4,7 +4,7 @@ Operations for sink workers using WAL storage.
 
 from typing import Literal
 
-from worker.storage.ops import BaseOp
+from worker.session import BaseOp
 
 
 class AppendTransactionOp(BaseOp):

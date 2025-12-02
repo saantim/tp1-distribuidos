@@ -1,10 +1,30 @@
 import uuid
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Literal, Optional, Type, TypeVar
 
 from pydantic import BaseModel
 
 
 T = TypeVar("T", bound=BaseModel)
+
+
+class BaseOp(BaseModel):
+    """Base class for all WAL operations."""
+
+    type: str
+
+
+class SysEofOp(BaseOp):
+    """System operation marking EOF from a worker."""
+
+    type: Literal["__sys_eof"] = "__sys_eof"
+    worker_id: str
+
+
+class SysMsgOp(BaseOp):
+    """System operation marking message received (for duplicate detection)."""
+
+    type: Literal["__sys_msg"] = "__sys_msg"
+    msg_id: str
 
 
 class Session(BaseModel):
@@ -125,3 +145,19 @@ class Session(BaseModel):
             False otherwise.
         """
         return msg_id in self.msgs_received
+
+    def apply(self, op: Any) -> None:
+        """
+        Apply an operation to this session.
+
+        For the base Session class, this simply calls the appropriate method
+        (add_eof, add_msg_received) to update the in-memory state.
+        WALSession overrides this to also track operations for persistence.
+
+        Args:
+            op: Operation to apply (SysEofOp, SysMsgOp, or custom operation)
+        """
+        if isinstance(op, SysEofOp):
+            self.add_eof(op.worker_id)
+        elif isinstance(op, SysMsgOp):
+            self.add_msg_received(op.msg_id)

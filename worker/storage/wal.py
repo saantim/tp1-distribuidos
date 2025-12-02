@@ -8,8 +8,7 @@ from typing import Any, Callable, List, Optional, Type
 
 from pydantic import Field
 
-from worker.session import Session, SessionStorage
-from worker.storage.ops import BaseOp, SysEofOp, SysMsgOp
+from worker.session import BaseOp, Session, SessionStorage, SysEofOp, SysMsgOp
 
 
 class WALSession(Session):
@@ -94,9 +93,10 @@ class WALFileSessionStorage(SessionStorage):
         wal_path = self._get_wal_path(session_id)
 
         if session.pending_ops:
+            buffer = "".join(op.model_dump_json() + "\n" for op in session.pending_ops)
+
             with open(wal_path, "a") as f:
-                for op in session.pending_ops:
-                    f.write(op.model_dump_json() + "\n")
+                f.write(buffer)
                 f.flush()
                 os.fsync(f.fileno())
 
