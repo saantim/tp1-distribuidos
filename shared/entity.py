@@ -1,8 +1,8 @@
 import json
-from datetime import datetime, date
-from typing import NewType, Optional
+from datetime import date, datetime
+from typing import Any, NewType, Optional, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, model_serializer, model_validator, ValidationError
 
 
 class Message(BaseModel):
@@ -32,6 +32,25 @@ class Message(BaseModel):
             return type(obj) is cls
         except (ValidationError, json.JSONDecodeError, UnicodeDecodeError):
             return False
+
+
+T = TypeVar("T", bound="ListSerializable")
+
+
+class ListSerializable(BaseModel):
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self) -> list[Any]:
+        return [getattr(self, field) for field in self.model_fields]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls: Type[T], value: Any) -> Any:
+        if isinstance(value, (list, tuple)):
+            field_names = list(cls.model_fields.keys())
+            if len(value) != len(field_names):
+                raise ValueError(f"Expected {len(field_names)} items, got {len(value)}")
+            return dict(zip(field_names, value))
+        return value
 
 
 class EOF(Message):
@@ -78,68 +97,29 @@ Subtotal = NewType("Subtotal", float)
 CreatedAt = NewType("CreatedAt", datetime)
 
 
-class TransactionItem(Message):
+class TransactionItem(Message, ListSerializable):
     item_id: ItemId
     quantity: Quantity
     subtotal: Subtotal
     created_at: CreatedAt
-
-    @model_serializer(mode="plain")
-    def _serialize_as_list(self):
-        return [self.item_id, self.quantity, self.subtotal, self.created_at]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _parse_from_list(cls, value):
-        if isinstance(value, (list, tuple)):
-            if len(value) != 4:
-                raise ValueError
-            return {"item_id": value[0], "quantity": value[1], "subtotal": value[2], "created_at": value[3]}
-        return value
 
 
 UserId = NewType("UserId", int)
 Birthdate = NewType("Birthdate", date)
 
 
-class User(Message):
+class User(Message, ListSerializable):
     user_id: UserId
     birthdate: Birthdate
-
-    @model_serializer(mode="plain")
-    def _serialize_as_list(self):
-        return [self.user_id, self.birthdate]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _parse_from_list(cls, value):
-        if isinstance(value, (list, tuple)):
-            if len(value) != 2:
-                raise ValueError
-            return {"user_id": value[0], "birthdate": value[1]}
-        return value
 
 
 TransactionId = NewType("TransactionId", str)
 FinalAmount = NewType("FinalAmount", float)
 
 
-class Transaction(Message):
+class Transaction(Message, ListSerializable):
     id: TransactionId
     store_id: StoreId
     user_id: Optional[UserId]
     final_amount: FinalAmount
     created_at: CreatedAt
-
-    @model_serializer(mode="plain")
-    def _serialize_as_list(self):
-        return [self.id, self.store_id, self.user_id, self.final_amount, self.created_at]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _parse_from_list(cls, value):
-        if isinstance(value, (list, tuple)):
-            if len(value) != 5:
-                raise ValueError
-            return {"id": value[0], "store_id": value[1], "user_id": value[2], "final_amount": value[3], "created_at": value[4]}
-        return value

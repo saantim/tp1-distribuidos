@@ -1,16 +1,17 @@
-from typing import cast, Optional, Type
+from typing import Type
 
 from pydantic import BaseModel
 
-from shared.entity import Message, StoreName, Transaction
+from shared.entity import Message, StoreId, StoreName, Transaction, UserId
 from worker.aggregator.aggregator_base import AggregatorBase
 from worker.base import Session
-from worker.types import UserPurchasesByStore, UserPurchasesInfo, UserPurchasesByStoreV2, Purchases
+from worker.types import UserPurchasesByStore, UserPurchasesInfo
 
 
 class SessionData(BaseModel):
-    aggregated: Optional[UserPurchasesByStoreV2] = UserPurchasesByStoreV2(user_purchases_by_store={})
+    aggregated: dict[StoreId, dict[UserId, int]] = {}
     message_count: int = 0
+
 
 class Aggregator(AggregatorBase):
 
@@ -18,42 +19,47 @@ class Aggregator(AggregatorBase):
         return Transaction
 
     def aggregator_fn(
-        self, aggregated: Optional[UserPurchasesByStore], transaction: Transaction
-    ) -> UserPurchasesByStore:
+        self, aggregated: dict[StoreId, dict[UserId, int]], transaction: Transaction
+    ) -> dict[StoreId, dict[UserId, int]]:
         if aggregated is None:
-            aggregated = UserPurchasesByStoreV2(user_purchases_by_store={})
+            aggregated = {}
 
         if not transaction.user_id:
             return aggregated
 
-        if aggregated.user_purchases_by_store.get(transaction.store_id) is None:
-            aggregated.user_purchases_by_store[transaction.store_id] = {}
-        if aggregated.user_purchases_by_store[transaction.store_id].get(transaction.user_id) is None:
-            aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id] = Purchases(0)
+        if transaction.store_id not in aggregated:
+            aggregated[transaction.store_id] = {}
 
-        aggregated.user_purchases_by_store[transaction.store_id][transaction.user_id] += 1
+        if transaction.user_id not in aggregated[transaction.store_id]:
+            aggregated[transaction.store_id][transaction.user_id] = 0
+
+        aggregated[transaction.store_id][transaction.user_id] += 1
         return aggregated
 
     def _end_of_session(self, session: Session):
         session_data = session.get_storage(SessionData)
-        aggregated = session_data.aggregated
+        aggregated_counts = session_data.aggregated
 
-        if aggregated is not None:
-            aggregated = self._truncate_top_3(cast(UserPurchasesByStoreV2, cast(Message, aggregated))) # review
-            self._send_message(messages=[aggregated], session_id=session.session_id)
+        if aggregated_counts:
+            aggregated_obj = self._truncate_top_3_and_build(aggregated_counts)
+            self._send_message(messages=[aggregated_obj], session_id=session.session_id)
 
     @staticmethod
-    def _truncate_top_3(aggregated: UserPurchasesByStoreV2) -> UserPurchasesByStore:
-        for store_id, dict_of_user_purchases in aggregated.user_purchases_by_store.items():
-            users_purchases = list(dict_of_user_purchases.items())
-            users_purchases.sort(key=lambda x: x[1], reverse=True)
-            users_purchases = users_purchases[:3]
-            aggregated.user_purchases_by_store[store_id] = dict(users_purchases)
+    def _truncate_top_3_and_build(aggregated_counts: dict[StoreId, dict[UserId, int]]) -> UserPurchasesByStore:
+        result = UserPurchasesByStore(user_purchases_by_store={})
 
-        return UserPurchasesByStore.build_from_v2(aggregated)
+        for store_id, user_counts in aggregated_counts.items():
+            sorted_users = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)
+            top_3 = sorted_users[:3]
+
+            store_result = {}
+            for user_id, count in top_3:
+                store_result[user_id] = UserPurchasesInfo(
+                    user=user_id, birthday="", purchases=count, store_name=StoreName("")
+                )
+            result.user_purchases_by_store[store_id] = store_result
+
+        return result
 
     def get_session_data_type(self) -> Type[BaseModel]:
         return SessionData
-
-    # def create_session_storage(self) -> SessionStorage:
-    #     return DeltaFileSessionStorage()
