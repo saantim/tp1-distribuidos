@@ -76,6 +76,7 @@ class EnricherBase(WorkerBase, ABC):
             for entity in unpack_entity_batch(body, self.get_enricher_type()):
                 session_data.loaded_entities = self._load_entity_fn(session_data.loaded_entities, entity)
 
+            self._session_manager.save_session(session)
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
