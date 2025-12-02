@@ -6,7 +6,8 @@ from pydantic.generics import GenericModel
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddlewareExchange
-from worker.base import Session, WorkerBase
+from worker.base import WorkerBase
+from worker.session.session import Session
 
 
 TypedMSG = TypeVar("TypedMSG", bound=Message)
@@ -48,8 +49,6 @@ class SinkBase(WorkerBase, ABC):
     def _start_of_session(self, session: Session):
         session_type = self.get_session_data_type()
         session.set_storage(session_type())
-        if hasattr(self, "get_reducer"):
-            session.bind_reducer(self.get_reducer())
 
     def _end_of_session(self, session: Session):
         session_data = session.get_storage(self.get_session_data_type())

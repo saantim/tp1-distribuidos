@@ -9,8 +9,9 @@ from typing import Type
 
 from shared.entity import Message, RawMessage
 from shared.middleware.interface import MessageMiddlewareExchange
-from worker.base import Session, WorkerBase
+from worker.base import WorkerBase
 from worker.packer import is_raw_batch, unpack_raw_batch
+from worker.session.session import Session
 
 
 class TransformerBase(WorkerBase, ABC):

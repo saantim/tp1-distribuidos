@@ -96,7 +96,7 @@ class SessionManager:
             The Session instance associated with the given ``session_id``.
         """
         if session_id not in self._sessions:
-            self._sessions[session_id] = Session(session_id=session_id)
+            self._sessions[session_id] = self._session_storage.create_session(session_id)
             self._on_start_of_session(self._sessions[session_id])
             if self._is_leader:
                 logging.info(f"action: create_session | stage: {self._stage_name} | session: {session_id.hex[:8]}")

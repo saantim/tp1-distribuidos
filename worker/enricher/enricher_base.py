@@ -11,9 +11,10 @@ from shared.entity import EOF, Message
 from shared.middleware.interface import MessageMiddlewareExchange
 from shared.middleware.rabbit_mq import MessageMiddlewareQueueMQ
 from shared.protocol import MESSAGE_ID, SESSION_ID
-from worker.base import Session, WorkerBase
+from worker.base import WorkerBase
 from worker.output import WorkerOutput
 from worker.packer import unpack_entity_batch
+from worker.session.session import Session
 
 
 TypedMSG = TypeVar("TypedMSG", bound=Message)

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from shared.entity import Message, StoreId, StoreName, Transaction, UserId
 from worker.aggregator.aggregator_base import AggregatorBase
 from worker.aggregator.ops import IncrementUserPurchaseOp
-from worker.base import Session
+from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.storage import WALFileSessionStorage
 from worker.storage.ops import BaseOp

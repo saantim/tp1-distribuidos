@@ -17,8 +17,7 @@ import pytest
 from shared.entity import ItemId
 from tests.base import BaseSessionStorageTest
 from worker.aggregator.ops import AggregateItemOp
-from worker.session.wal_session import WALSession
-from worker.storage.wal import BaseOp, SysMsgOp, WALFileSessionStorage
+from worker.storage.wal import BaseOp, SysMsgOp, WALFileSessionStorage, WALSession
 
 
 class TestWALStorage(BaseSessionStorageTest):

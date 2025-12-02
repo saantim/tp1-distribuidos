@@ -6,9 +6,39 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Type
 
+from pydantic import Field
+
 from worker.session import Session, SessionStorage
-from worker.session.wal_session import WALSession
 from worker.storage.ops import BaseOp, SysEofOp, SysMsgOp
+
+
+class WALSession(Session):
+    """
+    Session subclass with Write-Ahead Log support via reducer pattern.
+    """
+
+    pending_ops: list[BaseOp] = Field(default_factory=list, exclude=True)
+    reducer: Optional[Callable[[Any, BaseOp], Any]] = Field(default=None, exclude=True)
+
+    def bind_reducer(self, reducer: Callable[[Any, BaseOp], Any]) -> None:
+        """
+        Bind a reducer function for applying operations to storage.
+        """
+        self.reducer = reducer
+
+    def apply(self, op: BaseOp) -> None:
+        """
+        Apply operation to session via reducer and track for persistence.
+        """
+        if isinstance(op, SysEofOp):
+            self.add_eof(op.worker_id)
+        elif isinstance(op, SysMsgOp):
+            self.add_msg_received(op.msg_id)
+        else:
+            if self.reducer:
+                self.storage = self.reducer(self.storage, op)
+
+        self.pending_ops.append(op)
 
 
 class WALFileSessionStorage(SessionStorage):
@@ -45,6 +75,13 @@ class WALFileSessionStorage(SessionStorage):
         self._op_types_map = {op.model_fields["type"].default: op for op in op_types}
         self._op_types_map[SysEofOp.model_fields["type"].default] = SysEofOp
         self._op_types_map[SysMsgOp.model_fields["type"].default] = SysMsgOp
+
+    def create_session(self, session_id: uuid.UUID) -> Session:
+        """Create a new WALSession instance."""
+        session = WALSession(session_id=session_id)
+        if self._reducer:
+            session.bind_reducer(self._reducer)
+        return session
 
     def save_session(self, session: Session) -> Path:
         """

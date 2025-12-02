@@ -5,8 +5,8 @@ from typing import Type
 import pytest
 from pydantic import BaseModel, Field
 
-from worker.session import Session
-from worker.storage import SessionStorage, SnapshotFileSessionStorage
+from worker.session import Session, SessionStorage
+from worker.storage import SnapshotFileSessionStorage
 
 
 class ComplexModel(BaseModel):

@@ -2,8 +2,8 @@ import logging
 from typing import Type
 
 from shared.entity import Message, User
-from worker.base import Session
 from worker.enricher.enricher_base import EnricherBase, EnricherSessionData
+from worker.session.session import Session
 from worker.types import UserPurchasesByStore
 
 

@@ -4,7 +4,8 @@ from abc import ABC, abstractmethod
 
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
-from worker.base import Session, WorkerBase
+from worker.base import WorkerBase
+from worker.session.session import Session
 
 
 class FilterBase(WorkerBase, ABC):

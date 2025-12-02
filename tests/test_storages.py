@@ -7,7 +7,8 @@ from typing import Type
 import pytest
 
 from tests.base import BaseSessionStorageTest, ComplexModel
-from worker.storage import SessionStorage, SnapshotFileSessionStorage
+from worker.session import SessionStorage
+from worker.storage import SnapshotFileSessionStorage
 
 
 class TestSnapshotStorage(BaseSessionStorageTest):

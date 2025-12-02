@@ -11,7 +11,7 @@ from typing import Any, Type
 from pydantic import BaseModel
 
 from shared.entity import CreatedAt, FinalAmount, Message, RawMessage, StoreId, Transaction, TransactionId, UserId
-from worker.base import Session
+from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.sink.ops import AppendTransactionOp
 from worker.sink.sink_base import SinkBase

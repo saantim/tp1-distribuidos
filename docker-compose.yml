@@ -250,7 +250,7 @@ services:
     - ./.results:/client/.results
     - ./client:/client
     - ./shared:/shared
-    scale: 3
+    scale: 5
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from shared.entity import Message, StoreName, Transaction
 from worker.aggregator.aggregator_base import AggregatorBase
 from worker.aggregator.ops import AggregateSemesterOp
-from worker.base import Session
+from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.storage import WALFileSessionStorage
 from worker.storage.ops import BaseOp
@@ -76,8 +76,7 @@ class Aggregator(AggregatorBase):
     def get_reducer(self):
         return _session_reducer
 
-    @staticmethod
-    def create_session_storage() -> SessionStorage:
+    def create_session_storage(self) -> SessionStorage:
         return WALFileSessionStorage(
             save_dir="./sessions/saves", reducer=_session_reducer, op_types=[AggregateSemesterOp]
         )

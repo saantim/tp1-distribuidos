@@ -3,9 +3,9 @@ from typing import Optional, Type
 from pydantic import BaseModel
 
 from shared.entity import Message, StoreName
-from worker.base import Session
 from worker.merger.merger_base import MergerBase
 from worker.merger.ops import MergeOp
+from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.storage import WALFileSessionStorage
 from worker.types import SemesterTPVByStore, StoreInfo
