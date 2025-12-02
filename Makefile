@@ -31,7 +31,7 @@ docker-compose-logs:
 
 logs-client:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^(client_|gateway)' | xargs -r docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^(client_|gateway)' | xargs -r docker compose -f docker-compose.yml logs -f
 .PHONY: logs-client
 
 logs-chaos-monkey:
@@ -41,32 +41,32 @@ logs-chaos-monkey:
 
 logs-qtest:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|q_testing_)' | xargs docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^(transformer_transactions|q_testing_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q1
 
 logs-q1:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|q1_)' | xargs docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^(transformer_transactions|q1_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q1
 
 logs-q2:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transaction_items|transformer_menu_items|q2_)' | xargs docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^(transformer_transaction_items|transformer_menu_items|q2_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q2
 
 logs-q3:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|transformer_stores|q3_)' | xargs docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^(transformer_transactions|transformer_stores|q3_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q3
 
 logs-q4:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^(transformer_transactions|transformer_stores|transformer_users|q4_)' | xargs docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^(transformer_transactions|transformer_stores|transformer_users|q4_)' | xargs docker compose -f docker-compose.yml logs -f
 .PHONY: logs-q4
 
 logs-health:
 	clear
-	@docker compose -f docker-compose.yml ps --services | grep -E '^health_checker_' | xargs -r docker compose -f docker-compose.yml logs -f
+	@docker compose -f docker-compose.yml ps -a --services | grep -E '^health_checker_' | xargs -r docker compose -f docker-compose.yml logs -f
 .PHONY: logs-health
 
 gen_min:

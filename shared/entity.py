@@ -1,8 +1,8 @@
 import json
-from datetime import datetime
-from typing import NewType, Optional
+from datetime import date, datetime
+from typing import Any, NewType, Optional, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, model_serializer, model_validator, ValidationError
 
 
 class Message(BaseModel):
@@ -34,6 +34,25 @@ class Message(BaseModel):
             return False
 
 
+T = TypeVar("T", bound="ListSerializable")
+
+
+class ListSerializable(BaseModel):
+    @model_serializer(mode="plain")
+    def _serialize_as_list(self) -> list[Any]:
+        return [getattr(self, field) for field in self.model_fields]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_from_list(cls: Type[T], value: Any) -> Any:
+        if isinstance(value, (list, tuple)):
+            field_names = list(cls.model_fields.keys())
+            if len(value) != len(field_names):
+                raise ValueError(f"Expected {len(field_names)} items, got {len(value)}")
+            return dict(zip(field_names, value))
+        return value
+
+
 class EOF(Message):
     type: str = "EOF"
 
@@ -55,7 +74,7 @@ class RawMessage(Message):
     raw_data: bytes
 
 
-ItemId = NewType("ItemId", str)
+ItemId = NewType("ItemId", int)
 ItemName = NewType("ItemName", str)
 
 
@@ -64,7 +83,7 @@ class MenuItem(Message):
     item_name: ItemName
 
 
-StoreId = NewType("StoreId", str)
+StoreId = NewType("StoreId", int)
 StoreName = NewType("StoreName", str)
 
 
@@ -78,18 +97,18 @@ Subtotal = NewType("Subtotal", float)
 CreatedAt = NewType("CreatedAt", datetime)
 
 
-class TransactionItem(Message):
+class TransactionItem(Message, ListSerializable):
     item_id: ItemId
     quantity: Quantity
     subtotal: Subtotal
     created_at: CreatedAt
 
 
-UserId = NewType("UserId", str)
-Birthdate = NewType("Birthdate", datetime)
+UserId = NewType("UserId", int)
+Birthdate = NewType("Birthdate", date)
 
 
-class User(Message):
+class User(Message, ListSerializable):
     user_id: UserId
     birthdate: Birthdate
 
@@ -98,7 +117,7 @@ TransactionId = NewType("TransactionId", str)
 FinalAmount = NewType("FinalAmount", float)
 
 
-class Transaction(Message):
+class Transaction(Message, ListSerializable):
     id: TransactionId
     store_id: StoreId
     user_id: Optional[UserId]

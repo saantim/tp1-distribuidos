@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from shared.entity import Message, RawMessage, Transaction
 from worker.sink.sink_base import SinkBase
 
+
 class SessionData(BaseModel):
     result: list[Transaction] = []
     message_count: int = 0

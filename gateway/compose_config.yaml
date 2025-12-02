@@ -37,12 +37,12 @@ transformers:
         routing_fn: "broadcast"
 
   stores:
-     module: "store"
-     replicas: 1
-     input: "raw_stores_batches"
-     output:
-       - name: "stores_source"
-         routing_fn: "broadcast"
+    module: "store"
+    replicas: 1
+    input: "raw_stores_batches"
+    output:
+      - name: "stores_source"
+        routing_fn: "broadcast"
 
   users:
     module: "user"
