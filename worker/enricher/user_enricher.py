@@ -1,48 +1,44 @@
 import logging
-import uuid
 from typing import Type
 
-from shared.entity import Message, User
+from pydantic import BaseModel
+
+from shared.entity import Message, User, UserId
 from worker.base import Session
 from worker.enricher.enricher_base import EnricherBase, EnricherSessionData
 from worker.types import UserPurchasesByStore
 
 
+class UserEnricherSessionData(EnricherSessionData):
+    user_purchases_list: list[UserPurchasesByStore] = []
+    required_users: set[UserId] = set()
+
+
 class Enricher(EnricherBase):
 
-    def _load_entity_fn(self, loaded_entities: dict, entity: UserPurchasesByStore) -> dict:
+    def _load_entity_fn(self, session_data: UserEnricherSessionData, entity: UserPurchasesByStore) -> None:
         """
         Acumula múltiples UserPurchasesByStore y construye set de user_ids requeridos.
         Cada mensaje del aggregator trae un subset de users - los acumulamos todos.
         """
-        if "user_purchases_list" not in loaded_entities:
-            loaded_entities["user_purchases_list"] = []
-            loaded_entities["required_users"] = set()
+        session_data.user_purchases_list.append(entity)
 
-        loaded_entities["user_purchases_list"].append(entity)
-
-        required_users = loaded_entities["required_users"]
         for _, users_dict in entity.user_purchases_by_store.items():
             for user_id in users_dict.keys():
                 if user_id is None:
                     logging.warning(f"NONE USER ID: {entity}")
-                required_users.add(user_id)
+                session_data.required_users.add(user_id)
 
-        return loaded_entities
-
-    def _enrich_entity_fn(self, loaded_entities: dict, entity: User) -> User:
+    def _enrich_entity_fn(self, session_data: UserEnricherSessionData, entity: User) -> User:
         """
         Recibe User, verifica si está en required_users, y enriquece todos los UserPurchasesByStore.
         Modifica in-place los UserPurchasesByStore acumulados.
         """
-        required_users = loaded_entities.get("required_users", set())
-        user_purchases_list = loaded_entities.get("user_purchases_list", [])
-
-        if not user_purchases_list or entity.user_id not in required_users:
+        if not session_data.user_purchases_list or entity.user_id not in session_data.required_users:
             return entity
 
         # Enriquecer todos los UserPurchasesByStore con el birthdate del User
-        for user_purchases in user_purchases_list:
+        for user_purchases in session_data.user_purchases_list:
             for _, users_dict in user_purchases.user_purchases_by_store.items():
                 if entity.user_id in users_dict:
                     users_dict[entity.user_id].birthday = str(entity.birthdate)
@@ -50,13 +46,13 @@ class Enricher(EnricherBase):
         return entity
 
     def _on_entity_upstream(self, message: User, session: Session) -> None:
-        loaded = session.get_storage(EnricherSessionData).loaded_entities
-        self._enrich_entity_fn(loaded, message)
+        session_data = session.get_storage(self.get_session_data_type())
+        self._enrich_entity_fn(session_data, message)
 
     def _flush_buffer(self, session: Session) -> None:
         session_id = session.session_id
-        loaded = session.get_storage(EnricherSessionData).loaded_entities
-        user_purchases_list = loaded.get("user_purchases_list", [])
+        session_data = session.get_storage(self.get_session_data_type())
+        user_purchases_list = session_data.user_purchases_list
 
         if not user_purchases_list:
             return
@@ -80,3 +76,6 @@ class Enricher(EnricherBase):
     def get_entity_type(self) -> Type[Message]:
         """Tipo de mensaje del main input (User)."""
         return User
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return UserEnricherSessionData

@@ -4,11 +4,11 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 1
+    min: 3
     full: 0
   chaos_monkey:
-    enabled: false
-    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich,health,aggre,filter,transf,sink,merg"
+    enabled: true
+    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,health,aggre,filter,transf,sink,merg"
     kill_interval: 5
     logging_level: DEBUG
   health_checker:
@@ -46,7 +46,7 @@ transformers:
 
   users:
     module: "user"
-    replicas: 3
+    replicas: 5
     input: "raw_users_batches"
     output:
       - name: "users_source"
@@ -55,21 +55,21 @@ transformers:
 
   transactions:
     module: "transaction"
-    replicas: 15
+    replicas: 5
     input: "raw_transactions_batches"
     output:
       - name: "transactions_source"
         downstream_stage: "q1_filter_year"
-        downstream_workers: 8
+        downstream_workers: 5
 
   transaction_items:
     module: "transaction_item"
-    replicas: 15
+    replicas: 5
     input: "raw_transaction_items_batches"
     output:
       - name: "transaction_items_source"
         downstream_stage: "q2_filter_items"
-        downstream_workers: 10
+        downstream_workers: 5
 
 queries:
   q1:
@@ -79,34 +79,34 @@ queries:
       filter_year:
         type: "filter"
         module: "year"
-        replicas: 8
+        replicas: 5
         input: "transactions_source"
         output:
           - name: "q1.filtered_year"
             downstream_stage: "q1_filter_hour"
-            downstream_workers: 8
+            downstream_workers: 5
           - name: "q4.filtered_year"
             downstream_stage: "q4_aggregate_users"
-            downstream_workers: 8
+            downstream_workers: 5
             routing_fn: "tx_router"
 
       filter_hour:
         type: "filter"
         module: "hour"
-        replicas: 8
+        replicas: 5
         input: "q1.filtered_year"
         output:
           - name: "q1.filtered_hour"
             downstream_stage: "q1_filter_amount"
-            downstream_workers: 4
+            downstream_workers: 5
           - name: "q3.filtered_hour"
             downstream_stage: "q3_aggregate_semester"
-            downstream_workers: 8
+            downstream_workers: 5
 
       filter_amount:
         type: "filter"
         module: "amount"
-        replicas: 4
+        replicas: 5
         input: "q1.filtered_hour"
         output:
           - name: "q1.filtered_amount"
@@ -131,17 +131,17 @@ queries:
       filter_items:
         type: "filter"
         module: "item_year"
-        replicas: 10
+        replicas: 5
         input: "transaction_items_source"
         output:
           - name: "q2.filtered_items"
             downstream_stage: "q2_aggregate_period"
-            downstream_workers: 15
+            downstream_workers: 5
 
       aggregate_period:
         type: "aggregator"
         module: "period_agg"
-        replicas: 15
+        replicas: 5
         input: "q2.filtered_items"
         output:
           - name: "q2.aggregated_period"
@@ -187,7 +187,7 @@ queries:
       aggregate_semester:
         type: "aggregator"
         module: "semester_agg"
-        replicas: 8
+        replicas: 5
         input: "q3.filtered_hour"
         output:
           - name: "q3.aggregated_semester"
@@ -233,7 +233,7 @@ queries:
       aggregate_users:
         type: "aggregator"
         module: "user_purchase_aggregator"
-        replicas: 8
+        replicas: 5
         input: "q4.filtered_year"
         output:
           - name: "q4.aggregated_users"

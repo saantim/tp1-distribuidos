@@ -40,7 +40,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
                 )
             )
             self._local.channel = self._local.connection.channel()
-            self._local.channel.queue_declare(queue=self._queue_name, durable=False, arguments=self._arguments)
+            self._local.channel.queue_declare(queue=self._queue_name, durable=True, arguments=self._arguments)
             self._local.channel.basic_qos(prefetch_count=PREFETCH_COUNT)
 
     def __str__(self):
@@ -86,7 +86,7 @@ class MessageMiddlewareQueueMQ(MessageMiddlewareQueue):
         """Publish a message to the queue."""
         try:
             self._ensure_connection()
-            properties = pika.BasicProperties(delivery_mode=1, headers=headers)
+            properties = pika.BasicProperties(delivery_mode=2, headers=headers)
             self._local.channel.basic_publish(
                 exchange="",
                 routing_key=self._queue_name,
