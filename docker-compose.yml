@@ -30,7 +30,7 @@ services:
     volumes:
     - ./gateway:/gateway
     - ./shared:/shared
-    - ./compose_config.yaml:/gateway/compose_config.yaml
+    - ./compose_config.yaml:/gateway/compose_config.yaml:ro
     entrypoint: python main.py
     networks:
     - coffee
@@ -202,7 +202,7 @@ services:
     environment:
       REPLICA_ID: '0'
       REPLICAS: '3'
-      CHECK_INTERVAL: '10'
+      CHECK_INTERVAL: '5'
       WORKER_PORT: '9090'
       WORKER_TIMEOUT: '15'
       WORKER_HEARTBEAT_INTERVAL: '5'
@@ -226,7 +226,7 @@ services:
     environment:
       REPLICA_ID: '1'
       REPLICAS: '3'
-      CHECK_INTERVAL: '10'
+      CHECK_INTERVAL: '5'
       WORKER_PORT: '9090'
       WORKER_TIMEOUT: '15'
       WORKER_HEARTBEAT_INTERVAL: '5'
@@ -250,7 +250,7 @@ services:
     environment:
       REPLICA_ID: '2'
       REPLICAS: '3'
-      CHECK_INTERVAL: '10'
+      CHECK_INTERVAL: '5'
       WORKER_PORT: '9090'
       WORKER_TIMEOUT: '15'
       WORKER_HEARTBEAT_INTERVAL: '5'
@@ -276,7 +276,8 @@ services:
     - ./.results:/client/.results
     - ./client:/client
     - ./shared:/shared
-    scale: 5
+    - ./compose_config.yaml:/client/compose_config.yaml:ro
+    scale: 10
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker

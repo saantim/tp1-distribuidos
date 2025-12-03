@@ -4,7 +4,7 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 5
+    min: 10
     full: 0
   chaos_monkey:
     enabled: true
@@ -14,7 +14,7 @@ settings:
   health_checker:
     enabled: true
     replicas: 3
-    check_interval: 10
+    check_interval: 5
     worker:
       port: 9090
       timeout: 15

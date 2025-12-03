@@ -225,7 +225,11 @@ def generate_compose(config):
     services["gateway"] = {
         "container_name": "gateway",
         "build": {"context": ".", "dockerfile": "./gateway/Dockerfile"},
-        "volumes": ["./gateway:/gateway", "./shared:/shared", "./compose_config.yaml:/gateway/compose_config.yaml"],
+        "volumes": [
+            "./gateway:/gateway",
+            "./shared:/shared",
+            "./compose_config.yaml:/gateway/compose_config.yaml:ro",
+        ],
         "entrypoint": "python main.py",
         "networks": ["coffee"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
@@ -292,7 +296,13 @@ def generate_compose(config):
             "networks": ["coffee"],
             "depends_on": ["gateway"],
             "environment": {"LOGGING_LEVEL": "DEBUG"},
-            "volumes": ["./.data/dataset_min:/client/.data", "./.results:/client/.results", "./client:/client", "./shared:/shared"],
+            "volumes": [
+                "./.data/dataset_min:/client/.data",
+                "./.results:/client/.results",
+                "./client:/client",
+                "./shared:/shared",
+                "./compose_config.yaml:/client/compose_config.yaml:ro",
+            ],
             "scale": amount_min,
         }
 
@@ -303,7 +313,13 @@ def generate_compose(config):
             "networks": ["coffee"],
             "depends_on": ["gateway"],
             "environment": {"LOGGING_LEVEL": "DEBUG"},
-            "volumes": ["./.data/dataset_full:/client/.data", "./.results:/client/.results"],
+            "volumes": [
+                "./.data/dataset_full:/client/.data",
+                "./.results:/client/.results",
+                "./client:/client",
+                "./shared:/shared",
+                "./compose_config.yaml:/client/compose_config.yaml:ro",
+            ],
             "scale": int(amount_full),
         }
 
