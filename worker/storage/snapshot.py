@@ -9,22 +9,14 @@ from worker.session.storage import Session, SessionStorage
 
 class SnapshotFileSessionStorage(SessionStorage):
     """
-    Session storage implementation that writes full JSON snapshots.
+    Full snapshot storage using atomic writes.
 
-    Each session is persisted as a single JSON file named after the
-    session UUID in hex form, e.g::
-
-        <session_id_hex>.json
-
-    On each save, the entire session object is serialized and written
-    to disk using an atomic write pattern (temporary file + fsync +
-    os.replace).
+    Saves entire session as <session_id>.json.
+    Uses temp file + fsync + os.replace for atomicity.
     """
 
     def save_session(self, session: Session) -> Path:
-        """
-        Serialize and persist a complete snapshot of the given session.
-        """
+        """Save full session snapshot to disk."""
         data = session.model_dump(mode="json")
 
         serialized = json.dumps(data)
@@ -45,9 +37,7 @@ class SnapshotFileSessionStorage(SessionStorage):
             raise
 
     def load_session(self, session_id: str) -> Session:
-        """
-        Load a session snapshot from its JSON file.
-        """
+        """Load session from JSON file."""
         session_file = self._save_dir / f"{session_id}.json"
 
         if session_file.exists():
@@ -62,9 +52,7 @@ class SnapshotFileSessionStorage(SessionStorage):
         raise FileNotFoundError()
 
     def load_sessions(self) -> List[Session]:
-        """
-        Load all session snapshots from the storage directory.
-        """
+        """Load all sessions from disk."""
         sessions = []
 
         for session_file in self._save_dir.glob("*.json"):

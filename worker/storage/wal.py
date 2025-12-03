@@ -12,23 +12,17 @@ from worker.session import BaseOp, Session, SessionStorage, SysCommitOp, SysEofO
 
 
 class WALSession(Session):
-    """
-    Session subclass with Write-Ahead Log support via reducer pattern.
-    """
+    """Session with Write-Ahead Log support via reducer pattern."""
 
     pending_ops: list[BaseOp] = Field(default_factory=list, exclude=True)
     reducer: Optional[Callable[[Any, BaseOp], Any]] = Field(default=None, exclude=True)
 
     def bind_reducer(self, reducer: Callable[[Any, BaseOp], Any]) -> None:
-        """
-        Bind a reducer function for applying operations to storage.
-        """
+        """Bind reducer function for applying operations to storage."""
         self.reducer = reducer
 
     def apply(self, op: BaseOp) -> None:
-        """
-        Apply operation to session via reducer and track for persistence.
-        """
+        """Apply operation via reducer and track for persistence."""
         if isinstance(op, SysEofOp):
             self.add_eof(op.worker_id)
         elif isinstance(op, SysMsgOp):
@@ -42,20 +36,13 @@ class WALSession(Session):
 
 class WALFileSessionStorage(SessionStorage):
     """
-    Session storage implementation based on Write-Ahead Log (WAL) with periodic snapshots.
+    Write-Ahead Log storage with periodic snapshots.
 
-    Combines fast WAL appends with periodic snapshot compaction:
-    - Normal operation: Appends operations to WAL (fast writes)
-    - Every N batches: Creates snapshot + truncates WAL (prevents unbounded growth)
-    - Recovery: Loads latest snapshot + replays remaining WAL ops
+    Normal operation: Appends ops to .wal file (fast writes).
+    Every N batches: Creates .snapshot.json and truncates .wal.
+    Recovery: Loads snapshot + replays WAL ops.
 
-    File structure per session::
-
-        <session_id_hex>.snapshot.json  # Latest full state snapshot (replaced on compaction)
-        <session_id_hex>.wal            # Append-only operation log since last snapshot
-
-    The file format for WAL is JSON Lines, where each line represents a single
-    operation dictionary.
+    WAL format: JSON Lines (one operation per line).
     """
 
     def __init__(
@@ -121,14 +108,7 @@ class WALFileSessionStorage(SessionStorage):
         return wal_path
 
     def load_session(self, session_id: str) -> Session:
-        """
-        Load session from snapshot + WAL replay.
-
-        Steps:
-        1. Load snapshot if exists (full state)
-        2. Replay WAL ops on top
-        3. Return reconstructed session
-        """
+        """Load session from snapshot and replay WAL ops."""
         snapshot_path = self._get_snapshot_path(session_id)
         wal_path = self._get_wal_path(session_id)
 
@@ -218,7 +198,7 @@ class WALFileSessionStorage(SessionStorage):
         return session
 
     def load_sessions(self) -> List[Session]:
-        """Load all sessions from snapshots + WAL files."""
+        """Load all sessions from disk."""
         sessions = []
 
         snapshot_files = set(self._save_dir.glob("*.snapshot.json"))
@@ -237,7 +217,7 @@ class WALFileSessionStorage(SessionStorage):
         return sessions
 
     def delete_session(self, session_id: str) -> None:
-        """Delete snapshot and WAL files for session."""
+        """Delete session files from disk."""
         snapshot_path = self._get_snapshot_path(session_id)
         wal_path = self._get_wal_path(session_id)
 
@@ -251,14 +231,7 @@ class WALFileSessionStorage(SessionStorage):
         logging.info(f"[WAL] Deleted session files: {session_id[:8]}")
 
     def _compact_session(self, session: Session) -> None:
-        """
-        Create snapshot of current session state and truncate WAL.
-
-        Steps:
-        1. Serialize full session to snapshot file (atomic write)
-        2. Truncate WAL file (empty it)
-        3. Reset batch counter
-        """
+        """Create snapshot and truncate WAL to prevent unbounded growth."""
         session_id = session.session_id.hex
         snapshot_path = self._get_snapshot_path(session_id)
         wal_path = self._get_wal_path(session_id)
