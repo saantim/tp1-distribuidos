@@ -4,11 +4,11 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 0
-    full: 2
+    min: 3
+    full: 0
   chaos_monkey:
     enabled: true
-    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich"
+    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,health,aggre,filter,transf,sink,merg"
     kill_interval: 5
     logging_level: DEBUG
   health_checker:
@@ -46,7 +46,7 @@ transformers:
 
   users:
     module: "user"
-    replicas: 3
+    replicas: 5
     input: "raw_users_batches"
     output:
       - name: "users_source"
@@ -98,7 +98,7 @@ queries:
         output:
           - name: "q1.filtered_hour"
             downstream_stage: "q1_filter_amount"
-            downstream_workers: 4
+            downstream_workers: 5
           - name: "q3.filtered_hour"
             downstream_stage: "q3_aggregate_semester"
             downstream_workers: 5
@@ -106,7 +106,7 @@ queries:
       filter_amount:
         type: "filter"
         module: "amount"
-        replicas: 4
+        replicas: 5
         input: "q1.filtered_hour"
         output:
           - name: "q1.filtered_amount"

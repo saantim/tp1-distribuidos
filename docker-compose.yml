@@ -44,6 +44,10 @@ services:
         condition: service_healthy
       transformer_users_2:
         condition: service_healthy
+      transformer_users_3:
+        condition: service_healthy
+      transformer_users_4:
+        condition: service_healthy
       transformer_transactions_0:
         condition: service_healthy
       transformer_transactions_1:
@@ -91,6 +95,8 @@ services:
       q1_filter_amount_2:
         condition: service_healthy
       q1_filter_amount_3:
+        condition: service_healthy
+      q1_filter_amount_4:
         condition: service_healthy
       q1_sink:
         condition: service_healthy
@@ -175,7 +181,7 @@ services:
     - /var/run/docker.sock:/var/run/docker.sock
     - ./chaos_monkey:/chaos_monkey
     environment:
-      CONTAINERS_EXCLUDED: gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich
+      CONTAINERS_EXCLUDED: gateway,chaos_monkey,rabbitmq,client_min,client_full,health,aggre,filter,transf,sink,merg
       KILL_INTERVAL: 5.0
       LOGGING_LEVEL: DEBUG
     depends_on:
@@ -253,7 +259,7 @@ services:
       ELECTION_TIMEOUT: '3'
       COORDINATOR_TIMEOUT: '5'
       PERSIST_PATH: /state/registry.json
-  client_full:
+  client_min:
     build:
       context: .
       dockerfile: ./client/Dockerfile
@@ -265,9 +271,11 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_full:/client/.data
+    - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 2
+    - ./client:/client
+    - ./shared:/shared
+    scale: 3
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
@@ -368,7 +376,7 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '3'
+      REPLICAS: '5'
       STAGE_NAME: transformer_users
       MODULE_NAME: user
       FROM: raw_users_batches
@@ -406,7 +414,7 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '3'
+      REPLICAS: '5'
       STAGE_NAME: transformer_users
       MODULE_NAME: user
       FROM: raw_users_batches
@@ -444,7 +452,83 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_users_3:
+    container_name: transformer_users_3
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-3:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '3'
+      REPLICAS: '5'
+      STAGE_NAME: transformer_users
+      MODULE_NAME: user
+      FROM: raw_users_batches
+      TO: '[{"name": "users_source", "downstream_stage": "q4_enrich_users", "downstream_workers": 5}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  transformer_users_4:
+    container_name: transformer_users_4
+    image: transformer_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/transformer/transformer_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/transformer_users-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
       STAGE_NAME: transformer_users
       MODULE_NAME: user
       FROM: raw_users_batches
@@ -1056,7 +1140,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 5}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -1094,7 +1178,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 5}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -1132,7 +1216,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 5}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -1170,7 +1254,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 5}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -1208,7 +1292,7 @@ services:
       STAGE_NAME: q1_filter_hour
       MODULE_NAME: hour
       FROM: q1.filtered_year
-      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 4}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
+      TO: '[{"name": "q1.filtered_hour", "downstream_stage": "q1_filter_amount", "downstream_workers": 5}, {"name": "q3.filtered_hour", "downstream_stage": "q3_aggregate_semester", "downstream_workers": 5}]'
       HEALTH_CHECKER_REPLICAS: '3'
       HEALTH_CHECKER_PORT: '9090'
       HEARTBEAT_INTERVAL: '5'
@@ -1242,7 +1326,7 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '0'
-      REPLICAS: '4'
+      REPLICAS: '5'
       STAGE_NAME: q1_filter_amount
       MODULE_NAME: amount
       FROM: q1.filtered_hour
@@ -1280,7 +1364,7 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '1'
-      REPLICAS: '4'
+      REPLICAS: '5'
       STAGE_NAME: q1_filter_amount
       MODULE_NAME: amount
       FROM: q1.filtered_hour
@@ -1318,7 +1402,7 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '2'
-      REPLICAS: '4'
+      REPLICAS: '5'
       STAGE_NAME: q1_filter_amount
       MODULE_NAME: amount
       FROM: q1.filtered_hour
@@ -1356,7 +1440,45 @@ services:
     - ./shared:/shared
     environment:
       REPLICA_ID: '3'
-      REPLICAS: '4'
+      REPLICAS: '5'
+      STAGE_NAME: q1_filter_amount
+      MODULE_NAME: amount
+      FROM: q1.filtered_hour
+      TO: '[{"name": "q1.filtered_amount", "downstream_stage": "q1_sink", "downstream_workers": 1}]'
+      HEALTH_CHECKER_REPLICAS: '3'
+      HEALTH_CHECKER_PORT: '9090'
+      HEARTBEAT_INTERVAL: '5'
+    healthcheck:
+      test: test -f /tmp/ready
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+  q1_filter_amount_4:
+    container_name: q1_filter_amount_4
+    image: filter_worker
+    build:
+      context: .
+      dockerfile: ./worker/Dockerfile
+    entrypoint: python /worker/filter/filter_main.py
+    networks:
+    - coffee
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      health_checker_0:
+        condition: service_started
+      health_checker_1:
+        condition: service_started
+      health_checker_2:
+        condition: service_started
+    volumes:
+    - ./.saved_sessions/q1_filter_amount-4:/sessions
+    - ./worker:/worker
+    - ./shared:/shared
+    environment:
+      REPLICA_ID: '4'
+      REPLICAS: '5'
       STAGE_NAME: q1_filter_amount
       MODULE_NAME: amount
       FROM: q1.filtered_hour
