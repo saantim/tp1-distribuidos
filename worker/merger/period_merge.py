@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from shared.entity import ItemId, ItemName, Message
 from worker.merger.merger_base import MergerBase
-from worker.session.ops import MergeOp
+from worker.merger.ops import MergeOp
 from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.storage import WALFileSessionStorage

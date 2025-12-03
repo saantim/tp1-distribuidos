@@ -3,8 +3,8 @@ from typing import Any, Optional
 
 from shared.entity import Message
 from worker.base import WorkerBase
+from worker.merger.ops import MergeOp, message_from_op
 from worker.session import BaseOp
-from worker.session.ops import MergeOp, message_from_op
 from worker.session.session import Session
 
 
