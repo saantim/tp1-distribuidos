@@ -2,11 +2,10 @@
 import logging
 from abc import ABC, abstractmethod
 
-from pydantic.generics import GenericModel
-
 from shared.entity import Message
 from shared.middleware.interface import MessageMiddlewareExchange
 from worker.base import Session, WorkerBase
+
 
 class FilterBase(WorkerBase, ABC):
 
@@ -17,10 +16,8 @@ class FilterBase(WorkerBase, ABC):
         stage_name: str,
         source: MessageMiddlewareExchange,
         outputs: list,
-        batch_size: int = 10000,
     ):
         super().__init__(instances, index, stage_name, source, outputs)
-        self.buffer_size = batch_size
 
     @abstractmethod
     def filter_fn(self, entity: Message) -> bool: ...
@@ -31,10 +28,20 @@ class FilterBase(WorkerBase, ABC):
 
     def _end_of_session(self, session: Session):
         session_data = session.get_storage(self.get_session_data_type())
+
+        if session_data.buffer:
+            logging.warning(
+                f"action: residual_buffer_in_end_session | stage: {self._stage_name} | "
+                f"size: {len(session_data.buffer)} | session: {session.session_id.hex[:8]}"
+            )
+            self._flush_buffer(session)
+
         logging.info(
             f"[{self._stage_name}] end_of_session: received_per_session={session_data.received}, "
             f"pass={session_data.passed} session_id={session.session_id.hex[:8]}"
         )
+
+    def _after_batch_processed(self, session: Session) -> None:
         self._flush_buffer(session)
 
     def _on_entity_upstream(self, message: Message, session: Session) -> None:
@@ -44,9 +51,6 @@ class FilterBase(WorkerBase, ABC):
         if self.filter_fn(message):
             session_data.passed += 1
             session_data.buffer.append(message)
-
-        if len(session_data.buffer) >= self.buffer_size:
-            self._flush_buffer(session)
 
         if session_data.received % 100000 == 0:
             logging.info(
