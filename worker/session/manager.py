@@ -103,6 +103,9 @@ class SessionManager:
         current_session = self._sessions.get(session_id, None)
         return current_session
 
+    def get_sessions(self) -> dict[uuid.UUID, Session]:
+        return self._sessions
+
     def try_to_flush(self, session: Session) -> bool:
         """
         Attempt to flush a session if it meets the flushability criteria.
