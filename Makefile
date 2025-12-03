@@ -96,6 +96,10 @@ test_count_eof:
 	@make logs-qtest | grep -c "flush_eof" | xargs echo "TOTAL flush_eof encontrados:"
 .PHONY: count-flush
 
+kill-containers:
+	docker compose exec chaos_monkey python /chaos_monkey/kill_script.py $(prefixes)
+.PHONY: kill-chaos
+
 clean_res:
 	ls .results | grep -v '^expected$$' | xargs -I{} rm -rf .results/{}
 	rm -rf .saved_sessions
