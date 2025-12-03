@@ -1,10 +1,15 @@
 from datetime import datetime
 from typing import Optional, Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message, StoreName, Transaction
 from worker.aggregator.aggregator_base import AggregatorBase
 from worker.types import Semester, SemesterTPVByStore, StoreInfo
 
+class SessionData(BaseModel):
+    aggregated: Optional[SemesterTPVByStore] = SemesterTPVByStore(semester_tpv_by_store={})
+    message_count: int = 0
 
 class Aggregator(AggregatorBase):
     def get_entity_type(self) -> Type[Message]:
@@ -30,3 +35,6 @@ class Aggregator(AggregatorBase):
         year = dt.year
         semester = 1 if dt.month <= 6 else 2
         return Semester(f"{year}-{semester}")
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

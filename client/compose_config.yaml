@@ -8,7 +8,7 @@ settings:
     full: 0
   chaos_monkey:
     enabled: true
-    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich"
+    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,health,aggre,filter,transf,sink,merg"
     kill_interval: 5
     logging_level: DEBUG
   health_checker:

@@ -2,7 +2,7 @@ import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
-from typing import Generic, Type, TypeVar
+from typing import Dict, Generic, Type, TypeVar
 
 from pydantic.generics import GenericModel
 
@@ -21,7 +21,8 @@ TypedMSG = TypeVar("TypedMSG", bound=Message)
 class EnricherSessionData(GenericModel, Generic[TypedMSG]):
     """Storage for per-session enricher state."""
 
-    loaded_entities: dict = {}
+    loaded_entities: Dict[str, Type[TypedMSG]] = {}
+    loaded_finished: bool = False
     buffer: list[TypedMSG] = []
     enriched_count: int = 0
 
@@ -35,7 +36,7 @@ class EnricherBase(WorkerBase, ABC):
     """
 
     DEFAULT_WAITING_TTL_MS = 5000
-    _BUFFER_SIZE = 500
+    _BUFFER_SIZE = 10000
 
     def __init__(
         self,
@@ -50,9 +51,9 @@ class EnricherBase(WorkerBase, ABC):
 
         self._enricher_input: MessageMiddlewareExchange = enricher_input
 
-        # Per-session direct queues for main data (created on-demand)
         self._queue_per_session: dict[uuid.UUID, MessageMiddlewareQueueMQ] = {}
         self._thread_per_session: dict[uuid.UUID, threading.Thread] = {}
+        self._session_locks: dict[uuid.UUID, threading.Lock] = {}
 
         self._enricher_thread = None
 
@@ -62,19 +63,35 @@ class EnricherBase(WorkerBase, ABC):
         Corre en thread separado.
         """
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        message_id: str = properties.headers.get(MESSAGE_ID)
         session: Session = self._session_manager.get_or_initialize(session_id)
 
+        if session.is_duplicated_msg(message_id):
+            logging.warning(
+                f"action: duplicated_enrich_reference | stage: {self._stage_name} |"
+                f" session: {session_id.hex[:8]} | message_id: {message_id}"
+            )
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
+        session.add_msg_received(message_id)
+
         try:
+            session_data = session.get_storage(self.get_session_data_type())
             if EOF.is_type(body):
-                self._session_manager.save_session(session)
+                with self._get_session_lock(session_id):
+                    session_data.loaded_finished = True
+                    self._session_manager.save_session(session)
                 self._consume_session_queue(session_id)
                 logging.info(f"action: enricher_data_ready | stage: {self._stage_name} | session: {session_id.hex[:8]}")
                 channel.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
-            session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
             for entity in unpack_entity_batch(body, self.get_enricher_type()):
-                session_data.loaded_entities = self._load_entity_fn(session_data.loaded_entities, entity)
+                self._load_entity_fn(session_data, entity)
+
+            with self._get_session_lock(session_id):
+                self._session_manager.save_session(session)
 
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -85,14 +102,61 @@ class EnricherBase(WorkerBase, ABC):
             )
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
+    def _on_entity_upstream(self, message: Message, session: Session) -> None:
+        """
+        Procesa una entidad upstream.
+        Las subclases implementan este método.
+        """
+        session_data = session.get_storage(self.get_session_data_type())
+        enriched = self._enrich_entity_fn(session_data, message)
+        session_data.buffer.append(enriched)
+
+        session_data.enriched_count += 1
+        if session_data.enriched_count % 100000 == 0:
+            logging.info(
+                f"[{self._stage_name}] {session_data.message_count//1000}k enriched | "
+                f"session: {session.session_id.hex[:8]}"
+            )
+
+        if len(session_data.buffer) >= self._BUFFER_SIZE:
+            self._flush_buffer(session)
+
+    def _on_message_session_queue(self, channel, method, properties, body: bytes):
+        message_id: str = properties.headers.get(MESSAGE_ID)
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        session: Session = self._session_manager.get_or_initialize(session_id)
+        try:
+            if session.is_duplicated_msg(message_id):
+                channel.basic_ack(delivery_tag=method.delivery_tag)
+                logging.warning(f"action: duplicated_msg_to_enrich | id: {message_id}")
+                return
+            session.add_msg_received(properties.headers.get(MESSAGE_ID))
+            if not self._handle_eof(body, session):
+                for message in unpack_entity_batch(body, self.get_entity_type()):
+                    self._on_entity_upstream(message, session)
+            with self._get_session_lock(session_id):
+                self._session_manager.save_session(session)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            _ = e
+            logging.exception(f"action: batch_process | stage: {self._stage_name}")
+
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
         """
         Callback para main input (datos a enriquecer).
         Sobrescribe WorkerBase._on_message_upstream para agregar lógica de waiting queue.
         """
         session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
-        message_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(MESSAGE_ID))
-        self._session_manager.get_or_initialize(session_id)
+        message_id: str = properties.headers.get(MESSAGE_ID)
+        session = self._session_manager.get_or_initialize(session_id)
+
+        if session.is_duplicated_msg(message_id):
+            logging.warning(
+                f"action: duplicated_enrich_upstream | stage: {self._stage_name} |"
+                f" session: {session_id.hex[:8]} | message_id: {message_id}"
+            )
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
 
         self._send_to_session_queue(message=body, session_id=session_id, message_id=message_id)
         channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -100,13 +164,14 @@ class EnricherBase(WorkerBase, ABC):
     def _start_of_session(self, session: Session):
         """Hook cuando una nueva sesión comienza."""
         session_id = session.session_id
+        self._session_locks[session_id] = threading.Lock()
         logging.info(f"action: session_start | stage: {self._stage_name} | session: {session_id.hex[:8]}")
-        session.set_storage(EnricherSessionData())
+        session.set_storage(self.get_session_data_type()())
 
     def _end_of_session(self, session: Session):
         """Flush final y limpieza cuando una sesión termina."""
         session_id = session.session_id
-        session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
+        session_data = session.get_storage(self.get_session_data_type())
 
         self._flush_buffer(session)
         final_count = session_data.enriched_count
@@ -131,13 +196,13 @@ class EnricherBase(WorkerBase, ABC):
     def _flush_buffer(self, session: Session) -> None:
         """Envía buffer acumulado a todas las colas de salida."""
         session_id = session.session_id
-        session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
+        session_data = session.get_storage(self.get_session_data_type())
         buffer = session_data.buffer
 
         if not buffer:
             return
 
-        self._send_message(messages=buffer, session_id=session_id, message_id=uuid.uuid4())
+        self._send_message(messages=buffer, session_id=session_id)
 
         count = len(buffer)
         session_data.enriched_count += count
@@ -182,29 +247,14 @@ class EnricherBase(WorkerBase, ABC):
 
         super()._cleanup()
 
-    def _on_message_session_queue(self, channel, method, properties, body: bytes):
-        super()._on_message_upstream(channel, method, properties, body)
-
-    def _on_entity_upstream(self, message: Message, session: Session) -> None:
-        """
-        Procesa una entidad upstream.
-        Las subclases implementan este método.
-        """
-        session_data: EnricherSessionData = session.get_storage(EnricherSessionData)
-        enriched = self._enrich_entity_fn(session_data.loaded_entities, message)
-        session_data.buffer.append(enriched)
-        if len(session_data.buffer) >= self._BUFFER_SIZE:
-            self._flush_buffer(session)
-
     @abstractmethod
-    def _enrich_entity_fn(self, loaded_entities: dict, entity: TypedMSG) -> Message:
+    def _enrich_entity_fn(self, session_data, entity: TypedMSG) -> Message:
+        """Enrich entity using loaded reference data from session_data."""
         pass
 
     @abstractmethod
-    def _load_entity_fn(self, loaded_entities: dict, entity: TypedMSG) -> dict:
-        """
-        Carga una entidad de referencia para una sesión.
-        """
+    def _load_entity_fn(self, session_data, entity: TypedMSG) -> None:
+        """Load enrichment reference data. Modifies session_data in place."""
         pass
 
     @abstractmethod
@@ -212,10 +262,15 @@ class EnricherBase(WorkerBase, ABC):
         """Retorna el tipo de entidad de referencia (User, Store, MenuItem)."""
         pass
 
-    def _send_to_session_queue(self, message: bytes, session_id: uuid.UUID, message_id: uuid.UUID) -> None:
+    @abstractmethod
+    def get_session_data_type(self):
+        """Return the session data type for this enricher."""
+        pass
+
+    def _send_to_session_queue(self, message: bytes, session_id: uuid.UUID, message_id: str) -> None:
         """Send message to session-specific direct queue."""
         queue = self._get_session_queue(session_id)
-        queue.send(message, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id.hex})
+        queue.send(message, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id})
 
     def _consume_session_queue(self, session_id: uuid.UUID):
         """Start consuming from session queue (spawns thread with self-cleanup)."""
@@ -250,12 +305,53 @@ class EnricherBase(WorkerBase, ABC):
             self._queue_per_session[session_id] = MessageMiddlewareQueueMQ(host="rabbitmq", queue_name=queue_name)
         return self._queue_per_session[session_id]
 
+    def _get_session_lock(self, session_id: uuid.UUID) -> threading.Lock:
+        if session_id not in self._session_locks:
+            self._session_locks[session_id] = threading.Lock()
+        return self._session_locks[session_id]
+
     def start(self):
+        self._heartbeat.start()
+
         self._enricher_thread = threading.Thread(
             target=self._enricher_input.start_consuming,
             args=[self._on_enricher_msg],
             name=f"{self._stage_name}_{self._index}_enricher_thread",
             daemon=False,
         )
+
+        self._upstream_thread = threading.Thread(
+            target=self._source.start_consuming,
+            args=[self._on_message_upstream],
+            name=f"{self._stage_name}_{self._index}_data_thread",
+            daemon=False,
+        )
+
+        self._try_to_load_sessions()
+
+        for session in self._session_manager.get_sessions().values():
+            session_data = session.get_storage(self.get_session_data_type())
+            if session_data.loaded_finished:
+                self._consume_session_queue(session.session_id)
+                logging.info(
+                    f"action: recover_session_queue | stage: {self._stage_name} | session: {session.session_id.hex[:8]}"
+                )
+
+        self._mark_ready()
+
         self._enricher_thread.start()
-        super().start()
+        self._upstream_thread.start()
+
+        if self._leader:
+            logging.info(
+                f"action: thread_start | stage: {self._stage_name} | enricher_thread: {self._enricher_thread.name}"
+            )
+            logging.info(
+                f"action: thread_start | stage: {self._stage_name} | data_thread: {self._upstream_thread.name}"
+            )
+
+        self._shutdown_event.wait()
+
+        self._cleanup()
+
+        logging.info(f"action: exiting | stage: {self._stage_name}")

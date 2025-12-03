@@ -7,9 +7,16 @@ import json
 import logging
 from typing import Type
 
+from pydantic import BaseModel
+
 from shared.entity import Message, RawMessage
 from worker.sink.sink_base import SinkBase
 from worker.types import SemesterTPVByStore
+
+
+class SessionData(BaseModel):
+    result: list[SemesterTPVByStore] = []
+    message_count: int = 0
 
 
 class Sink(SinkBase):
@@ -44,7 +51,7 @@ class Sink(SinkBase):
                     for store_id, store_info in stores_dict.items():
                         formatted_rows.append(
                             {
-                                "store_id": store_id,
+                                "store_id": str(store_id),
                                 "semester": semester_label,
                                 "store_name": store_info.store_name,
                                 "tpv": float(store_info.amount),
@@ -64,3 +71,6 @@ class Sink(SinkBase):
         except Exception as e:
             logging.error(f"Error formatting Q3 results: {e}", exc_info=True)
             return RawMessage(raw_data=b"")
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData

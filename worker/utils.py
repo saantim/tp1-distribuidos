@@ -71,18 +71,25 @@ def build_output_exchanges(outputs_json: str) -> List[MessageMiddlewareExchangeR
     return exchanges
 
 
-def build_enricher_input(enricher_exchange: str) -> MessageMiddlewareExchangeRMQ:
+def build_enricher_input(stage_name: str, replica: int, enricher_exchange: str) -> MessageMiddlewareExchangeRMQ:
     """
     Build enricher input exchange (subscribes to broadcast data).
     Enrichers always subscribe to "common" for broadcast enrichment data.
 
     Args:
+        stage_name: Full stage name (e.g., "q1_filter_hour")
+        replica: This worker's replica index
         enricher_exchange: Name of the enrichment data exchange
 
     Returns:
         MessageMiddlewareExchangeRMQ configured for broadcast
     """
-    return MessageMiddlewareExchangeRMQ(host=RABBITMQ_HOST, exchange_name=enricher_exchange, route_keys=["common"])
+    return MessageMiddlewareExchangeRMQ(
+        host=RABBITMQ_HOST,
+        exchange_name=enricher_exchange,
+        route_keys=["common"],
+        queue_name=f"{stage_name}_{replica}_{enricher_exchange}",
+    )
 
 
 def parse_outputs_config(outputs_json: str) -> List[dict]:

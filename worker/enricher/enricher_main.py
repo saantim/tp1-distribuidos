@@ -29,7 +29,7 @@ def main():
     outputs = [WorkerOutput.from_config(cfg, exch) for cfg, exch in zip(outputs_config, exchanges)]
 
     # Build enricher input (reference data exchange)
-    enricher_input = build_enricher_input(enricher_exchange)
+    enricher_input = build_enricher_input(stage_name, replica_id, enricher_exchange)
 
     enricher_worker = enricher_module.Enricher(
         instances=instances,

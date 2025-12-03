@@ -8,10 +8,16 @@ We only extract:
 - store_id
 - store_name
 """
+from typing import Type
+
+from pydantic import BaseModel
 
 from shared.entity import Store
 from worker.transformer.transformer_base import TransformerBase
 
+class SessionData(BaseModel):
+    buffer: list[Store] = []
+    transformed: int = 0
 
 class Transformer(TransformerBase):
     """
@@ -46,3 +52,6 @@ class Transformer(TransformerBase):
             store_id=row_dict["store_id"],
             store_name=row_dict["store_name"],
         )
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        return SessionData
