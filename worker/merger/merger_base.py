@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 from shared.entity import Message
 from worker.base import WorkerBase
-from worker.merger.ops import MergeOp, message_from_op
-from worker.session import BaseOp
 from worker.session.session import Session
 
 
@@ -37,19 +35,3 @@ class MergerBase(WorkerBase, ABC):
     def _do_merge(self, merged: Message, message: Message) -> Message:
         """Implement the actual merging logic. Called by _merge_logic."""
         pass
-
-    def create_merge_reducer(self):
-        """Generic factory to create reducer with bound merge logic. Works for all mergers."""
-
-        def reducer(storage: Any, op: BaseOp) -> Any:
-            if isinstance(op, MergeOp):
-                if storage is None:
-                    storage = self.get_session_data_type()()
-
-                message = message_from_op(op)
-                storage.merged = self._merge_logic(storage.merged, message)
-                storage.message_count += 1
-
-            return storage
-
-        return reducer

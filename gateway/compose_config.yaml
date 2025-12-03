@@ -4,8 +4,8 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 0
-    full: 4
+    min: 1
+    full: 0
   chaos_monkey:
     enabled: true
     containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,health"

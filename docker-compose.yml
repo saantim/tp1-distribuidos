@@ -259,7 +259,7 @@ services:
       ELECTION_TIMEOUT: '3'
       COORDINATOR_TIMEOUT: '5'
       PERSIST_PATH: /state/registry.json
-  client_full:
+  client_min:
     build:
       context: .
       dockerfile: ./client/Dockerfile
@@ -271,9 +271,11 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_full:/client/.data
+    - ./.data/dataset_min:/client/.data
     - ./.results:/client/.results
-    scale: 4
+    - ./client:/client
+    - ./shared:/shared
+    scale: 1
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker

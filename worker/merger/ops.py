@@ -1,33 +1,36 @@
 """
-Operations for merger workers using WAL storage.
+Typed operations for merger workers using WAL storage.
+
+Each merger has its own operation type with a typed message field,
+eliminating the need for string-based type resolution.
 """
 
-from typing import Any, Literal
+from typing import Literal
 
-import worker.types as worker_types
-from shared import entity
 from worker.session import BaseOp
+from worker.types import (
+    SemesterTPVByStore,
+    TransactionItemByPeriod,
+    UserPurchasesByStore,
+)
 
 
-class MergeOp(BaseOp):
-    """
-    Generic merge operation - stores full aggregated result from upstream.
-    """
+class PeriodMergeOp(BaseOp):
+    """Merge transaction items by period from upstream replica."""
 
-    type: Literal["merge"] = "merge"
-    message_data: dict[str, Any]
-    message_type: str
+    type: Literal["period_merge"] = "period_merge"
+    message: TransactionItemByPeriod
 
 
-def message_from_op(op: MergeOp):
-    """
-    Reconstruct aggregated Message from operation data.
-    """
-    msg_cls = getattr(entity, op.message_type, None)
-    if msg_cls is None:
-        msg_cls = getattr(worker_types, op.message_type, None)
+class SemesterMergeOp(BaseOp):
+    """Merge semester TPV by store from upstream replica."""
 
-    if msg_cls is None:
-        raise ValueError(f"Unknown message type: {op.message_type}")
+    type: Literal["semester_merge"] = "semester_merge"
+    message: SemesterTPVByStore
 
-    return msg_cls.model_validate(op.message_data)
+
+class Top3MergeOp(BaseOp):
+    """Merge top 3 user purchases by store from upstream replica."""
+
+    type: Literal["top3_merge"] = "top3_merge"
+    message: UserPurchasesByStore

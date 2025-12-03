@@ -4,7 +4,8 @@ from pydantic import BaseModel
 
 from shared.entity import Message
 from worker.merger.merger_base import MergerBase
-from worker.merger.ops import MergeOp
+from worker.merger.ops import Top3MergeOp
+from worker.session import BaseOp
 from worker.session.session import Session
 from worker.session.storage import SessionStorage
 from worker.storage import WALFileSessionStorage
@@ -37,8 +38,7 @@ class Merger(MergerBase):
     def merger_fn(
         self, merged: Optional[UserPurchasesByStore], message: UserPurchasesByStore, session: Session
     ) -> UserPurchasesByStore:
-        op = MergeOp(message_data=message.model_dump(mode="json"), message_type=message.__class__.__name__)
-
+        op = Top3MergeOp(message=message)
         session.apply(op)
         return session.get_storage(SessionData).merged
 
@@ -46,7 +46,17 @@ class Merger(MergerBase):
         return SessionData
 
     def get_reducer(self):
-        return self.create_merge_reducer()
+        def reducer(storage: SessionData | None, op: BaseOp) -> SessionData:
+            if storage is None:
+                storage = SessionData()
+
+            if isinstance(op, Top3MergeOp):
+                storage.merged = self._merge_logic(storage.merged, op.message)
+                storage.message_count += 1
+
+            return storage
+
+        return reducer
 
     def create_session_storage(self) -> SessionStorage:
-        return WALFileSessionStorage(save_dir="./sessions/saves", reducer=self.get_reducer(), op_types=[MergeOp])
+        return WALFileSessionStorage(save_dir="./sessions/saves", reducer=self.get_reducer(), op_types=[Top3MergeOp])
