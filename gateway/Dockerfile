@@ -5,7 +5,6 @@ RUN pip install -r requirements.txt
 
 COPY shared /shared
 COPY gateway /gateway
-COPY compose_config.yaml /gateway/
 
 WORKDIR /gateway
 ENV PYTHONPATH=/
