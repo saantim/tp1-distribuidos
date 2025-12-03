@@ -30,6 +30,7 @@ services:
     volumes:
     - ./gateway:/gateway
     - ./shared:/shared
+    - ./compose_config.yaml:/gateway/compose_config.yaml
     entrypoint: python main.py
     networks:
     - coffee
@@ -181,8 +182,8 @@ services:
     - /var/run/docker.sock:/var/run/docker.sock
     - ./chaos_monkey:/chaos_monkey
     environment:
-      CONTAINERS_EXCLUDED: gateway,chaos_monkey,rabbitmq,client_min,client_full,health,aggre,filter,transf,sink,merg
-      KILL_INTERVAL: 5.0
+      CONTAINERS_EXCLUDED: gateway,chaos_monkey,rabbitmq,client_min,client_full
+      KILL_INTERVAL: 10.0
       LOGGING_LEVEL: DEBUG
     depends_on:
       gateway:
@@ -275,7 +276,7 @@ services:
     - ./.results:/client/.results
     - ./client:/client
     - ./shared:/shared
-    scale: 3
+    scale: 5
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker

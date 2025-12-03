@@ -97,8 +97,11 @@ test_count_eof:
 .PHONY: count-flush
 
 kill-containers:
-	docker compose exec chaos_monkey python /chaos_monkey/kill_script.py $(prefixes)
-.PHONY: kill-chaos
+	@ARGS=""; \
+	if [ -n "$(prefixes)" ]; then ARGS="$$ARGS prefixes=$(prefixes)"; fi; \
+	if [ -n "$(loop)" ]; then ARGS="$$ARGS loop=$(loop)"; fi; \
+	docker compose exec chaos_monkey python /chaos_monkey/kill_script.py $$ARGS
+.PHONY: kill-containers
 
 clean_res:
 	ls .results | grep -v '^expected$$' | xargs -I{} rm -rf .results/{}

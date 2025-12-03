@@ -4,12 +4,12 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 3
+    min: 5
     full: 0
   chaos_monkey:
     enabled: true
-    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich"
-    kill_interval: 5
+    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
+    kill_interval: 10
     logging_level: DEBUG
   health_checker:
     enabled: true
