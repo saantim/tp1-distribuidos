@@ -205,7 +205,6 @@ class EnricherBase(WorkerBase, ABC):
         self._send_message(messages=buffer, session_id=session_id)
 
         count = len(buffer)
-        session_data.enriched_count += count
 
         logging.info(
             f"action: flush_buffer | stage: {self._stage_name} | session: {session_id.hex[:8]} | count: {count}"

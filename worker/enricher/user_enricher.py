@@ -49,6 +49,13 @@ class Enricher(EnricherBase):
         session_data = session.get_storage(self.get_session_data_type())
         self._enrich_entity_fn(session_data, message)
 
+        session_data.enriched_count += 1
+        if session_data.enriched_count % 100000 == 0:
+            logging.info(
+                f"[{self._stage_name}] {session_data.enriched_count//1000}k enriched | "
+                f"session: {session.session_id.hex[:8]}"
+            )
+
     def _flush_buffer(self, session: Session) -> None:
         session_id = session.session_id
         session_data = session.get_storage(self.get_session_data_type())
