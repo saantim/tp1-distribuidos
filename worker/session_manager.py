@@ -23,6 +23,7 @@ class SessionManager:
     * Follower mode (``is_leader=False``): a session is flushable as soon as
       a single EOF is collected.
     """
+
     def __init__(
         self,
         stage_name: str,
@@ -102,6 +103,9 @@ class SessionManager:
                 logging.info(f"action: create_session | stage: {self._stage_name} | session: {session_id.hex[:8]}")
         current_session = self._sessions.get(session_id, None)
         return current_session
+
+    def get_sessions(self) -> dict[uuid.UUID, Session]:
+        return self._sessions
 
     def try_to_flush(self, session: Session) -> bool:
         """
