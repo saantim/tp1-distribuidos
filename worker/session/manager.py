@@ -7,20 +7,14 @@ from worker.session.storage import Session, SessionStorage
 
 class SessionManager:
     """
-    Manage the lifecycle and in-memory registry of Session objects for a stage.
+    Manages session lifecycle for a worker stage.
 
-    The SessionManager is responsible for:
-    - Creating sessions on demand when a new ``session_id`` is seen.
-    - Invoking lifecycle callbacks on session start and end.
-    - Deciding when a session is eligible to be flushed (based on EOF markers).
-    - Delegating persistence to a concrete ``SessionStorage`` implementation.
+    Creates sessions on demand, invokes start/end callbacks, determines when
+    sessions can be flushed based on EOF markers, and delegates persistence
+    to a SessionStorage backend.
 
-    The manager can operate in two modes:
-
-    * Leader mode (``is_leader=True``): a session is considered flushable only
-      after EOF has been collected from all configured instances.
-    * Follower mode (``is_leader=False``): a session is flushable as soon as
-      a single EOF is collected.
+    Leader mode: session flushes after receiving EOF from all instances.
+    Follower mode: session flushes after receiving a single EOF.
     """
 
     def __init__(
@@ -33,26 +27,13 @@ class SessionManager:
         session_storage: SessionStorage,
     ):
         """
-        Initialize a new SessionManager instance.
-
         Args:
-            stage_name: Human-readable name of the processing stage that owns
-                this manager. Used in logs to identify where events originate.
-            on_start_of_session: Callback invoked whenever a new Session object
-                is created. Typically used to perform initialization or side
-                effects (metrics, logging, etc.).
-            on_end_of_session: Callback invoked when a session becomes
-                flushable and is about to be removed from the in-memory
-                registry. Typically used to perform cleanup or final side
-                effects.
-            instances: Total number of worker instances that are expected to
-                participate in a session when running in leader mode. This
-                value is used to compute the EOF threshold.
-            is_leader: If True, this manager enforces that EOF must be
-                collected from all ``instances`` before a session is
-                considered flushable. If False, a single EOF is sufficient.
-            session_storage: Concrete SessionStorage backend responsible for
-                persisting and loading session state.
+            stage_name: Stage name for logging.
+            on_start_of_session: Callback when session is created.
+            on_end_of_session: Callback when session is flushed.
+            instances: Number of upstream instances (used for EOF counting).
+            is_leader: If True, wait for EOF from all instances. If False, flush after one EOF.
+            session_storage: Storage backend for persisting sessions.
         """
         self._sessions: dict[uuid.UUID, Session] = {}
         self._session_storage: SessionStorage = session_storage
@@ -64,14 +45,7 @@ class SessionManager:
         self._setup_logging()
 
     def _setup_logging(self):
-        """
-        Configure logging for the SessionManager and its dependencies.
-
-        This method sets a basic logging configuration for the process,
-        including a standard format that prefixes log entries with the class
-        name. It also reduces the verbosity of the ``pika`` logger to WARNING
-        to avoid noisy output from the messaging layer.
-        """
+        """Configure logging and suppress verbose pika output."""
         logging.basicConfig(
             level=logging.INFO,
             format=f"{self.__class__.__name__} - %(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
@@ -81,19 +55,9 @@ class SessionManager:
 
     def get_or_initialize(self, session_id: uuid.UUID) -> Session:
         """
-        Retrieve an existing session or create a new one if it does not exist.
+        Get session by ID, creating it if it doesn't exist.
 
-        If the given ``session_id`` is not present in the internal registry,
-        this method will:
-        - Instantiate a new Session.
-        - Store it in ``_sessions``.
-        - Invoke the ``on_start_of_session`` callback.
-
-        Args:
-            session_id: Unique identifier of the session to retrieve or create.
-
-        Returns:
-            The Session instance associated with the given ``session_id``.
+        Invokes on_start_of_session callback for new sessions.
         """
         if session_id not in self._sessions:
             self._sessions[session_id] = self._session_storage.create_session(session_id)
@@ -108,20 +72,12 @@ class SessionManager:
 
     def try_to_flush(self, session: Session) -> bool:
         """
-        Attempt to flush a session if it meets the flushability criteria.
+        Flush session if it has collected enough EOFs.
 
-        A session is considered flushable when :meth:`_is_flushable` returns
-        True. When that happens, this method will:
-
-        - Invoke the ``on_end_of_session`` callback.
-        - Remove the session from the in-memory registry.
-
-        Args:
-            session: The Session instance to evaluate and potentially flush.
+        Invokes on_end_of_session callback and removes from registry.
 
         Returns:
-            True if the session was flushable and has been removed from the
-            registry, False otherwise.
+            True if session was flushed, False otherwise.
         """
         if self._is_flushable(session):
             self._on_end_of_session(session)
@@ -132,56 +88,24 @@ class SessionManager:
 
     def _is_flushable(self, session: Session) -> bool:
         """
-        Determine whether a session has collected enough EOF markers.
+        Check if session has enough EOFs to flush.
 
-        In leader mode, a session is flushable only when the number of EOF
-        markers is greater than or equal to ``instances``. In follower mode,
-        a single EOF marker is sufficient.
-
-        Args:
-            session: The Session instance to inspect.
-
-        Returns:
-            True if the session meets the EOF threshold for the current mode
-            (leader or follower), False otherwise.
+        Leader mode: needs EOF from all instances.
+        Follower mode: needs one EOF.
         """
         return len(session.get_eof_collected()) >= (self._instances if self._is_leader else 1)
 
     def save_sessions(self) -> None:
-        """
-        Persist all active sessions using the configured SessionStorage.
-
-        This method iterates over the in-memory registry and delegates the
-        persistence of each Session to the underlying storage backend. It is
-        typically called during graceful shutdown or periodic checkpoints.
-        """
+        """Save all active sessions to storage (used during shutdown)."""
         for session in self._sessions.values():
             self._session_storage.save_session(session)
 
     def save_session(self, session: Session) -> None:
-        """
-        Persist a single session using the configured SessionStorage.
-
-        This is a convenience wrapper around ``SessionStorage.save_session``
-        that allows callers to explicitly checkpoint an individual Session
-        after significant state changes.
-
-        Args:
-            session: The Session instance to persist.
-        """
+        """Save a single session to storage."""
         self._session_storage.save_session(session)
 
     def load_sessions(self) -> None:
-        """
-        Load previously persisted sessions into the in-memory registry.
-
-        The method asks the configured SessionStorage to load all stored
-        sessions and repopulates the internal ``_sessions`` mapping. Existing
-        entries with the same ``session_id`` will be overwritten.
-
-        This is typically used during startup or recovery to resume processing
-        from previously saved state.
-        """
+        """Load all persisted sessions from storage into memory (used during startup)."""
         sessions = self._session_storage.load_sessions()
 
         for session in sessions:

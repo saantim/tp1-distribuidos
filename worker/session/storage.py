@@ -8,34 +8,20 @@ from worker.session.session import Session
 
 class SessionStorage(ABC):
     """
-    Abstract base class for session persistence backends.
+    Base class for session persistence backends.
 
-    Concrete implementations are responsible for:
-    - Persisting individual sessions.
-    - Loading individual sessions by their identifier.
-    - Loading all persisted sessions from a given storage location.
-
-    This base class also takes care of preparing the directory structure
-    used by file-based implementations, including a separate temporary
-    directory for atomic writes.
+    Handles saving/loading sessions to disk. Creates save directory and
+    temp directory for atomic writes.
     """
 
     def __init__(self, save_dir: str = "./sessions/saves"):
         """
-        Initialize the storage with a base directory for session files.
+        Initialize storage with a save directory.
 
-        The constructor ensures that the ``save_dir`` exists and is a
-        directory, and creates a ``tmp`` subdirectory that can be used
-        for temporary files when performing atomic writes.
-
-        Args:
-            save_dir: Base directory where session data will be stored.
-                Implementations are free to choose their own layout
-                under this directory.
+        Creates save_dir and tmp subdirectory if they don't exist.
 
         Raises:
-            NotADirectoryError: If ``save_dir`` exists and is not a
-                directory.
+            NotADirectoryError: If save_dir exists but is not a directory.
         """
         self._save_dir: Path = Path(save_dir)
         self._temporal_save_dir: Path = self._save_dir / "tmp"
@@ -49,65 +35,31 @@ class SessionStorage(ABC):
     @abstractmethod
     def save_session(self, session: Session) -> Path:
         """
-        Persist the given session and return the path where it was saved.
-
-        Implementations may choose how to serialize the session and how
-        to organize files on disk or in any other backing store.
-
-        Args:
-            session: Session instance whose state should be persisted.
+        Persist session to storage.
 
         Returns:
-            Path pointing to the final location of the persisted session
-            representation.
+            Path where session was saved.
         """
         ...
 
     @abstractmethod
     def load_session(self, session_id: str) -> Session:
         """
-        Load a single session by its identifier.
+        Load a single session by ID.
 
         Args:
-            session_id: String representation of the session identifier
-                used by the storage backend (typically the UUID in hex
-                form without dashes).
-
-        Returns:
-            The reconstructed Session instance.
+            session_id: Hex UUID string.
 
         Raises:
-            FileNotFoundError: If there is no persisted session with the
-                given identifier.
-            Exception: Any error that occurs while reading or parsing
-                the persisted data.
+            FileNotFoundError: If session doesn't exist.
         """
         ...
 
     @abstractmethod
     def load_sessions(self) -> List[Session]:
-        """
-        Load all sessions available in the underlying storage.
-
-        Implementations should discover and reconstruct every session
-        that can be found in their backing store and return them as a
-        list. The exact discovery mechanism depends on the concrete
-        storage layout (e.g. one file per session, multiple deltas per
-        session, etc.).
-
-        Returns:
-            A list of reconstructed Session instances.
-        """
+        """Load all sessions from storage."""
         ...
 
     def create_session(self, session_id: uuid.UUID) -> Session:
-        """
-        Create a new session instance.
-
-        Args:
-            session_id: Unique identifier for the new session.
-
-        Returns:
-            A new Session instance.
-        """
+        """Create a new empty session."""
         return Session(session_id=session_id)
