@@ -19,6 +19,7 @@ class ChaosMonkey:
         _config: Configuration parameters controlling the monkey's behavior.
         _shutdown_signal: Cooperative shutdown signal used to stop the loop.
     """
+    HEALTH_PREFIX = 'health_checker'
 
     def __init__(self, config: ChaosMonkeyConfiguration, shutdown_signal: ShutdownSignal):
         """
@@ -49,7 +50,7 @@ class ChaosMonkey:
             try:
                 container = self._select_container_to_kill()
                 if container:
-                    self._kill_container(container)
+                    self._safe_kill_container(container)
             except Exception:
                 logging.exception("Unhandled error in Chaos Monkey main loop")
 
@@ -93,6 +94,83 @@ class ChaosMonkey:
 
         logging.warning("No eligible containers found to kill")
         return None
+
+    def kill_containers_by_prefix(self, prefixes: list[str]) -> None:
+        """
+        Kill all running containers whose name contains any of the given prefixes,
+        excluding those configured in `containers_excluded`.
+        """
+        logging.info("!!! Killing containers matching prefixes: %s", ", ".join(prefixes))
+
+        containers: list[Container] = DockerManager.get_containers()
+        killed = 0
+
+        for container in containers:
+            name = container.Names
+
+            excluded = any(ex_prefix in name for ex_prefix in self._config.containers_excluded)
+            if excluded:
+                continue
+
+            matches_prefix = any(prefix in name for prefix in prefixes)
+            if prefixes and not matches_prefix:
+                continue
+
+            try:
+                killed = killed + (1 if self._safe_kill_container(container) else 0)
+            except Exception as e:
+                logging.error(f"Failed to kill container {name}: {e}")
+
+        logging.info(
+            "Killed %d containers matching prefixes %s",
+            killed,
+            ", ".join(prefixes),
+        )
+
+    def kill_all_containers(self) -> None:
+        """
+        Kill all running containers, excluding those in the exclusion list.
+        """
+        logging.info("!!! Killing all containers")
+
+        containers: list[Container] = DockerManager.get_containers()
+        killed = 0
+
+        for container in containers:
+            excluded = any(prefix in container.Names for prefix in self._config.containers_excluded)
+            if not excluded:
+                try:
+                    killed = killed + (1 if self._safe_kill_container(container) else 0)
+                except Exception as e:
+                    logging.error(f"Failed to kill container {container.Names}: {str(e)}")
+
+        logging.info(f"Killed {killed} containers")
+
+
+    def _safe_kill_container(self, container: Container) -> bool:
+        """
+        Safely kill a container after performing necessary validations.
+        
+        Args:
+            container: The container to be killed
+            containers: List of all containers for validation
+            
+        Returns:
+            bool: True if the container was killed, False otherwise
+        """
+        if self.HEALTH_PREFIX in container.Names:
+            running_health_checkers = [
+                c for c in DockerManager.get_containers()
+                if self.HEALTH_PREFIX in c.Names 
+                and c.State == 'running'
+            ]
+            
+            if len(running_health_checkers) <= 1:
+                logging.warning("Avoid killing last health checker")
+                return False
+
+        self._kill_container(container)
+        return True
 
     def _kill_container(self, container: Container) -> None:
         """
