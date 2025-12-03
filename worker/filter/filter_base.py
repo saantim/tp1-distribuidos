@@ -9,6 +9,7 @@ from worker.session.session import Session
 
 
 class FilterBase(WorkerBase, ABC):
+    PROGRESS_LOG_INTERVAL = 100000
 
     def __init__(
         self,
@@ -55,7 +56,7 @@ class FilterBase(WorkerBase, ABC):
             session_data.passed += 1
             session_data.buffer.append(message)
 
-        if session_data.received % 100000 == 0:
+        if session_data.received % self.PROGRESS_LOG_INTERVAL == 0:
             logging.info(
                 f"[{self._stage_name}] {session_data.received//1000}k: pass={session_data.passed} | "
                 f"session: {session.session_id.hex[:8]}"

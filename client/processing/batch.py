@@ -13,7 +13,9 @@ from shared.shutdown import ShutdownSignal
 class BatchConfig:
     """configuration for batch processing."""
 
-    def __init__(self, max_rows: int = 1000):
+    DEFAULT_BATCH_SIZE = 1000
+
+    def __init__(self, max_rows: int = DEFAULT_BATCH_SIZE):
         """
         args:
             max_rows: maximum number of rows per batch (default: 1000)
