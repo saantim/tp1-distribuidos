@@ -175,7 +175,7 @@ services:
     - /var/run/docker.sock:/var/run/docker.sock
     - ./chaos_monkey:/chaos_monkey
     environment:
-      CONTAINERS_EXCLUDED: gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich,health,filt,transf,sink,aggr
+      CONTAINERS_EXCLUDED: gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich
       KILL_INTERVAL: 5.0
       LOGGING_LEVEL: DEBUG
     depends_on:
@@ -253,7 +253,7 @@ services:
       ELECTION_TIMEOUT: '3'
       COORDINATOR_TIMEOUT: '5'
       PERSIST_PATH: /state/registry.json
-  client_min:
+  client_full:
     build:
       context: .
       dockerfile: ./client/Dockerfile
@@ -265,11 +265,9 @@ services:
     environment:
       LOGGING_LEVEL: DEBUG
     volumes:
-    - ./.data/dataset_min:/client/.data
+    - ./.data/dataset_full:/client/.data
     - ./.results:/client/.results
-    - ./client:/client
-    - ./shared:/shared
-    scale: 5
+    scale: 2
   transformer_menu_items:
     container_name: transformer_menu_items
     image: transformer_worker
