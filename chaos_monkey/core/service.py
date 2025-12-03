@@ -166,7 +166,7 @@ class ChaosMonkey:
             ]
             
             if len(running_health_checkers) <= 1:
-                logging.warning("Avoid killing last health checker")
+                logging.warning(f"Avoid killing last health checker: {container.Names}")
                 return False
 
         self._kill_container(container)
