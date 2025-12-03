@@ -12,6 +12,10 @@ class BaseOp(BaseModel):
 
     type: str
 
+    @classmethod
+    def get_type(cls) -> str:
+        return cls.model_fields["type"].default
+
 
 class SysEofOp(BaseOp):
     """System operation marking EOF from a worker."""
@@ -25,6 +29,13 @@ class SysMsgOp(BaseOp):
 
     type: Literal["__sys_msg"] = "__sys_msg"
     msg_id: str
+
+
+class SysCommitOp(BaseOp):
+    """System operation marking successful batch commit (for atomicity)."""
+
+    type: Literal["__sys_commit"] = "__sys_commit"
+    batch_id: str
 
 
 class Session(BaseModel):

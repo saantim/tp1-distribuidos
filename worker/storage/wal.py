@@ -8,7 +8,7 @@ from typing import Any, Callable, List, Optional, Type
 
 from pydantic import Field
 
-from worker.session import BaseOp, Session, SessionStorage, SysEofOp, SysMsgOp
+from worker.session import BaseOp, Session, SessionStorage, SysCommitOp, SysEofOp, SysMsgOp
 
 
 class WALSession(Session):
@@ -71,9 +71,14 @@ class WALFileSessionStorage(SessionStorage):
         self._batch_counts: dict[str, int] = {}
         if op_types is None:
             op_types = []
-        self._op_types_map = {op.model_fields["type"].default: op for op in op_types}
-        self._op_types_map[SysEofOp.model_fields["type"].default] = SysEofOp
-        self._op_types_map[SysMsgOp.model_fields["type"].default] = SysMsgOp
+
+        # custom types
+        self._op_types_map = {op.get_type(): op for op in op_types}
+
+        # default "system" types
+        self._op_types_map[SysEofOp.get_type()] = SysEofOp
+        self._op_types_map[SysMsgOp.get_type()] = SysMsgOp
+        self._op_types_map[SysCommitOp.get_type()] = SysCommitOp
 
     def create_session(self, session_id: uuid.UUID) -> Session:
         """Create a new WALSession instance."""
@@ -83,17 +88,21 @@ class WALFileSessionStorage(SessionStorage):
         return session
 
     def save_session(self, session: Session) -> Path:
-        """
-        Save session by appending pending ops to WAL.
-
-        This is called after each RabbitMQ message batch is processed.
-        Each call represents one completed batch.
-        """
         session_id = session.session_id.hex
         wal_path = self._get_wal_path(session_id)
 
         if session.pending_ops:
-            buffer = "".join(op.model_dump_json() + "\n" for op in session.pending_ops)
+            msg_id = next((op.msg_id for op in session.pending_ops if isinstance(op, SysMsgOp)), None)
+            if msg_id is None:
+                msg_id = uuid.uuid4().hex
+                logging.warning(
+                    f"[WAL] No SysMsgOp found in pending_ops | session: {session_id[:8]} | "
+                    f"using fallback batch_id: {msg_id}"
+                )
+
+            ops_buffer = "".join(op.model_dump_json() + "\n" for op in session.pending_ops)
+            commit_marker = SysCommitOp(batch_id=msg_id).model_dump_json() + "\n"
+            buffer = ops_buffer + commit_marker
 
             with open(wal_path, "a") as f:
                 f.write(buffer)
@@ -140,6 +149,7 @@ class WALFileSessionStorage(SessionStorage):
             start_time = time.time()
             op_count = 0
             skip_count = 0
+            batch_buffer = []
 
             with open(wal_path, "r") as f:
                 for line_num, line in enumerate(f, start=1):
@@ -154,8 +164,14 @@ class WALFileSessionStorage(SessionStorage):
 
                         if op_cls:
                             op = op_cls.model_validate(raw_op)
-                            session.apply(op)
-                            op_count += 1
+
+                            if isinstance(op, SysCommitOp):
+                                for buffered_op in batch_buffer:
+                                    session.apply(buffered_op)
+                                    op_count += 1
+                                batch_buffer.clear()
+                            else:
+                                batch_buffer.append(op)
                         else:
                             logging.warning(
                                 f"[WAL] Unknown op type '{op_type_str}' at line {line_num} | "
@@ -175,6 +191,15 @@ class WALFileSessionStorage(SessionStorage):
                             f"error: {e} | SKIPPING"
                         )
                         skip_count += 1
+
+            if batch_buffer:
+                batch_ids = [op.msg_id for op in batch_buffer if isinstance(op, SysMsgOp)]
+                batch_id = batch_ids[0] if batch_ids else "unknown"
+                logging.warning(
+                    f"[WAL] Discarding uncommitted batch | session: {session_id[:8]} | "
+                    f"batch_id: {batch_id} | ops_discarded: {len(batch_buffer)}"
+                )
+                batch_buffer.clear()
 
             if skip_count > 0:
                 logging.warning(

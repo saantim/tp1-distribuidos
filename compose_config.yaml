@@ -4,7 +4,7 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 1
+    min: 10
     full: 0
   chaos_monkey:
     enabled: true

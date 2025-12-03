@@ -34,16 +34,17 @@ def test_session_apply_records_eof_in_wal():
         with open(wal_path, "r") as f:
             lines = f.readlines()
 
-        assert len(lines) == 2, f"Expected 2 lines in WAL, got {len(lines)}"
+        assert len(lines) == 3, f"Expected 3 lines in WAL (2 ops + 1 commit), got {len(lines)}"
 
-        # Parse and verify operations
         op1 = json.loads(lines[0].strip())
         op2 = json.loads(lines[1].strip())
+        commit = json.loads(lines[2].strip())
 
         assert op1["type"] == "__sys_eof"
         assert op1["worker_id"] == "worker_0"
         assert op2["type"] == "__sys_eof"
         assert op2["worker_id"] == "worker_1"
+        assert commit["type"] == "__sys_commit"
 
         # Verify in-memory state
         assert "worker_0" in session.eof_collected
@@ -71,16 +72,17 @@ def test_session_apply_records_message_ids_in_wal():
         with open(wal_path, "r") as f:
             lines = f.readlines()
 
-        assert len(lines) == 2, f"Expected 2 lines in WAL, got {len(lines)}"
+        assert len(lines) == 3, f"Expected 3 lines in WAL (2 ops + 1 commit), got {len(lines)}"
 
-        # Parse and verify operations
         op1 = json.loads(lines[0].strip())
         op2 = json.loads(lines[1].strip())
+        commit = json.loads(lines[2].strip())
 
         assert op1["type"] == "__sys_msg"
         assert op1["msg_id"] == "msg_abc123"
         assert op2["type"] == "__sys_msg"
         assert op2["msg_id"] == "msg_def456"
+        assert commit["type"] == "__sys_commit"
 
         # Verify in-memory state
         assert "msg_abc123" in session.msgs_received
