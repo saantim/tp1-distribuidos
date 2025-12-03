@@ -65,7 +65,7 @@ class HeartbeatSender:
             try:
                 self._socket.sendto(data, (host, self._port))
             except socket.error as e:
-                logging.warning(f"action: heartbeat_send | target: {host} | result: fail | error: {e}")
+                logging.debug(f"action: heartbeat_send | target: {host} | result: fail | error: {e}")
 
 
 def build_container_name(stage_name: str, index: int, instances: int) -> str:
