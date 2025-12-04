@@ -301,28 +301,45 @@ class ResultsValidator:
         if extra_stores:
             return False, {"reason": "Pipeline has stores not in expected results", "extra_stores": list(extra_stores)}
 
-        # For each store, check that all 3 pipeline customers exist in expected top 35
+        # For each store, validate that pipeline returned the correct top 3 purchase counts
         for store, p_results in pipeline_by_store.items():
             e_results = expected_by_store[store]
 
-            # Create set of (birthdate, qty) tuples from expected
-            expected_set = {(e["birthdate"], e["purchases_qty"]) for e in e_results}
+            # Sort expected by purchases_qty DESC, birthdate ASC (same as build_expected.py)
+            e_sorted = sorted(e_results, key=lambda x: (-x["purchases_qty"], x["birthdate"]))
 
-            # Check each pipeline customer is in expected
+            # Get the top 3 purchase counts from expected (deterministic)
+            expected_top3_counts = [e_sorted[i]["purchases_qty"] for i in range(3)]
+
+            # Sort pipeline by purchases_qty DESC (matches pipeline behavior)
+            p_sorted = sorted(p_results, key=lambda x: -x["purchases_qty"])
+            pipeline_top3_counts = [p_sorted[i]["purchases_qty"] for i in range(3)]
+
+            # Check purchase counts match
+            if pipeline_top3_counts != expected_top3_counts:
+                return False, {
+                    "reason": f"Store '{store}' top 3 purchase counts don't match",
+                    "store": store,
+                    "expected_counts": expected_top3_counts,
+                    "got_counts": pipeline_top3_counts,
+                }
+
+            # For each pipeline customer, verify they could legitimately be in top 3
+            # (i.e., their purchase count is among the top 3 counts)
+            valid_counts = set(expected_top3_counts)
             for p_result in p_results:
-                customer_tuple = (p_result["birthdate"], p_result["purchases_qty"])
-                if customer_tuple not in expected_set:
+                if p_result["purchases_qty"] not in valid_counts:
                     return False, {
-                        "reason": f"Store '{store}' has customer not in expected top 35",
+                        "reason": f"Store '{store}' has customer with invalid purchase count",
                         "store": store,
-                        "pipeline_customer": p_result,
-                        "note": "Customer must be in top 35 candidates for this store",
+                        "customer": p_result,
+                        "valid_counts": list(valid_counts),
                     }
 
         return True, {
             "store_count": len(pipeline_by_store),
             "total_customers": sum(len(v) for v in pipeline_by_store.values()),
-            "validation_strategy": "verified all pipeline customers are in expected top 35 per store",
+            "validation_strategy": "verified pipeline top 3 purchase counts match expected (ties allowed)",
         }
 
     def _print_summary(self):
