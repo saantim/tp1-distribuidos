@@ -22,6 +22,72 @@ source venv/bin/activate
 pip3 install -r requirements.txt
 ```
 
+## Estructura de Carpetas de Datos
+
+El proyecto requiere las siguientes carpetas para funcionar correctamente:
+
+### `.data/` - Datasets de Entrada
+
+Contiene los archivos CSV que el sistema procesa. Deben existir dos datasets:
+
+```
+.data/
+├── dataset_min/          # Dataset mínimo (para desarrollo y pruebas rápidas)
+│   ├── menu_items/       # Items del menú (CSV)
+│   ├── stores/           # Tiendas (CSV)
+│   ├── transaction_items/# Items de transacciones (CSV)
+│   ├── transactions/     # Transacciones (CSV)
+│   └── users/            # Usuarios (CSV)
+└── dataset_full/         # Dataset completo (para pruebas de producción)
+    ├── menu_items/
+    ├── stores/
+    ├── transaction_items/
+    ├── transactions/
+    └── users/
+```
+
+**Nota**: Los datasets deben descargarse/generarse antes de ejecutar el sistema. El cliente lee estos archivos desde volúmenes montados en Docker.
+
+### `.results/` - Resultados de Ejecución
+
+Almacena los resultados generados por el sistema:
+
+```
+.results/
+├── expected/             # Resultados esperados para validación (NO se eliminan con make clean_res)
+│   ├── min/              # Resultados esperados para dataset_min
+│   │   ├── q1.json
+│   │   ├── q2.json
+│   │   ├── q3.json
+│   │   └── q4.json
+│   └── full/             # Resultados esperados para dataset_full
+│       ├── q1.json
+│       ├── q2.json
+│       ├── q3.json
+│       └── q4.json
+├── <session_id>/         # Resultados de cada sesión de cliente (UUID)
+│   ├── q1.json
+│   ├── q2.json
+│   ├── q3.json
+│   └── q4.json
+└── reports/              # Reportes de validación
+```
+
+**Importante**:
+- Los resultados de sesión se identifican por UUID único
+- `make clean_res` elimina todas las carpetas excepto `expected/`
+- Los resultados esperados deben generarse antes de poder validar
+
+### `.kaggle/` - Scripts de Validación
+
+Contiene los scripts Python para generar y validar resultados:
+
+```
+.kaggle/
+├── build_expected.py     # Genera resultados esperados desde CSVs locales
+└── validation.py         # Compara resultados de sesiones contra esperados
+```
+
 ## Comandos Principales
 
 ### Ejecución del Sistema
@@ -48,16 +114,85 @@ make logs-health            # Logs de health checkers
 
 ### Testing y Validación
 
-```bash
-# Generar resultados esperados
-make gen_min                # Dataset minimal
-make gen_full               # Dataset full
+#### 1. Generar Resultados Esperados
 
-# Validar resultados
-make valid_min              # Todas las queries, última sesión
-make valid_min SESSION=<uuid>  # Sesión específica
-make valid_min QUERIES=q1,q3   # Queries específicas
-make valid_full             # Validación con dataset full
+Antes de validar, debes generar los resultados esperados procesando los CSVs localmente:
+
+```bash
+# Generar resultados esperados para dataset minimal
+make gen_min
+
+# Generar resultados esperados para dataset full
+make gen_full
+```
+
+**¿Qué hace esto?**
+- Ejecuta `.kaggle/build_expected.py` con Pandas localmente (sin Docker)
+- Lee los CSVs desde `.data/dataset_min/` o `.data/dataset_full/`
+- Genera archivos de resultados en `.results/expected/min/` o `.results/expected/full/`
+- Crea archivos: `q1.json`, `q2.json`, `q3.json`, `q4.json`
+
+**Importante**: Estos archivos NO se eliminan con `make clean_res` y sirven como "ground truth" para validaciones.
+
+#### 2. Ejecutar el Sistema
+
+```bash
+# Generar compose e iniciar sistema
+make
+
+# El sistema procesará los datos y generará resultados en:
+# .results/<session_id>/q1.json
+# .results/<session_id>/q2.json
+# .results/<session_id>/q3.json
+# .results/<session_id>/q4.json
+```
+
+#### 3. Validar Resultados
+
+Una vez que el sistema terminó de procesar, valida los resultados comparándolos con los esperados:
+
+```bash
+# Validar todas las queries de la última sesión (dataset minimal)
+make valid_min
+
+# Validar una sesión específica
+make valid_min SESSION=e2baac91-147f-4b01-b0b8-5e0ca63af78e
+
+# Validar queries específicas de la última sesión
+make valid_min QUERIES=q1,q3
+
+# Validar con dataset full
+make valid_full
+
+# Combinar opciones
+make valid_min SESSION=<uuid> QUERIES=q1,q2
+```
+
+**¿Qué hace la validación?**
+- Ejecuta `.kaggle/validation.py`
+- Compara línea por línea los resultados en `.results/<session_id>/` vs `.results/expected/`
+- Genera reporte en `.results/reports/<session_id>_validation_report.json`
+- Muestra en consola: ✅ (match) o ❌ (diferencias encontradas)
+
+**Workflow típico de validación:**
+
+```bash
+# 1. Generar resultados esperados (solo una vez)
+make gen_min
+
+# 2. Limpiar resultados previos
+make clean_res
+
+# 3. Ejecutar sistema
+make
+
+# 4. Esperar a que termine el procesamiento
+# (monitorear logs con make logs-client)
+
+# 5. Validar resultados
+make valid_min
+
+# 6. Si falla, revisar diferencias en .results/reports/
 ```
 
 ### Chaos Monkey
