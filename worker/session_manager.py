@@ -111,7 +111,7 @@ class SessionManager:
         """
         Attempt to flush a session if it meets the flushability criteria.
 
-        A session is considered flushable when :meth:`_is_flushable` returns
+        A session is considered flushable when `_is_flushable` returns
         True. When that happens, this method will:
 
         - Invoke the ``on_end_of_session`` callback.

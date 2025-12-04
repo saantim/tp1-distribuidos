@@ -1,5 +1,5 @@
 import uuid
-from typing import Type, TypeVar, Optional, Any
+from typing import Any, Optional, Type, TypeVar
 
 from pydantic import BaseModel
 
@@ -30,7 +30,7 @@ class Session(BaseModel):
         Deserialize the internal storage payload into a typed Pydantic model.
 
         The method assumes that ``self.storage`` contains a JSON-compatible
-        dictionary previously produced by :meth:`set_storage`. It uses the
+        dictionary previously produced by `set_storage`. It uses the
         provided Pydantic model class (a subclass of ``BaseModel``) to
         validate and instantiate the typed payload.
 
@@ -95,7 +95,7 @@ class Session(BaseModel):
 
         Returns:
             A set of worker IDs that have previously been registered via
-            :meth:`add_eof`.
+            `add_eof`.
         """
         return self.eof_collected
 
@@ -104,7 +104,7 @@ class Session(BaseModel):
         Register that a message with the given ID has been processed.
 
         The message ID is added to the ``msgs_received`` set so that subsequent
-        calls to :meth:`is_duplicated_msg` can be used to detect duplicates.
+        calls to `is_duplicated_msg` can be used to detect duplicates.
 
         Args:
             msg_id: Unique identifier of the message that has just been

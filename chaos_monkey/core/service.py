@@ -1,5 +1,6 @@
 import logging
 import random
+import threading
 from typing import Optional
 
 from chaos_monkey.core.config import ChaosMonkeyConfiguration
@@ -11,7 +12,7 @@ class ChaosMonkey:
     """
     Periodically kills random Docker containers to simulate failures.
 
-    The Chaos Monkey runs in a loop until a :class:`ShutdownSignal` indicates
+    The Chaos Monkey runs in a loop until a `ShutdownSignal` indicates
     that it should stop. At each iteration, it waits for the configured
     interval, picks a random eligible container, and attempts to stop it.
 
@@ -19,7 +20,8 @@ class ChaosMonkey:
         _config: Configuration parameters controlling the monkey's behavior.
         _shutdown_signal: Cooperative shutdown signal used to stop the loop.
     """
-    HEALTH_PREFIX = 'health_checker'
+
+    HEALTH_PREFIX = "health_checker"
 
     def __init__(self, config: ChaosMonkeyConfiguration, shutdown_signal: ShutdownSignal):
         """
@@ -31,101 +33,159 @@ class ChaosMonkey:
         """
         self._config = config
         self._shutdown_signal = shutdown_signal
+        self._docker_lock = threading.RLock()
 
-    def run(self):
+    def start(self):
         """
-        Start the Chaos Monkey main loop.
+        Start the Chaos Monkey threads based on configuration.
 
-        The loop sleeps for the configured interval, checks the shutdown signal,
-        and, if still active, selects and kills a random container (if any are
-        eligible). Any unexpected exceptions are logged and the loop continues
-        until shutdown is requested.
+        Spawns threads for enabled modes (single and/or full) and waits for shutdown signal.
         """
-        logging.info(
-            f"Chaos Monkey started (interval={self._config.interval},"
-            f" excluded_containers={self._config.containers_excluded})",
-        )
+        threads = []
 
-        while not self._shutdown_signal.wait(timeout=self._config.interval):
+        if not self._config.single_enabled and not self._config.full_enabled:
+            logging.warning("Chaos Monkey enabled but no modes are active. Exiting.")
+            return
+
+        # Wait for start_delay before launching threads
+        if self._config.start_delay > 0:
+            logging.info(f"Waiting {self._config.start_delay} seconds before starting chaos monkey threads")
+            if self._shutdown_signal.wait(timeout=self._config.start_delay):
+                logging.info("Shutdown signal received during start delay, exiting")
+                return
+
+        if self._config.single_enabled:
+            logging.info(
+                f"Starting single mode (interval={self._config.single_interval}s, "
+                f"filter_prefix={self._config.filter_prefix})"
+            )
+            single_thread = threading.Thread(target=self.run_single_mode, name="ChaosMonkey-Single")
+            single_thread.daemon = False
+            single_thread.start()
+            threads.append(single_thread)
+
+        if self._config.full_enabled:
+            logging.info(
+                f"Starting full mode (interval={self._config.full_interval}s, "
+                f"filter_prefix={self._config.filter_prefix})"
+            )
+            full_thread = threading.Thread(target=self.run_full_mode, name="ChaosMonkey-Full")
+            full_thread.daemon = False
+            full_thread.start()
+            threads.append(full_thread)
+
+        # Wait for shutdown signal
+        self._shutdown_signal.wait()
+        logging.info("Shutdown signal received, waiting for threads to finish")
+
+        # Wait for threads to complete
+        for thread in threads:
+            thread.join()
+
+        logging.info("All Chaos Monkey threads stopped")
+
+    def run_single_mode(self):
+        """
+        Run single mode: kill one random container per interval.
+
+        The loop sleeps for the configured single interval, checks the shutdown signal,
+        and, if still active, selects and kills a random container (if any are eligible).
+        """
+        logging.info("Single mode thread started")
+
+        while not self._shutdown_signal.wait(timeout=self._config.single_interval):
             try:
                 container = self._select_container_to_kill()
                 if container:
                     self._safe_kill_container(container)
             except Exception:
-                logging.exception("Unhandled error in Chaos Monkey main loop")
+                logging.exception("Unhandled error in single mode loop")
 
-        logging.info("Shutdown signal received, stopping Chaos Monkey loop")
+        logging.info("Single mode thread stopped")
 
-        logging.info("Main loop stopped")
+    def run_full_mode(self):
+        """
+        Run full mode: kill all eligible containers per interval.
+
+        The loop sleeps for the configured full interval, checks the shutdown signal,
+        and, if still active, kills all eligible containers.
+        """
+        logging.info("Full mode thread started")
+
+        while not self._shutdown_signal.wait(timeout=self._config.full_interval):
+            try:
+                self.kill_all_containers()
+            except Exception:
+                logging.exception("Unhandled error in full mode loop")
+
+        logging.info("Full mode thread stopped")
 
     def _select_container_to_kill(self) -> Optional[Container]:
         """
         Select a random container to kill, excluding configured names.
 
         Returns:
-            A randomly selected :class:`Container` instance, or ``None`` if
+            A randomly selected `Container` instance, or ``None`` if
             there are no eligible containers.
         """
-        containers: list[Container] = DockerManager.get_containers()
+        with self._docker_lock:
+            containers: list[Container] = DockerManager.get_containers()
 
-        logging.debug(
-            "Total containers before exclusion filter: %d", len(containers)
-        )
+            logging.debug("Total containers before exclusion filter: %d", len(containers))
 
-        containers_filtered = []
+            containers_filtered = []
 
-        for container in containers:
-            excluded = False
-            for prefix in self._config.containers_excluded:
-                if prefix in container.Names:
-                    excluded = True
-                    break
-            if not excluded:
-                containers_filtered.append(container)
+            for container in containers:
+                excluded = False
+                for prefix in self._config.filter_prefix:
+                    if prefix in container.Names:
+                        excluded = True
+                        break
+                if not excluded:
+                    containers_filtered.append(container)
 
-        logging.debug(
-            "Eligible containers after exclusion filter: %d", len(containers_filtered)
-        )
+            logging.debug("Eligible containers after exclusion filter: %d", len(containers_filtered))
 
-        if containers_filtered:
-            selected = random.choice(containers_filtered)
-            logging.info(f"Container selected for termination: name={selected.Names!r} id={selected.ID!r}")
-            return selected
+            if containers_filtered:
+                selected = random.choice(containers_filtered)
+                logging.info(f"Container selected for termination: name={selected.Names!r} id={selected.ID!r}")
+                return selected
 
-        logging.warning("No eligible containers found to kill")
-        return None
+            logging.warning("No eligible containers found to kill")
+            return None
 
     def kill_containers_by_prefix(self, prefixes: list[str]) -> None:
         """
         Kill all running containers whose name contains any of the given prefixes,
-        excluding those configured in `containers_excluded`.
+        excluding those configured in `filter_prefix`.
         """
         logging.info("!!! Killing containers matching prefixes: %s", ", ".join(prefixes))
 
-        containers: list[Container] = DockerManager.get_containers()
-        killed = 0
+        with self._docker_lock:
+            containers: list[Container] = DockerManager.get_containers()
+            killed = 0
 
-        for container in containers:
-            name = container.Names
+            for container in containers:
+                name = container.Names
 
-            excluded = any(ex_prefix in name for ex_prefix in self._config.containers_excluded)
-            if excluded:
-                continue
+                excluded = any(ex_prefix in name for ex_prefix in self._config.filter_prefix)
+                if excluded:
+                    continue
 
-            matches_prefix = any(prefix in name for prefix in prefixes)
-            if prefixes and not matches_prefix:
-                continue
+                matches_prefix = any(prefix in name for prefix in prefixes)
+                if prefixes and not matches_prefix:
+                    continue
 
-            try:
-                killed = killed + (1 if self._safe_kill_container(container) else 0)
-            except Exception as e:
-                logging.error(f"Failed to kill container {name}: {e}")
+                try:
+                    killed = killed + (1 if self._safe_kill_container(container) else 0)
+                except Exception as e:
+                    logging.error(f"Failed to kill container {name}: {e}")
 
-        logging.info(
-            "Killed %d containers matching prefixes %s",
-            killed,
-            ", ".join(prefixes),
-        )
+            logging.info(
+                "Killed %d containers matching prefixes %s",
+                killed,
+                ", ".join(prefixes),
+            )
 
     def kill_all_containers(self) -> None:
         """
@@ -133,48 +193,46 @@ class ChaosMonkey:
         """
         logging.info("!!! Killing all containers")
 
-        containers: list[Container] = DockerManager.get_containers()
-        killed = 0
+        with self._docker_lock:
+            containers: list[Container] = DockerManager.get_containers()
+            killed = 0
 
-        for container in containers:
-            excluded = any(prefix in container.Names for prefix in self._config.containers_excluded)
-            if not excluded:
-                try:
-                    killed = killed + (1 if self._safe_kill_container(container) else 0)
-                except Exception as e:
-                    logging.error(f"Failed to kill container {container.Names}: {str(e)}")
+            for container in containers:
+                excluded = any(prefix in container.Names for prefix in self._config.filter_prefix)
+                if not excluded:
+                    try:
+                        killed = killed + (1 if self._safe_kill_container(container) else 0)
+                    except Exception as e:
+                        logging.error(f"Failed to kill container {container.Names}: {str(e)}")
 
-        logging.info(f"Killed {killed} containers")
-
+            logging.info(f"Killed {killed} containers")
 
     def _safe_kill_container(self, container: Container) -> bool:
         """
         Safely kill a container after performing necessary validations.
-        
+
         Args:
             container: The container to be killed
-            containers: List of all containers for validation
-            
+
         Returns:
             bool: True if the container was killed, False otherwise
         """
-        if self.HEALTH_PREFIX in container.Names:
-            running_health_checkers = [
-                c for c in DockerManager.get_containers()
-                if self.HEALTH_PREFIX in c.Names 
-                and c.State == 'running'
-            ]
-            
-            if len(running_health_checkers) <= 1:
-                logging.warning(f"Avoid killing last health checker: {container.Names}")
-                return False
+        with self._docker_lock:
+            if self.HEALTH_PREFIX in container.Names:
+                running_health_checkers = [
+                    c for c in DockerManager.get_containers() if self.HEALTH_PREFIX in c.Names and c.State == "running"
+                ]
 
-        self._kill_container(container)
-        return True
+                if len(running_health_checkers) <= 1:
+                    logging.warning(f"Avoid killing last health checker: {container.Names}")
+                    return False
+
+            self._kill_container(container)
+            return True
 
     def _kill_container(self, container: Container) -> None:
         """
-        Kill the given container using the :class:`DockerManager`.
+        Kill the given container using the `DockerManager`.
 
         Args:
             container: Container to be terminated.
