@@ -5,7 +5,6 @@ RUN pip install -r requirements.txt
 
 COPY shared /shared
 COPY client /client
-COPY compose_config.yaml /client/
 
 WORKDIR /client
 ENV PYTHONPATH=/

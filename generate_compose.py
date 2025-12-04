@@ -225,7 +225,11 @@ def generate_compose(config):
     services["gateway"] = {
         "container_name": "gateway",
         "build": {"context": ".", "dockerfile": "./gateway/Dockerfile"},
-        "volumes": ["./gateway:/gateway", "./shared:/shared", "./compose_config.yaml:/gateway/compose_config.yaml"],
+        "volumes": [
+            "./gateway:/gateway",
+            "./shared:/shared",
+            "./compose_config.yaml:/gateway/compose_config.yaml:ro",
+        ],
         "entrypoint": "python main.py",
         "networks": ["coffee"],
         "depends_on": {"rabbitmq": {"condition": "service_healthy"}},
@@ -240,8 +244,12 @@ def generate_compose(config):
             "restart": "on-failure",
             "volumes": ["/var/run/docker.sock:/var/run/docker.sock", "./chaos_monkey:/chaos_monkey"],
             "environment": {
-                "CONTAINERS_EXCLUDED": str(chaos_monkey_config["containers_excluded"]),
-                "KILL_INTERVAL": float(chaos_monkey_config["kill_interval"]),
+                "FILTER_PREFIX": str(chaos_monkey_config["filter_prefix"]),
+                "FULL_ENABLED": str(chaos_monkey_config["full"]["enabled"]),
+                "FULL_INTERVAL": float(chaos_monkey_config["full"]["interval"]),
+                "SINGLE_ENABLED": str(chaos_monkey_config["single"]["enabled"]),
+                "SINGLE_INTERVAL": float(chaos_monkey_config["single"]["interval"]),
+                "START_DELAY": float(chaos_monkey_config.get("start_delay", 0)),
                 "LOGGING_LEVEL": str(chaos_monkey_config["logging_level"]),
             },
             "depends_on": {"gateway": {"condition": "service_started"}},
@@ -292,7 +300,13 @@ def generate_compose(config):
             "networks": ["coffee"],
             "depends_on": ["gateway"],
             "environment": {"LOGGING_LEVEL": "DEBUG"},
-            "volumes": ["./.data/dataset_min:/client/.data", "./.results:/client/.results", "./client:/client", "./shared:/shared"],
+            "volumes": [
+                "./.data/dataset_min:/client/.data",
+                "./.results:/client/.results",
+                "./client:/client",
+                "./shared:/shared",
+                "./compose_config.yaml:/client/compose_config.yaml:ro",
+            ],
             "scale": amount_min,
         }
 
@@ -303,7 +317,13 @@ def generate_compose(config):
             "networks": ["coffee"],
             "depends_on": ["gateway"],
             "environment": {"LOGGING_LEVEL": "DEBUG"},
-            "volumes": ["./.data/dataset_full:/client/.data", "./.results:/client/.results"],
+            "volumes": [
+                "./.data/dataset_full:/client/.data",
+                "./.results:/client/.results",
+                "./client:/client",
+                "./shared:/shared",
+                "./compose_config.yaml:/client/compose_config.yaml:ro",
+            ],
             "scale": int(amount_full),
         }
 

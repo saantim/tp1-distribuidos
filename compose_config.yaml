@@ -4,17 +4,23 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 3
+    min: 10
     full: 0
   chaos_monkey:
     enabled: true
-    containers_excluded: "gateway,chaos_monkey,rabbitmq,client_min,client_full,enrich"
-    kill_interval: 5
+    filter_prefix: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
+    full:
+      enabled: true
+      interval: 60
+    single:
+      enabled: true
+      interval: 5
+    start_delay: 20
     logging_level: DEBUG
   health_checker:
     enabled: true
     replicas: 3
-    check_interval: 10
+    check_interval: 3
     worker:
       port: 9090
       timeout: 15

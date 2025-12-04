@@ -17,10 +17,6 @@ docker-compose-up: clean_res generate-compose
 	docker compose -f docker-compose.yml up -d
 .PHONY: docker-compose-up
 
-docker-compose-rebuild: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d
-.PHONY: docker-compose-rebuild
-
 docker-compose-down:
 	docker compose -f docker-compose.yml down -v
 .PHONY: docker-compose-down
@@ -91,14 +87,12 @@ valid_full:
 	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
 
-test_count_eof:
-	@echo "Contando mensajes 'flush_eof'..."
-	@make logs-qtest | grep -c "flush_eof" | xargs echo "TOTAL flush_eof encontrados:"
-.PHONY: count-flush
-
 kill-containers:
-	docker compose exec chaos_monkey python /chaos_monkey/kill_script.py $(prefixes)
-.PHONY: kill-chaos
+	@ARGS=""; \
+	if [ -n "$(prefixes)" ]; then ARGS="$$ARGS prefixes=$(prefixes)"; fi; \
+	if [ -n "$(loop)" ]; then ARGS="$$ARGS loop=$(loop)"; fi; \
+	docker compose exec chaos_monkey python /chaos_monkey/kill_script.py $$ARGS
+.PHONY: kill-containers
 
 clean_res:
 	ls .results | grep -v '^expected$$' | xargs -I{} rm -rf .results/{}

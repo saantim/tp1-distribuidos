@@ -195,7 +195,7 @@ class SnapshotFileSessionStorage(SessionStorage):
 
         This method scans the base directory for ``*.json`` files,
         assumes each file represents a full session snapshot, and uses
-        :meth:`load_session` to reconstruct them.
+        `load_session` to reconstruct them.
 
         Returns:
             A list of Session instances recovered from disk.
