@@ -253,6 +253,7 @@ class ChaosMonkey:
         """
         health_checkers = [c for c in containers if self.HEALTH_PREFIX in c.Names]
         if health_checkers:
+            random.shuffle(health_checkers)
             spared_container = health_checkers[0]
             logging.info(f"Sparing health checker: {spared_container.Names}")
             return spared_container.ID

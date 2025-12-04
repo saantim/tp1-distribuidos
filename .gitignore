@@ -8,7 +8,7 @@ bin/
 venv/
 
 # Docker
-docker-compose.yaml
+docker-compose.yml
 
 # Jetbrains
 .idea/
@@ -17,7 +17,6 @@ docker-compose.yaml
 .data/
 .results/
 .saved_sessions/
-
-./docker-compose.yml
-
 **/__pycache__
+./client/compose_config.yaml
+./gateway/compose_config.yaml
