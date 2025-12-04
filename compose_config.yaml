@@ -4,14 +4,14 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 0
-    full: 4
+    min: 10
+    full: 0
   chaos_monkey:
     enabled: true
     filter_prefix: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
     full:
       enabled: true
-      interval: 90
+      interval: 60
     single:
       enabled: true
       interval: 5
@@ -19,7 +19,7 @@ settings:
     logging_level: DEBUG
   health_checker:
     enabled: true
-    replicas: 5
+    replicas: 3
     check_interval: 3
     worker:
       port: 9090
