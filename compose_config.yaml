@@ -15,7 +15,7 @@ settings:
     single:
       enabled: true
       interval: 5
-    start_delay: 15
+    start_delay: 20
     logging_level: DEBUG
   health_checker:
     enabled: true

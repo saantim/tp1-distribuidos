@@ -18,5 +18,7 @@ docker-compose.yml
 .results/
 .saved_sessions/
 **/__pycache__
-./client/compose_config.yaml
-./gateway/compose_config.yaml
+
+# Config
+client/compose_config.yaml
+gateway/compose_config.yaml
