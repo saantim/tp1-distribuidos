@@ -337,13 +337,13 @@ def generate_q4(transactions: pd.DataFrame, stores: pd.DataFrame, users: pd.Data
         .rename(columns={"transaction_id": "purchases_qty"})
     )
 
-    # Tomar top 35 por tienda (suficiente para cubrir empates del top 3)
+    # Tomar top 3500 por tienda (suficiente para cubrir empates del top 3)
     q4_top_candidates = (
         q4_groups_with_most_purchases.sort_values(
             by=["store_id", "purchases_qty", "user_id"], ascending=[True, False, True]
         )
         .groupby(["store_id"])
-        .head(35)
+        .head(3500)
     )
 
     q4_most_purchases_with_store = pd.merge(q4_top_candidates, stores_names_only, on="store_id")
@@ -359,13 +359,13 @@ def generate_q4(transactions: pd.DataFrame, stores: pd.DataFrame, users: pd.Data
 
     q4_result = {
         "query": "Q4",
-        "description": "Top 35 customers per store (covers top 3 with ties)",
+        "description": "Top 3500 customers per store (covers top 3 with ties)",
         "results": q4_results,
     }
 
     with open(output_path / "q4.json", "w") as f:
         json.dump(q4_result, f, indent=2)
-    print(f"✓ Q4: {len(q4_results)} customers saved (top 35 per store)")
+    print(f"✓ Q4: {len(q4_results)} customers saved (top 3500 per store)")
 
 
 def main():

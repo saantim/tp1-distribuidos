@@ -17,10 +17,6 @@ docker-compose-up: clean_res generate-compose
 	docker compose -f docker-compose.yml up -d
 .PHONY: docker-compose-up
 
-docker-compose-rebuild: clean_res generate-compose
-	docker compose -f docker-compose.yml up -d
-.PHONY: docker-compose-rebuild
-
 docker-compose-down:
 	docker compose -f docker-compose.yml down -v
 .PHONY: docker-compose-down
@@ -90,11 +86,6 @@ valid_full:
 	if [ -n "$(QUERIES)" ]; then ARGS="$$ARGS --queries $(QUERIES)"; fi; \
 	python3 .kaggle/validation.py $$ARGS
 .PHONY: valid_full
-
-test_count_eof:
-	@echo "Contando mensajes 'flush_eof'..."
-	@make logs-qtest | grep -c "flush_eof" | xargs echo "TOTAL flush_eof encontrados:"
-.PHONY: count-flush
 
 kill-containers:
 	@ARGS=""; \
