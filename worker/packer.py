@@ -6,8 +6,8 @@ import logging
 from dataclasses import dataclass
 from typing import Iterator, List, Optional, Type
 
-from shared.entity import Message
-from shared.protocol import Batch, Header, Packet
+from shared.entity import Message, RawMessage
+from shared.protocol import Batch, Header, Packet, PacketType
 from shared.utils import ByteReader, ByteWriter
 
 
@@ -137,6 +137,11 @@ def unpack_entity_batch(body: bytes, entity_class: Type[Message]) -> Iterator[Me
     Yields:
         Deserialized Message entities
     """
+
+    if entity_class == RawMessage:
+        yield RawMessage(raw_data=body)
+        return
+
     try:
         entity_batch = EntityBatch.deserialize(body)
 
@@ -144,7 +149,7 @@ def unpack_entity_batch(body: bytes, entity_class: Type[Message]) -> Iterator[Me
             yield entity_class.deserialize(entity_bytes)
 
     except Exception as e:
-        logging.error(f"Failed to unpack entity batch: {e}")
+        logging.exception(f"Failed to unpack entity batch: {e}")
         return
 
 
@@ -175,8 +180,6 @@ def is_raw_batch(body: bytes) -> bool:
 
     try:
         header = Header.deserialize(body[: Header.SIZE])
-        from shared.protocol import PacketType
-
         return header.message_type == PacketType.BATCH
     except Exception as e:
         _ = e

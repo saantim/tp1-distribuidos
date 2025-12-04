@@ -117,7 +117,7 @@ class ResultsCollector:
         query_id = packet.query_id
         data = packet.data
 
-        if self._is_eof(data):
+        if EOF.is_type(data):
             self.queries_complete.add(query_id)
             elapsed = time.time() - start_time
             logging.info(
@@ -129,15 +129,3 @@ class ResultsCollector:
 
         self.saver.save_result(query_id, data)
         logging.info(f"action: saved_result | query: {query_id} | size: {len(data)}")
-
-    @staticmethod
-    def _is_eof(data: bytes) -> bool:
-        """
-        check if data represents EOF.
-        """
-        try:
-            EOF.deserialize(data)
-            return True
-        except Exception as e:
-            _ = e
-            return False

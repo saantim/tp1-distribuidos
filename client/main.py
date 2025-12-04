@@ -7,6 +7,7 @@ from pathlib import Path
 
 from processing.analyzer import Analyzer, AnalyzerConfig, FolderConfig
 
+from shared.config_parser import parse_enabled_queries
 from shared.protocol import EntityType
 from shared.shutdown import ShutdownSignal
 
@@ -120,15 +121,21 @@ def main():
             logging.error("action: load_folders | result: no_valid_folders")
             return
 
+        enabled_queries = parse_enabled_queries()
+        if not enabled_queries:
+            logging.warning("No enabled queries found, defaulting to Q1")
+            enabled_queries = ["q1"]
+
         shutdown_signal = ShutdownSignal()
 
         logging.info(
             f"action: start_analysis | folders: {len(folders)} |"
-            f" gateway: {config_params['gateway_host']}:{config_params['gateway_port']}"
+            f" gateway: {config_params['gateway_host']}:{config_params['gateway_port']} |"
+            f" queries: {enabled_queries}"
         )
         logging.getLogger("pika").setLevel(logging.WARNING)
 
-        analyzer = Analyzer(analyzer_config, folders, shutdown_signal)
+        analyzer = Analyzer(analyzer_config, folders, enabled_queries, shutdown_signal)
         analyzer.run()
     except Exception as e:
         logging.error(f"action: analysis | result: fail | error: {e}")

@@ -41,11 +41,18 @@ class Analyzer:
     manages parallel folder processing and result collection.
     """
 
-    def __init__(self, config: AnalyzerConfig, folders: list[FolderConfig], shutdown_signal: ShutdownSignal):
+    def __init__(
+        self,
+        config: AnalyzerConfig,
+        folders: list[FolderConfig],
+        enabled_queries: list[str],
+        shutdown_signal: ShutdownSignal,
+    ):
         self.config = config
         self.folders = folders
+        self.enabled_queries = enabled_queries
         self.shutdown_signal = shutdown_signal
-        self.send_queue = queue.Queue(maxsize=100)
+        self.send_queue = queue.Queue(maxsize=50)
         self.processing_threads = []
 
     def run(self):
@@ -70,7 +77,7 @@ class Analyzer:
             results = ResultsCollector(
                 session.network,
                 self.shutdown_signal,
-                expected_queries={"Q1", "Q2", "Q3", "Q4"},
+                expected_queries={q.upper() for q in self.enabled_queries},
                 results_dir=self.config.results_dir,
                 session_id=session.session_id,
             )

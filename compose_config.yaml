@@ -4,262 +4,286 @@ settings:
     user: "admin"
     password: "admin"
   clients:
-    min: 3
+    min: 10
     full: 0
+  chaos_monkey:
+    enabled: true
+    filter_prefix: "gateway,chaos_monkey,rabbitmq,client_min,client_full"
+    full:
+      enabled: true
+      interval: 60
+    single:
+      enabled: true
+      interval: 5
+    start_delay: 20
+    logging_level: DEBUG
+  health_checker:
+    enabled: true
+    replicas: 3
+    check_interval: 3
+    worker:
+      port: 9090
+      timeout: 15
+      heartbeat_interval: 5
+    peer:
+      port: 9091
+      heartbeat_interval: 2
+      timeout: 4
+    election:
+      timeout: 3
+      coordinator_timeout: 5
 
-# Transformers: parsean los CSVs crudos
 transformers:
   menu_items:
     module: "menu"
     replicas: 1
-    input:
-      queue: "raw_menu_items_batches"
+    input: "raw_menu_items_batches"
     output:
-      exchange: "menu_items_source"
-      strategy: "FANOUT"
-      routing_keys: ["common"]
+      - name: "menu_items_source"
+        routing_fn: "broadcast"
 
   stores:
     module: "store"
     replicas: 1
-    input:
-      queue: "raw_stores_batches"
+    input: "raw_stores_batches"
     output:
-      exchange: "stores_source"
-      strategy: "FANOUT"
-      routing_keys: ["common"]
+      - name: "stores_source"
+        routing_fn: "broadcast"
 
   users:
     module: "user"
-    replicas: 3
-    input:
-      queue: "raw_users_batches"
+    replicas: 5
+    input: "raw_users_batches"
     output:
-      queue: "users_source"
+      - name: "users_source"
+        downstream_stage: "q4_enrich_users"
+        downstream_workers: 5
 
   transactions:
     module: "transaction"
     replicas: 5
-    input:
-      queue: "raw_transactions_batches"
+    input: "raw_transactions_batches"
     output:
-      queue: "transactions_source"
+      - name: "transactions_source"
+        downstream_stage: "q1_filter_year"
+        downstream_workers: 5
 
   transaction_items:
     module: "transaction_item"
-    replicas: 8
-    input:
-      queue: "raw_transaction_items_batches"
+    replicas: 5
+    input: "raw_transaction_items_batches"
     output:
-      queue: "transaction_items_source"
+      - name: "transaction_items_source"
+        downstream_stage: "q2_filter_items"
+        downstream_workers: 5
 
-# Queries del sistema
 queries:
   q1:
-    description: "Filtrar transacciones por año → hora → monto"
+    description: "Filter transactions by year → hour → amount"
     enabled: true
     stages:
       filter_year:
         type: "filter"
         module: "year"
-        replicas: 6
-        input:
-          queue: "transactions_source"
+        replicas: 5
+        input: "transactions_source"
         output:
-          queues: ["q1.filtered_year", "q4.filtered_year"]
+          - name: "q1.filtered_year"
+            downstream_stage: "q1_filter_hour"
+            downstream_workers: 5
+          - name: "q4.filtered_year"
+            downstream_stage: "q4_aggregate_users"
+            downstream_workers: 5
+            routing_fn: "tx_router"
 
       filter_hour:
         type: "filter"
         module: "hour"
-        replicas: 6
-        input:
-          queue: "q1.filtered_year"
+        replicas: 5
+        input: "q1.filtered_year"
         output:
-          queues: ["q1.filtered_hour", "q3.filtered_hour"]
+          - name: "q1.filtered_hour"
+            downstream_stage: "q1_filter_amount"
+            downstream_workers: 5
+          - name: "q3.filtered_hour"
+            downstream_stage: "q3_aggregate_semester"
+            downstream_workers: 5
 
       filter_amount:
         type: "filter"
         module: "amount"
-        replicas: 4
-        input:
-          queue: "q1.filtered_hour"
+        replicas: 5
+        input: "q1.filtered_hour"
         output:
-          queue: "q1.filtered_amount"
+          - name: "q1.filtered_amount"
+            downstream_stage: "q1_sink"
+            downstream_workers: 1
 
       sink:
         type: "sink"
         module: "sink_q1"
         replicas: 1
-        input:
-          queue: "q1.filtered_amount"
+        input: "q1.filtered_amount"
         output:
-          queue: "results_q1"
+          - name: "results"
+            downstream_stage: "q1"
+            downstream_workers: 1
+            routing_fn: "by_stage_name"
 
   q2:
-    description: "Filtrar items → agregar por período → enriquecer con menú"
+    description: "Filter items → aggregate by period → enrich with menu"
     enabled: true
     stages:
       filter_items:
         type: "filter"
         module: "item_year"
         replicas: 5
-        input:
-          queue: "transaction_items_source"
+        input: "transaction_items_source"
         output:
-          queue: "q2.filtered_items"
+          - name: "q2.filtered_items"
+            downstream_stage: "q2_aggregate_period"
+            downstream_workers: 5
 
       aggregate_period:
         type: "aggregator"
         module: "period_agg"
         replicas: 5
-        input:
-          queue: "q2.filtered_items"
+        input: "q2.filtered_items"
         output:
-          queue: "q2.aggregated_period"
+          - name: "q2.aggregated_period"
+            downstream_stage: "q2_merge_period"
+            downstream_workers: 1
 
       merge_period:
         type: "merger"
         module: "period_merge"
         replicas: 1
-        input:
-          queue: "q2.aggregated_period"
+        input: "q2.aggregated_period"
         output:
-          queue: "q2.merged_period"
+          - name: "q2.merged_period"
+            downstream_stage: "q2_enrich_items"
+            downstream_workers: 1
 
       enrich_items:
         type: "enricher"
         module: "item_enricher"
         replicas: 1
-        input:
-          queue: "q2.merged_period"
-        enricher:
-          exchange: "menu_items_source"
-          strategy: "FANOUT"
-          routing_keys: ["common"]
+        input: "q2.merged_period"
+        enricher: "menu_items_source"
         output:
-          queue: "q2.enriched_items"
+          - name: "q2.enriched_items"
+            downstream_stage: "q2_sink"
+            downstream_workers: 1
 
       sink:
         type: "sink"
         module: "sink_q2"
         replicas: 1
-        input:
-          queue: "q2.enriched_items"
+        input: "q2.enriched_items"
         output:
-          queue: "results_q2"
+          - name: "results"
+            downstream_stage: "q2"
+            downstream_workers: 1
+            routing_fn: "by_stage_name"
 
   q3:
-    description: "Agregar por semestre/tienda → enriquecer con datos de tienda"
+    description: "Aggregate by semester/store → enrich with store data"
     enabled: true
     stages:
       aggregate_semester:
         type: "aggregator"
         module: "semester_agg"
-        replicas: 3
-        input:
-          queue: "q3.filtered_hour"
+        replicas: 5
+        input: "q3.filtered_hour"
         output:
-          queue: "q3.aggregated_semester"
+          - name: "q3.aggregated_semester"
+            downstream_stage: "q3_merge_semester"
+            downstream_workers: 1
 
       merge_semester:
         type: "merger"
         module: "semester_merge"
         replicas: 1
-        input:
-          queue: "q3.aggregated_semester"
+        input: "q3.aggregated_semester"
         output:
-          queue: "q3.merged_semester"
+          - name: "q3.merged_semester"
+            downstream_stage: "q3_enrich_stores"
+            downstream_workers: 1
 
       enrich_stores:
         type: "enricher"
         module: "store_enricher"
         replicas: 1
-        input:
-          queue: "q3.merged_semester"
-        enricher:
-          exchange: "stores_source"
-          strategy: "FANOUT"
-          routing_keys: ["common"]
+        input: "q3.merged_semester"
+        enricher: "stores_source"
         output:
-          queue: "q3.enriched_stores"
+          - name: "q3.enriched_stores"
+            downstream_stage: "q3_sink"
+            downstream_workers: 1
 
       sink:
         type: "sink"
         module: "sink_q3"
         replicas: 1
-        input:
-          queue: "q3.enriched_stores"
+        input: "q3.enriched_stores"
         output:
-          queue: "results_q3"
+          - name: "results"
+            downstream_stage: "q3"
+            downstream_workers: 1
+            routing_fn: "by_stage_name"
 
   q4:
-    description: "Rutear → agregar por usuario → enriquecer → merge top-3 → enriquecer con tienda"
+    description: "Route → aggregate by user → enrich → merge top-3 → enrich with store"
     enabled: true
     stages:
-      route_transactions:
-        type: "router"
-        module: "router_transactions_q4"
-        replicas: 3
-        input:
-          queue: "q4.filtered_year"
-        output:
-          exchange: "q4.routed_tx"
-          strategy: "DIRECT"
-          routing_keys_from: "aggregate_users"  # Auto-genera según replicas del stage destino
-
       aggregate_users:
         type: "aggregator"
         module: "user_purchase_aggregator"
         replicas: 5
-        input:
-          exchange: "q4.routed_tx"
-          strategy: "DIRECT"
-          routing_keys_indexed: true
+        input: "q4.filtered_year"
         output:
-          exchange: "q4.aggregated_users"
-          strategy: "FANOUT"
-          routing_keys: ["common"]
+          - name: "q4.aggregated_users"
+            routing_fn: "broadcast"
 
       enrich_users:
         type: "enricher"
         module: "user_enricher"
-        replicas: 3
-        input:
-          queue: "users_source"
-        enricher:
-          exchange: "q4.aggregated_users"
-          strategy: "FANOUT"
-          routing_keys: ["common"]
+        replicas: 5
+        input: "users_source"
+        enricher: "q4.aggregated_users"
         output:
-          queue: "q4.enriched_users"
+          - name: "q4.enriched_users"
+            downstream_stage: "q4_merge_top3"
+            downstream_workers: 1
 
       merge_top3:
         type: "merger"
         module: "top_3"
         replicas: 1
-        input:
-          queue: "q4.enriched_users"
+        input: "q4.enriched_users"
         output:
-          queue: "q4.merged_top3"
+          - name: "q4.merged_top3"
+            downstream_stage: "q4_enrich_stores"
+            downstream_workers: 1
 
       enrich_stores:
         type: "enricher"
         module: "store_enricher_q4"
         replicas: 1
-        input:
-          queue: "q4.merged_top3"
-        enricher:
-          exchange: "stores_source"
-          strategy: "FANOUT"
-          routing_keys: ["common"]
+        input: "q4.merged_top3"
+        enricher: "stores_source"
         output:
-          queue: "q4.enriched_stores"
+          - name: "q4.enriched_stores"
+            downstream_stage: "q4_sink"
+            downstream_workers: 1
 
       sink:
         type: "sink"
         module: "sink_q4"
         replicas: 1
-        input:
-          queue: "q4.enriched_stores"
+        input: "q4.enriched_stores"
         output:
-          queue: "results_q4"
+          - name: "results"
+            downstream_stage: "q4"
+            downstream_workers: 1
+            routing_fn: "by_stage_name"

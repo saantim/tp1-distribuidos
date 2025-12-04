@@ -1,81 +1,74 @@
+import hashlib
 import logging
 import threading
-import time
 import uuid
 from abc import ABC, abstractmethod
-from typing import Type
+from pathlib import Path
+from typing import List, Type
 
-from shared.entity import EOF, Message
-from shared.middleware.interface import MessageMiddleware, MessageMiddlewareExchange
-from shared.protocol import SESSION_ID
+from pydantic import BaseModel
+
+from shared.entity import EOF, Message, WorkerEOF
+from shared.middleware.interface import MessageMiddlewareExchange
+from shared.protocol import MESSAGE_ID, SESSION_ID
 from shared.shutdown import ShutdownSignal
-from worker.packer import unpack_entity_batch
-from worker.types import EOFIntraExchange
+from worker.heartbeat import build_container_name, HeartbeatSender
+from worker.output import WorkerOutput
+from worker.packer import pack_entity_batch, unpack_entity_batch
+from worker.session import Session
+from worker.session_manager import SessionManager
+from worker.session_storage import SessionStorage, SnapshotFileSessionStorage
 
 
 class WorkerBase(ABC):
+    COMMON_ROUTING_KEY = "common"
+
     def __init__(
         self,
         instances: int,
         index: int,
         stage_name: str,
-        source: MessageMiddleware,
-        output: list[MessageMiddleware],
-        intra_exchange: MessageMiddlewareExchange,
+        source: MessageMiddlewareExchange,
+        outputs: List[WorkerOutput]
     ):
         self._stage_name: str = stage_name
         self._instances: int = instances
         self._index: int = index
         self._leader: bool = index == 0
-        self._active_sessions: set[uuid.UUID] = set()
-        self._finished_sessions: set[uuid.UUID] = set()
-        self._eof_collected_by_session: dict[uuid.UUID, set[str]] = {}
-        self._source: MessageMiddleware = source
-        self._output: list[MessageMiddleware] = output
-        self._intra_exchange: MessageMiddlewareExchange = intra_exchange
-        self._session_lock: threading.RLock = threading.RLock()
-        self._data_thread = None
-        self._control_thread = None
+        self._source: MessageMiddlewareExchange = source
+        self._outputs: List[WorkerOutput] = outputs
+        self._upstream_thread = None
         self._shutdown_event = threading.Event()
-
         self._shutdown_handler = ShutdownSignal(self._shutdown)
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format=self.__class__.__name__ + " - %(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+        self._session_manager = SessionManager(
+            stage_name=self._stage_name,
+            on_start_of_session=self._start_of_session,
+            on_end_of_session=self._end_of_session,
+            instances=self._instances,
+            is_leader=self._leader,
+            session_storage=self.create_session_storage()
         )
-        logging.getLogger("pika").setLevel(logging.WARNING)
+        container_name = build_container_name(self._stage_name, self._index, self._instances)
+        self._heartbeat = HeartbeatSender(container_name, self._shutdown_event)
 
     def start(self):
-        self._data_thread = threading.Thread(
+        self._heartbeat.start()
+
+        self._upstream_thread = threading.Thread(
             target=self._source.start_consuming,
             args=[self._on_message_upstream],
             name=f"{self._stage_name}_{self._index}_data_thread",
             daemon=False,
         )
+        self._try_to_load_sessions()
+        self._mark_ready()
+        self._upstream_thread.start()
 
-        self._data_thread.start()
+        if self._leader:
+            logging.info(f"action: thread_start | stage: {self._stage_name} | thread: {self._upstream_thread.name}")
 
-        self._control_thread = threading.Thread(
-            target=self._intra_exchange.start_consuming,
-            args=[self._on_message_intra_exchange],
-            name=f"{self._stage_name}_{self._index}_control_thread",
-            daemon=False,
-        )
-
-        self._control_thread.start()
-
-        logging.info(
-            f"action: threads_start | stage: {self._stage_name} |"
-            f" data_thread: {self._data_thread.name} |"
-            f" control_thread: {self._control_thread.name}"
-        )
-
-        # Wait for shutdown signal
         self._shutdown_event.wait()
 
-        # Perform cleanup
         self._cleanup()
 
         logging.info(f"action: exiting | stage: {self._stage_name}")
@@ -89,120 +82,147 @@ class WorkerBase(ABC):
         """Cleanup method that stops consuming and waits for threads."""
         logging.info(f"action: cleanup_start | stage: {self._stage_name}")
 
+        self._heartbeat.stop()
+
         try:
             self._source.stop_consuming()
-            self._intra_exchange.stop_consuming()
         except Exception as e:
             logging.debug(f"Error stopping consumers: {e}")
 
-        if self._data_thread and self._data_thread.is_alive():
-            self._data_thread.join(timeout=5.0)
-            if self._data_thread.is_alive():
+        if self._upstream_thread and self._upstream_thread.is_alive():
+            self._upstream_thread.join(timeout=5.0)
+            if self._upstream_thread.is_alive():
                 logging.warning(f"action: data_thread_timeout | stage: {self._stage_name}")
-
-        if self._control_thread and self._control_thread.is_alive():
-            self._control_thread.join(timeout=5.0)
-            if self._control_thread.is_alive():
-                logging.warning(f"action: control_thread_timeout | stage: {self._stage_name}")
 
         try:
             self._source.close()
-            self._intra_exchange.close()
         except Exception as e:
             logging.debug(f"Error closing connections: {e}")
 
-        logging.info(f"action: cleanup_complete | stage: {self._stage_name}")
+        logging.info(f"action: cleanup_completed | stage: {self._stage_name}")
 
     def _shutdown(self, _signum: int, _frame):
         """Signal handler for SIGTERM/SIGINT"""
         logging.info(f"action: signal_received | stage: {self._stage_name} | signal: {_signum}")
         self.stop()
 
-    def _handle_eof(self, message: bytes, session_id: uuid.UUID) -> bool:
-        if not EOF.is_type(message):
+    def _handle_eof(self, message: bytes, session: Session) -> bool:
+
+        if not WorkerEOF.is_type(message) and not EOF.is_type(message):
             return False
 
-        logging.info(f"action: receive_EOF | stage: {self._stage_name} | session: {session_id} | from: {self._source}")
-        if session_id not in self._finished_sessions:
-            self._active_sessions.discard(session_id)
-            self._finished_sessions.add(session_id)
-            self._end_of_session(session_id)
-            self._intra_exchange.send(
-                EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex}
+        if WorkerEOF.is_type(message):
+            worker_eof = WorkerEOF.deserialize(message)
+            session.add_eof(worker_eof.worker_id)
+            logging.info(
+                f"action: receive_WorkerEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]} | "
+                f"from: {worker_eof.worker_id} | collected: {session.get_eof_collected()}"
             )
+        else:
+            session.add_eof(str(self._index))
+            logging.info(
+                f"action: receive_UpstreamEOF | stage: {self._stage_name} | session: {session.session_id.hex[:8]}"
+            )
+
+        if self._session_manager.try_to_flush(session):
+            if self._leader:
+                for output in self._outputs:
+                    output.exchange.send(
+                        EOF().serialize(),
+                        routing_key=self.COMMON_ROUTING_KEY,
+                        headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
+                    )
+                    logging.info(f"action: sent_DownstreamEOF | stage: {self._stage_name} | to: {output}")
+            else:
+                leader_routing_key = f"{self._stage_name}_0"
+                worker_eof_bytes = WorkerEOF(worker_id=str(self._index)).serialize()
+                self._source.send(
+                    worker_eof_bytes,
+                    routing_key=leader_routing_key,
+                    headers={SESSION_ID: session.session_id.hex, MESSAGE_ID: uuid.uuid4().hex},
+                )
+                logging.info(f"action: sent_WorkerEOF | stage: {self._stage_name} | to: {leader_routing_key}")
+
         return True
 
     def _on_message_upstream(self, channel, method, properties, body: bytes) -> None:
-        with self._session_lock:
-            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
-
-            if session_id not in self._active_sessions and session_id not in self._finished_sessions:
-                self._active_sessions.add(session_id)
-                self._eof_collected_by_session[session_id] = set()
-                self._start_of_session(session_id)
-
-            try:
-                if not self._handle_eof(body, session_id):
-                    for message in unpack_entity_batch(body, self.get_entity_type()):
-                        self._on_entity_upstream(message, session_id)
+        message_id: str = properties.headers.get(MESSAGE_ID)
+        session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
+        session: Session = self._session_manager.get_or_initialize(session_id)
+        try:
+            if session.is_duplicated_msg(message_id):
                 channel.basic_ack(delivery_tag=method.delivery_tag)
-            except Exception as e:
-                _ = e
-                logging.exception(f"action: batch_process | stage: {self._stage_name}")
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-
-    def _on_message_intra_exchange(self, channel, method, properties, body: bytes) -> None:
-        with self._session_lock:
-            session_id: uuid.UUID = uuid.UUID(hex=properties.headers.get(SESSION_ID))
-
-            if not EOFIntraExchange.is_type(body):
-                channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                logging.warning(f"action: duplicated_msg | id: {message_id}")
                 return
-
-            eof_message: EOFIntraExchange = EOFIntraExchange.deserialize(body)
-            worker_id = eof_message.worker_id
-
-            if self._leader:
-                logging.info(
-                    f"action: got_intra_msg | from_worker: {worker_id} |"
-                    f" stage: {self._stage_name} | session: {session_id}"
-                )
-                self._eof_collected_by_session[session_id].add(worker_id)
-
+            session.add_msg_received(properties.headers.get(MESSAGE_ID))
+            if not self._handle_eof(body, session):
+                for message in unpack_entity_batch(body, self.get_entity_type()):
+                    self._on_entity_upstream(message, session)
+            self._session_manager.save_session(session)
             channel.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            _ = e
+            logging.exception(f"action: batch_process | stage: {self._stage_name}")
 
-            # TODO: si uno de los workers nunca laburo, nunca activa su sesion, por ende no propaga su Intra.
-            #   buscar luego una manera de fixear.
-            if session_id in self._active_sessions:
-                self._finished_sessions.add(session_id)
-                self._active_sessions.discard(session_id)
-                self._end_of_session(session_id)
-                self._intra_exchange.send(
-                    EOFIntraExchange(str(self._index)).serialize(), headers={SESSION_ID: session_id.hex}
+    def _send_message(self, messages: List[Message], session_id: uuid.UUID):
+        """
+        Send messages to all outputs with appropriate routing.
+
+        Args:
+            messages: List of messages to send
+            session_id: Session UUID
+        """
+        if not messages:
+            return
+
+        for output in self._outputs:
+
+            buffers: dict[str, List[Message]] = {}
+
+            for message in messages:
+                message_id = int(hashlib.md5(pack_entity_batch([message])).hexdigest()[:8], 16)
+                routing_key = output.get_routing_key(message, message_id)
+                if routing_key not in buffers:
+                    buffers[routing_key] = []
+                buffers[routing_key].append(message)
+
+            for routing_key, msg_batch in buffers.items():
+                packed = pack_entity_batch(msg_batch)
+                message_id = hashlib.md5(packed).hexdigest()[:8]
+                output.exchange.send(
+                    packed, routing_key=routing_key, headers={SESSION_ID: session_id.hex, MESSAGE_ID: message_id}
                 )
 
-        if self._leader:
-            self._flush_eof_if_possible(session_id)
-
-    def _flush_eof_if_possible(self, session_id: uuid.UUID) -> None:
-        if len(self._eof_collected_by_session[session_id]) == self._instances:
-            for output in self._output:
-                output.send(EOF().serialize(), headers={SESSION_ID: session_id.hex})
-                logging.info(f"action: flush_eof | to: {output} | session: {session_id}")
-            self._eof_collected_by_session.pop(session_id, None)
+    def _try_to_load_sessions(self):
+        self._session_manager.load_sessions()
+        logging.info(f"[SESSION] action: load_sessions | stage: {self._stage_name}")
 
     @abstractmethod
-    def _end_of_session(self, session_id: uuid.UUID):
+    def _end_of_session(self, session: Session):
         pass
 
     @abstractmethod
-    def _start_of_session(self, session_id: uuid.UUID):
+    def _start_of_session(self, session: Session):
         pass
 
     @abstractmethod
-    def _on_entity_upstream(self, message: Message, session_id: uuid.UUID) -> None:
+    def _on_entity_upstream(self, message: Message, session: Session) -> None:
         pass
 
     @abstractmethod
     def get_entity_type(self) -> Type[Message]:
         pass
+
+    def create_session_storage(self) -> SessionStorage:
+        return SnapshotFileSessionStorage()
+
+    def get_session_data_type(self) -> Type[BaseModel]:
+        pass
+
+    def _mark_ready(self):
+        ready_path = Path("/tmp/ready")
+        try:
+            ready_path.touch(exist_ok=True)
+            logging.info(f"[HEALTHCHECK] Worker marked as ready at {ready_path}")
+        except Exception as e:
+            logging.error(f"[HEALTHCHECK] Failed to mark ready: {e}")

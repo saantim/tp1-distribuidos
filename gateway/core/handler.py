@@ -6,12 +6,14 @@ now supports multi-client sessions.
 
 import logging
 import time
+import uuid
 from typing import cast
 from uuid import UUID
 
 from shared.entity import EOF
+from shared.middleware.rabbit_mq import MessageMiddlewareExchangeRMQ
 from shared.network import Network, NetworkError
-from shared.protocol import AckPacket, Batch, ErrorPacket, PacketType, SESSION_ID
+from shared.protocol import AckPacket, Batch, EntityType, ErrorPacket, MESSAGE_ID, PacketType, SESSION_ID
 from shared.shutdown import ShutdownSignal
 
 
@@ -27,6 +29,7 @@ class ClientHandler:
         client_address,
         session_id: UUID,
         publishers: dict,
+        transformer_configs: dict,
         session_manager,
         shutdown_signal: ShutdownSignal,
     ):
@@ -34,6 +37,7 @@ class ClientHandler:
         self.client_address = client_address
         self.session_id = session_id
         self.publishers = publishers
+        self.transformer_configs = transformer_configs
         self.session_manager = session_manager
         self.shutdown_signal = shutdown_signal
 
@@ -44,6 +48,8 @@ class ClientHandler:
         results are handled by separate result collector thread.
         """
         try:
+            # TODO: Mejorar el chequeo de cuando esta listo el pipeline para empezar a aceptar clientes.
+            time.sleep(5)
             if not self._wait_for_session_start():
                 return
 
@@ -63,7 +69,13 @@ class ClientHandler:
             logging.exception(f"action: handle_session | session_id: {self.session_id} | error: {e}")
             self._send_error_packet(500, "internal server error")
         finally:
-            pass
+            # Clean up session if still in UPLOADING state (client disconnected early)
+            from gateway.core.session import SessionState
+
+            session_state = self.session_manager.get_session_state(self.session_id)
+            if session_state == SessionState.UPLOADING:
+                logging.info(f"action: cleanup_incomplete_session | session_id: {self.session_id}")
+                self.session_manager.close_session(self.session_id)
 
     def _wait_for_session_start(self) -> bool:
         """Wait for FileSendStart packet."""
@@ -110,7 +122,17 @@ class ClientHandler:
                     f"action: process_batches | session_id: {self.session_id} | "
                     f"result: session_end | batches: {batch_count} | eofs: {eof_count}"
                 )
+
+                # CRITICAL: Transition state and get buffered results + queries needing EOF
+                buffered, queries_needing_eof = self.session_manager.transition_to_ready_for_results(self.session_id)
+
+                # Send ACK (protocol requires ACK after FILE_SEND_END)
                 self._send_ack_packet()
+
+                # Flush buffered results to client (lock-free)
+                if buffered or queries_needing_eof:
+                    self._flush_buffered_results(buffered, queries_needing_eof)
+
                 break
 
             if packet_type == PacketType.BATCH:
@@ -118,15 +140,24 @@ class ClientHandler:
                 try:
                     publisher = self.publishers.get(batch.entity_type)
                     if not publisher:
-                        logging.error(
+                        logging.debug(
                             f"action: route_batch | session_id: {self.session_id} | "
-                            f"result: no_publisher | entity_type: {batch.entity_type}"
+                            f"result: no_publisher | entity_type: {batch.entity_type.name} | "
+                            f"transformer disabled"
                         )
-                        self._send_error_packet(500, f"no publisher for entity type {batch.entity_type}")
-                        break
+                        continue
+
+                    transformer_config = self.transformer_configs.get(batch.entity_type)
+                    if not transformer_config:
+                        logging.debug(
+                            f"action: route_batch | session_id: {self.session_id} | "
+                            f"result: no_config | entity_type: {batch.entity_type.name} | "
+                            f"transformer disabled"
+                        )
+                        continue
 
                     if batch.eof:
-                        publisher.send(EOF().serialize(), headers=headers)
+                        self._route_batch_packet(EOF().serialize(), publisher, batch.entity_type, headers, eof=True)
                         eof_count += 1
 
                         self.session_manager.track_eof_received(self.session_id, batch.entity_type.name)
@@ -136,7 +167,7 @@ class ClientHandler:
                             f"entity_type: {batch.entity_type.name}"
                         )
                     else:
-                        publisher.send(batch.serialize(), headers=headers)
+                        self._route_batch_packet(batch.serialize(), publisher, batch.entity_type, headers)
                         batch_count += 1
 
                         if batch_count % 100 == 0:
@@ -157,6 +188,20 @@ class ClientHandler:
                 )
                 self._send_error_packet(400, f"unexpected packet type: {packet_type}")
                 break
+
+    def _route_batch_packet(
+        self, batch: bytes, exchange: MessageMiddlewareExchangeRMQ, entity_type: EntityType, headers, eof=False
+    ):
+        batch_id = uuid.uuid4()
+
+        if eof:
+            key = "common"
+        else:
+            config = self.transformer_configs[entity_type]
+            index = batch_id.int % config["replicas"]
+            key = f"{config['downstream_stage']}_{index}"
+
+        exchange.send(batch, key, headers | {MESSAGE_ID: batch_id.hex})
 
     def _send_ack_packet(self):
         """Send ACK packet to client."""
@@ -185,3 +230,35 @@ class ClientHandler:
             self.network.send_packet(error_packet)
         except NetworkError as e:
             logging.error(f"action: send_error | session_id: {self.session_id} | error: {e}")
+
+    def _flush_buffered_results(self, buffered_results, queries_needing_eof):
+        """
+        Flush buffered results to client socket, then send EOF for each query.
+        Called after state transition to READY_FOR_RESULTS.
+
+        Args:
+            buffered_results: List of (query_id, result_body) to send
+            queries_needing_eof: Set of query_ids that need EOF packet sent
+        """
+        from shared.protocol import ResultPacket
+
+        logging.info(
+            f"action: flush_buffered_results | session_id: {self.session_id} | "
+            f"results: {len(buffered_results)} | queries_needing_eof: {queries_needing_eof}"
+        )
+
+        try:
+            # Send all buffered result packets
+            for query_id, result_body in buffered_results:
+                result_packet = ResultPacket(query_id, result_body)
+                self.network.send_packet(result_packet)
+
+            # Send EOF for each query that had buffered results
+            for query_id in queries_needing_eof:
+                eof_packet = ResultPacket(query_id, EOF().serialize())
+                self.network.send_packet(eof_packet)
+                logging.debug(f"action: flush_eof | session_id: {self.session_id} | query: {query_id}")
+
+        except NetworkError as e:
+            logging.error(f"action: flush_error | session_id: {self.session_id} | error: {e}")
+            raise  # Propagate to handle_session error handling
