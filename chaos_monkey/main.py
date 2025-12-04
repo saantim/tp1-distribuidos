@@ -10,15 +10,17 @@ def initialize_log(logging_level):
     Configure the root logger with a consistent format and level.
 
     Args:
-        logging_level: Logging level name (e.g. ``\"DEBUG\"``, ``\"INFO\"``).
+        logging_level: Logging level name (e.g. ``"DEBUG"``, ``"INFO"``).
                        If the value is invalid, it defaults to ``DEBUG``.
     """
     level = getattr(logging, logging_level.upper(), logging.DEBUG)
+
     logging.basicConfig(
         level=level,
-        format="CHAOS_MONKEY - %(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
+        format="%(asctime)s.%(msecs)03d [%(levelname)s] [%(threadName)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
     logging.getLogger(__name__).info("Logging initialized with level '%s'", logging.getLevelName(level))
 
 

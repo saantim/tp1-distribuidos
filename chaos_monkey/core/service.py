@@ -47,7 +47,6 @@ class ChaosMonkey:
             logging.warning("Chaos Monkey enabled but no modes are active. Exiting.")
             return
 
-        # Wait for start_delay before launching threads
         if self._config.start_delay > 0:
             logging.info(f"Waiting {self._config.start_delay} seconds before starting chaos monkey threads")
             if self._shutdown_signal.wait(timeout=self._config.start_delay):
@@ -59,7 +58,7 @@ class ChaosMonkey:
                 f"Starting single mode (interval={self._config.single_interval}s, "
                 f"filter_prefix={self._config.filter_prefix})"
             )
-            single_thread = threading.Thread(target=self.run_single_mode, name="ChaosMonkey-Single")
+            single_thread = threading.Thread(target=self.run_single_mode, name="SINGLE")
             single_thread.daemon = False
             single_thread.start()
             threads.append(single_thread)
@@ -69,16 +68,14 @@ class ChaosMonkey:
                 f"Starting full mode (interval={self._config.full_interval}s, "
                 f"filter_prefix={self._config.filter_prefix})"
             )
-            full_thread = threading.Thread(target=self.run_full_mode, name="ChaosMonkey-Full")
+            full_thread = threading.Thread(target=self.run_full_mode, name="FULL")
             full_thread.daemon = False
             full_thread.start()
             threads.append(full_thread)
 
-        # Wait for shutdown signal
         self._shutdown_signal.wait()
         logging.info("Shutdown signal received, waiting for threads to finish")
 
-        # Wait for threads to complete
         for thread in threads:
             thread.join()
 

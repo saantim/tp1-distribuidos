@@ -183,7 +183,7 @@ services:
     - ./chaos_monkey:/chaos_monkey
     environment:
       FILTER_PREFIX: gateway,chaos_monkey,rabbitmq,client_min,client_full
-      FULL_ENABLED: 'False'
+      FULL_ENABLED: 'True'
       FULL_INTERVAL: 90.0
       SINGLE_ENABLED: 'True'
       SINGLE_INTERVAL: 5.0
