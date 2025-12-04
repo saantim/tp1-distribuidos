@@ -94,7 +94,7 @@ class ChaosMonkey:
             try:
                 container = self._select_container_to_kill()
                 if container:
-                    self._safe_kill_container(container)
+                    self._kill_container(container)
             except Exception:
                 logging.exception("Unhandled error in single mode loop")
 
@@ -132,12 +132,19 @@ class ChaosMonkey:
 
             containers_filtered = []
 
+            spared_id = self._get_spared_health_check_id(containers)
+
             for container in containers:
+
+                if container.ID == spared_id:
+                    continue
+
                 excluded = False
                 for prefix in self._config.filter_prefix:
                     if prefix in container.Names:
                         excluded = True
                         break
+
                 if not excluded:
                     containers_filtered.append(container)
 
@@ -162,7 +169,13 @@ class ChaosMonkey:
             containers: list[Container] = DockerManager.get_containers()
             killed = 0
 
+            spared_id = self._get_spared_health_check_id(containers)
+
             for container in containers:
+
+                if container.ID == spared_id:
+                    continue
+
                 name = container.Names
 
                 excluded = any(ex_prefix in name for ex_prefix in self._config.filter_prefix)
@@ -174,7 +187,8 @@ class ChaosMonkey:
                     continue
 
                 try:
-                    killed = killed + (1 if self._safe_kill_container(container) else 0)
+                    self._kill_container(container)
+                    killed += 1
                 except Exception as e:
                     logging.error(f"Failed to kill container {name}: {e}")
 
@@ -194,38 +208,22 @@ class ChaosMonkey:
             containers: list[Container] = DockerManager.get_containers()
             killed = 0
 
+            spared_id = self._get_spared_health_check_id(containers)
+
             for container in containers:
+
+                if container.ID == spared_id:
+                    continue
+
                 excluded = any(prefix in container.Names for prefix in self._config.filter_prefix)
                 if not excluded:
                     try:
-                        killed = killed + (1 if self._safe_kill_container(container) else 0)
+                        self._kill_container(container)
+                        killed += 1
                     except Exception as e:
                         logging.error(f"Failed to kill container {container.Names}: {str(e)}")
 
             logging.info(f"Killed {killed} containers")
-
-    def _safe_kill_container(self, container: Container) -> bool:
-        """
-        Safely kill a container after performing necessary validations.
-
-        Args:
-            container: The container to be killed
-
-        Returns:
-            bool: True if the container was killed, False otherwise
-        """
-        with self._docker_lock:
-            if self.HEALTH_PREFIX in container.Names:
-                running_health_checkers = [
-                    c for c in DockerManager.get_containers() if self.HEALTH_PREFIX in c.Names and c.State == "running"
-                ]
-
-                if len(running_health_checkers) <= 1:
-                    logging.warning(f"Avoid killing last health checker: {container.Names}")
-                    return False
-
-            self._kill_container(container)
-            return True
 
     def _kill_container(self, container: Container) -> None:
         """
@@ -237,7 +235,25 @@ class ChaosMonkey:
         logging.debug(
             f"Attempting to kill container name={container.Names!r} id={container.ID!r}",
         )
-        DockerManager.kill_container(container)
+        with self._docker_lock:
+            DockerManager.kill_container(container)
         logging.info(
             f"Container name={container.Names!r} id={container.ID!r} stopped successfully",
         )
+
+    def _get_spared_health_check_id(self, containers: list[Container]) -> Optional[str]:
+        """
+        Identify a health checker container to spare from termination.
+
+        Args:
+            containers: List of current containers.
+
+        Returns:
+            The ID of the container to spare, or None if no sparing is needed.
+        """
+        health_checkers = [c for c in containers if self.HEALTH_PREFIX in c.Names]
+        if health_checkers:
+            spared_container = health_checkers[0]
+            logging.info(f"Sparing health checker: {spared_container.Names}")
+            return spared_container.ID
+        return None
